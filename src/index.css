@@ -1,0 +1,397 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ════════════════════════════════════════════════════════════════
+   TOKEN ARCHITECTURE  —  3 layers
+   ────────────────────────────────────────────────────────────────
+   1. PRIMITIVES — raw palette values from Figma. Never used by
+      components directly. Renaming a primitive is a redesign.
+   2. SEMANTIC   — purpose-based aliases (surface, text, border,
+      accent, focus). Components consume these by default.
+   3. COMPONENT  — per-component slots that map onto semantics.
+      Tweak these to retune a single component without touching
+      primitives or other components.
+   ════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    /* ── 1. PRIMITIVES ─────────────────────────────────────── */
+    /* Neutral — compact 50→900 ramp (cool blue-gray). Anchored on the
+       supplied neutrals, shifted one slot lighter so surfaces read softer
+       (#EBEDF2 → 200, #C7CBD1 → 400, #8F96A3 → 500); the rest are
+       extrapolated along the same hue (~218°). #8F96A3 stays at 500 since
+       600 must remain AA-dark for body text.
+       Contrast ratios are vs white. 600+ are AA-safe for body text. */
+    --color-neutral-50:  #fafbfc; /* lightest surface                          */
+    --color-neutral-100: #f4f6f9; /* feed bg                                   */
+    --color-neutral-150: #eff1f5; /* subtle surface                            */
+    --color-neutral-200: #ebedf2; /* light surface                 (supplied)   */
+    --color-neutral-250: #e0e3e9; /* strong surface                            */
+    --color-neutral-300: #d5d9e0; /* default border               (1.27:1)     */
+    --color-neutral-400: #c7cbd1; /* strong border / track  (supplied,1.55:1)  */
+    --color-neutral-500: #8f96a3; /* muted — non-text/icons only  (supplied,2.98:1 ✓) */
+    --color-neutral-600: #6a7180; /* secondary text               (4.90:1 ✓ AA)*/
+    --color-neutral-700: #444a57; /* heavy text                   (8.50:1 ✓)   */
+    --color-neutral-800: #21262f; /* primary text / icon          (14.7:1 ✓)   */
+    --color-neutral-900: #0c0f14; /* near-black (avatars)                      */
+    --color-white: #ffffff;
+    --color-black: #000000;
+
+    /* Base brand — primary violets + secondary accents */
+    --color-ink-purple:   #332e78; /* deep violet (supplied)                   */
+    --color-brand-purple: #6161c7; /* brand violet (supplied)                  */
+    --color-soft-purple:  #b3b3e4; /* light violet tint                        */
+    --color-purple-tint:  #e6e6f6; /* faint violet wash                        */
+    --color-red:    #e36133; /* secondary orange-red (supplied)               */
+    --color-yellow: #f2ba1c; /* secondary yellow (supplied)                   */
+    --color-green:  #128c78; /* secondary teal-green (supplied)               */
+
+    /* Alpha swatches */
+    --color-brand-purple-5:  rgba(97, 97, 199, 0.05);
+    --color-brand-purple-10: rgba(97, 97, 199, 0.10);
+    --color-brand-purple-25: rgba(97, 97, 199, 0.25);
+    --color-brand-purple-50: rgba(97, 97, 199, 0.50);
+    --color-brand-purple-75: rgba(97, 97, 199, 0.75);
+    --color-ink-purple-4:    rgba(51, 46, 120, 0.04);
+    --color-ink-purple-6:    rgba(51, 46, 120, 0.06);
+    --color-ink-purple-10:   rgba(51, 46, 120, 0.10);
+    --color-red-10:   rgba(227, 97, 51, 0.10);
+    --color-red-25:   rgba(227, 97, 51, 0.25);
+    --color-green-10: rgba(18, 140, 120, 0.10);
+    --color-green-25: rgba(18, 140, 120, 0.25);
+
+    /* ── 2. SEMANTIC ───────────────────────────────────────── */
+    /* Surfaces */
+    --surface-page:           var(--color-neutral-50);
+    --surface-raised:         var(--color-white);
+    --surface-subtle:         var(--color-neutral-150);
+    --surface-strong:         var(--color-neutral-250);
+
+    /* Text  (contrast ratios on white) */
+    --text-primary:    var(--color-neutral-800); /* 15.9:1 ✓ AAA */
+    --text-secondary:  var(--color-neutral-600); /* 4.83:1 ✓ AA  */
+    --text-tertiary:   var(--color-neutral-500); /* 2.99:1 — fails AA as body text; non-text / large only */
+    --text-inverse:    var(--color-white);
+    --text-accent:     var(--color-brand-purple);
+    --text-on-accent:  var(--color-white);
+
+    /* Icon (looser threshold via WCAG 1.4.11 = 3:1) */
+    --icon-primary:    var(--color-neutral-800);
+    --icon-secondary:  var(--color-neutral-600);
+    --icon-tertiary:   var(--color-neutral-500);
+
+    /* Border — kept at neutral-300/400 so they hold their weight while the
+       surface steps above them lighten. */
+    --border-default:  var(--color-neutral-300);
+    --border-strong:   var(--color-neutral-400);
+    --border-accent:   var(--color-brand-purple);
+
+    /* Accent / state */
+    --accent-default:  var(--color-brand-purple);
+    --accent-hover:    #5252a9;
+    --accent-soft:     var(--color-brand-purple-10);
+
+    /* Status — success / danger ink + soft washes (helper text, menu
+       items like Report, the "Majority" tag) */
+    --status-success:      var(--color-green);
+    --status-success-soft: var(--color-green-10);
+    --status-danger:       var(--color-red);
+    --status-danger-soft:  var(--color-red-10);
+
+    --focus-ring:      var(--color-brand-purple);
+
+    /* ── 3. COMPONENT ──────────────────────────────────────── */
+    /* Buttons — primary matches the text ink (neutral-800), so it reads as
+       the same "black" as the type around it; violet stays for accents */
+    --btn-primary-bg:       var(--color-neutral-800);
+    --btn-primary-bg-hover: var(--color-neutral-700);
+    --btn-primary-fg:       var(--text-inverse);
+    --btn-secondary-bg:     var(--surface-raised);
+    --btn-secondary-bg-hover: var(--surface-subtle);
+    --btn-secondary-fg:     var(--text-primary);
+    --btn-secondary-border: var(--border-default);
+
+    /* Top navigation */
+    --topnav-link-active:   var(--text-primary);
+    --topnav-link-inactive: var(--text-secondary);
+    --topnav-indicator:     var(--border-accent);
+
+    /* Bottom tab bar — wider gap between states for clarity */
+    --tabbar-active-label:    var(--text-primary);     /* 16:1 */
+    --tabbar-active-icon:     var(--icon-primary);     /* 16:1 */
+    --tabbar-inactive-label:  var(--text-secondary);  /* #6a7180, 4.90:1 ✓ AA */
+    --tabbar-inactive-icon:   var(--icon-secondary);  /* #6a7180, 4.90:1 ✓ AA */
+    --tabbar-indicator:       var(--accent-default);
+
+    /* Poll card */
+    --card-bg:           var(--surface-raised);
+    --card-border:       var(--border-default);
+    --card-question-bg:  var(--surface-page);
+    --card-question-bar: var(--border-accent);
+    --card-tag-bg:       var(--surface-subtle);
+    /* Option tiles + result bars sit over photos, so they get their own
+       slot instead of borrowing a raw neutral. */
+    --option-bg:         var(--color-neutral-200);
+
+    /* Topic chip */
+    --chip-bg:                var(--surface-subtle);
+    --chip-bg-active:         var(--surface-raised);
+    --chip-border-active:     var(--border-accent);
+    --chip-icon-bg:           var(--accent-soft);
+    --chip-icon-fg:           var(--accent-default);
+
+    /* Pagination */
+    --pagination-track:   var(--border-strong);
+    --pagination-fill:    var(--accent-default);
+
+    /* Profile placeholder */
+    --avatar-bg: var(--color-neutral-900);
+    --avatar-bg-success: #16ac93;          /* poppy green (brightened secondary teal-green) */
+    --avatar-bg-alert:   var(--color-red); /* #e36133 secondary orange-red */
+
+    /* Page chrome */
+    --page-bg-feed: var(--color-neutral-150);
+
+    /* Category tab chip */
+    --tabchip-bg:           var(--color-neutral-300);
+    --tabchip-bg-active:    var(--surface-raised);
+    --tabchip-fg:           var(--text-primary);
+    --tabchip-icon-active:  var(--accent-default);
+    --tabchip-icon-bg:      var(--color-purple-tint);
+
+    /* ── Elevation (replaces borders) ──────────────────────── */
+    --shadow-sm: 0 1px 2px rgba(33, 38, 47, 0.04);
+    --shadow-md: 0 4px 16px rgba(33, 38, 47, 0.06), 0 1px 2px rgba(33, 38, 47, 0.04);
+    --shadow-lg: 0 12px 32px rgba(33, 38, 47, 0.08), 0 2px 6px rgba(33, 38, 47, 0.04);
+    --shadow-pop: 0 8px 10px rgba(33, 38, 47, 0.18);
+
+    /* ── Radius ────────────────────────────────────────────── */
+    --radius-sm:  6px;  /* nested hover rows inside cards */
+    --radius-md:  8px;  /* shared control radius: chips, buttons, option cards */
+    --radius-card: 12px; /* container radius: page-level cards (feed, side boxes) */
+    --radius-lg:  20px;
+    --radius-xl:  28px;
+    --radius-2xl: 36px;
+    --radius-pill: 9999px;
+
+    /* shadcn (HSL) — only used by Button via Tailwind */
+    --background: 216 20% 99%;
+    --foreground: 218 18% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 218 18% 16%;
+    --muted: 218 24% 97%;
+    --muted-foreground: 221 9% 46%;
+    --border: 220 16% 86%;
+    --input: 220 16% 86%;
+    --primary: 240 48% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 216 20% 99%;
+    --secondary-foreground: 218 18% 16%;
+    --accent: 240 48% 58%;
+    --accent-foreground: 0 0% 100%;
+    --ring: 240 48% 58%;
+    --radius: 0.375rem;
+  }
+
+  /* ── DARK THEME ─────────────────────────────────────────────
+     Only the semantic + component layers flip; primitives stay put.
+     The ramp keeps the light theme's cool ~218° hue, run in reverse:
+     page sits darkest, raised surfaces step lighter (nearer the eye),
+     and the accent brightens one step so it holds contrast on dark. */
+  .dark {
+    /* Surfaces — page < raised < subtle < strong */
+    --surface-page:    #14171e;
+    --surface-raised:  #1b1f28;
+    --surface-subtle:  #242a35;
+    --surface-strong:  #2e3543;
+
+    /* Text (contrast vs #1b1f28 card): primary 14.6:1, secondary 7.4:1,
+       tertiary 4.6:1 — every functional label clears AA in the dark. */
+    --text-primary:    #edeff4;
+    --text-secondary:  #a3acbc;
+    --text-tertiary:   #7e8798;
+    --text-inverse:    #14171e;   /* on light-ink fills (primary button) */
+    --text-accent:     #9c9ce8;
+
+    --icon-primary:    #edeff4;
+    --icon-secondary:  #a3acbc;
+    --icon-tertiary:   #7e8798;
+
+    --border-default:  #2f3645;
+    --border-strong:   #3d4555;
+    --border-accent:   #8585dd;
+
+    /* Accent brightens a step (#6161c7 → #8585dd) for dark contrast */
+    --accent-default:  #8585dd;
+    --accent-hover:    #9b9be6;
+    --accent-soft:     rgba(133, 133, 221, 0.16);
+
+    --status-success:      #2fbda4;
+    --status-success-soft: rgba(47, 189, 164, 0.14);
+    --status-danger:       #f07a4e;
+    --status-danger-soft:  rgba(240, 122, 78, 0.14);
+
+    /* The brightened accent (#8585dd) fails AA with white text (3.3:1),
+       so accent fills carry dark ink in dark mode (5.1:1). */
+    --text-on-accent:  #14171e;
+
+    --focus-ring:      #8585dd;
+
+    /* Buttons — "brand black" is the text ink, so in dark the primary
+       button inverts to light ink on dark text, like Threads. */
+    --btn-primary-bg:        #edeff4;
+    --btn-primary-bg-hover:  #d7dbe3;
+    --btn-primary-fg:        #14171e;
+    --btn-secondary-bg:      var(--surface-raised);
+    --btn-secondary-bg-hover: var(--surface-subtle);
+    --btn-secondary-fg:      var(--text-primary);
+    --btn-secondary-border:  var(--border-default);
+
+    /* Component slots that referenced raw neutrals re-anchor here */
+    --card-bg:           var(--surface-raised);
+    --card-question-bg:  #161a22;
+    --card-tag-bg:       var(--surface-subtle);
+    --option-bg:         #2a3140;
+
+    --chip-bg:           var(--surface-subtle);
+    --chip-bg-active:    var(--surface-raised);
+    --chip-icon-bg:      var(--accent-soft);
+    --chip-icon-fg:      var(--accent-default);
+
+    --tabchip-bg:        var(--surface-strong);
+    --tabchip-bg-active: var(--surface-raised);
+    --tabchip-icon-bg:   rgba(133, 133, 221, 0.2);
+
+    --pagination-track:  var(--border-strong);
+
+    --avatar-bg:         #d5d9e0;
+    --avatar-bg-success: #16ac93;
+
+    --page-bg-feed:      #14171e;
+
+    /* Elevation — shadows deepen; borders carry most of the separation */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --shadow-pop: 0 8px 10px rgba(0, 0, 0, 0.5);
+
+    /* shadcn HSL slots (Button) */
+    --background: 219 20% 10%;
+    --foreground: 222 17% 95%;
+    --card: 219 19% 13%;
+    --card-foreground: 222 17% 95%;
+    --muted: 219 19% 17%;
+    --muted-foreground: 218 12% 65%;
+    --border: 219 19% 23%;
+    --input: 219 19% 23%;
+    --primary: 240 55% 69%;
+    --ring: 240 55% 69%;
+
+    color-scheme: dark;
+  }
+
+  html, body, #root { height: 100%; }
+  /* The app is a viewport-locked shell (every page scrolls inside its own
+     column), so the window itself must never scroll — clip guards against
+     any stray box extending the document. */
+  html { overflow: clip; }
+  body {
+    @apply bg-surface-page text-text-primary font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  :where(a, button, [role="button"], [tabindex]):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Form fields set outline-none for their resting style, so give keyboard
+     focus its own visible treatment. */
+  :where(input, select, textarea):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  .material-symbols-outlined {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    display: inline-block;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+    -webkit-font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+    font-size: inherit;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .sr-only-focusable:focus,
+  .sr-only-focusable:focus-visible {
+    position: fixed; top: 0.5rem; left: 0.5rem;
+    width: auto; height: auto; padding: 0.5rem 0.75rem; margin: 0;
+    overflow: visible; clip: auto; white-space: normal;
+    background: var(--surface-raised); color: var(--text-primary);
+    border: 1px solid var(--border-default); border-radius: 6px; z-index: 100;
+  }
+}
+
+/* ── Vote radio animations ─────────────────────────────────────── */
+/* Sonar ping: rings expand from the centre and fade, staggered for a
+   continuous radar sweep. Kept low-opacity so the purple stays subtle. */
+/* Peaks at 0.25 so the resting radio never reads as a selected state —
+   it's an invite, not a checkmark. */
+@keyframes radio-ping {
+  0%   { transform: scale(0); opacity: 0.25; }
+  100% { transform: scale(1); opacity: 0;    }
+}
+@keyframes radio-pop {
+  0%   { transform: scale(0);    opacity: 0; }
+  60%  { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1);                }
+}
+@keyframes radio-select {
+  0%   { transform: scale(0.8);  }
+  50%  { transform: scale(1.12); }
+  100% { transform: scale(1);    }
+}
+
+/* Quick side-to-side nudge for the character ring when the budget is
+   spent — typed at the limit, the counter wags "no". */
+@keyframes char-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+@layer utilities {
+  .radio-ping   { animation: radio-ping 2.64s ease-out infinite; }
+  .radio-pop    { animation: radio-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .radio-select { animation: radio-select 320ms ease-out; }
+  .char-shake   { animation: char-shake 280ms ease-in-out; }
+
+  /* Purple vignette over a poll option's photo — a "pick me" hover cue,
+     like a low-health throb. Hover drives its opacity. */
+  .option-glow {
+    background: radial-gradient(
+      ellipse at center,
+      transparent 42%,
+      var(--color-brand-purple-50) 100%
+    );
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .radio-ping, .radio-pop, .radio-select, .char-shake { animation: none; }
+  }
+}

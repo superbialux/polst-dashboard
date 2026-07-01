@@ -1,0 +1,146 @@
+import { useEffect, useRef, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { Icon } from "./Icon";
+
+type ModalProps = {
+  open: boolean;
+  onClose: () => void;
+  /** Accessible dialog name (also the visible title when `title` is set). */
+  label: string;
+  /** Visible header title; omit for dialogs that carry their own heading. */
+  title?: string;
+  /** Below lg the panel fills the screen (creation flows); centered card otherwise. */
+  sheetOnMobile?: boolean;
+  /** Pinned action row rendered outside the scroll area. */
+  footer?: ReactNode;
+  className?: string;
+  children: ReactNode;
+};
+
+/** Keep Tab cycling inside the dialog while it's open. */
+function trapFocus(panel: HTMLElement, e: KeyboardEvent) {
+  if (e.key !== "Tab") return;
+  const focusables = panel.querySelectorAll<HTMLElement>(
+    'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
+  );
+  if (focusables.length === 0) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey && (active === first || !panel.contains(active))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+/** Centered dialog over a dimmed backdrop. Stays mounted for the fade,
+ *  inert while closed; Escape and the backdrop close it; focus is trapped
+ *  inside and handed back to the opener on close. */
+export function Modal({
+  open,
+  onClose,
+  label,
+  title,
+  sheetOnMobile = false,
+  footer,
+  className,
+  children,
+}: ModalProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (rootRef.current) rootRef.current.inert = !open;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    returnFocusRef.current = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (panelRef.current) trapFocus(panelRef.current, e);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", onKey);
+      returnFocusRef.current?.focus?.();
+    };
+  }, [open, onClose]);
+
+  return (
+    <div
+      ref={rootRef}
+      aria-hidden={!open}
+      className={cn(
+        "fixed inset-0 z-50 grid place-items-center transition-opacity duration-200",
+        open ? "opacity-100" : "pointer-events-none opacity-0",
+        sheetOnMobile ? "p-0 lg:p-4" : "p-4",
+      )}
+    >
+      <button
+        tabIndex={-1}
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/50 backdrop-blur-[2px] dark:bg-black/65"
+      />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        className={cn(
+          "relative flex max-h-full w-full flex-col overflow-hidden bg-surface-raised shadow-lg transition-transform duration-200",
+          open ? "scale-100" : "scale-[0.98]",
+          sheetOnMobile
+            ? "h-full max-w-none rounded-none pt-[env(safe-area-inset-top)] lg:h-auto lg:max-w-md lg:rounded-card lg:border lg:border-border-default lg:pt-0"
+            : "max-w-md rounded-card border border-border-default",
+          className,
+        )}
+      >
+        <div
+          className={cn(
+            "flex shrink-0 items-center px-4",
+            title
+              ? "justify-between border-b border-border-default py-2.5"
+              : "justify-end pt-3",
+          )}
+        >
+          {title && (
+            <h2 className="font-display text-base font-bold leading-6 text-text-primary">
+              {title}
+            </h2>
+          )}
+          <button
+            ref={closeRef}
+            onClick={onClose}
+            aria-label="Close"
+            className="-mr-1.5 grid h-10 w-10 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle"
+          >
+            <Icon name="close" size={22} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+
+        {footer && (
+          <div
+            className={cn(
+              "shrink-0 border-t border-border-default",
+              sheetOnMobile && "pb-[env(safe-area-inset-bottom)] lg:pb-0",
+            )}
+          >
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

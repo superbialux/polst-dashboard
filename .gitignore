@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+*.log
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# WSL alternate-data-stream metadata
+*:Zone.Identifier
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Local preview / debug screenshots (generated during review)
+/polst-*.png
+/ab-*.png
+/nav-*.png
+/search-*.png
+/scroll-*.png
+/bell-*.png
+/poppy.png
+
+# Audit pipeline artifacts
+/audit/
+*.jpeg
