@@ -171,8 +171,6 @@ export function PolstsPage() {
 
   return (
     <DashboardPage
-      title="Standalone Polsts"
-      description="One-off Polsts that run outside a campaign. Campaign Polsts are managed inside their campaign."
       updated="2 min ago"
       actions={
         <Button asChild>
@@ -236,12 +234,6 @@ export function PolstDetailPage() {
 
   return (
     <DashboardPage
-      eyebrow={
-        <Link to="/polsts" className="hover:text-text-primary">
-          Standalone Polsts
-        </Link>
-      }
-      title={polst.question}
       updated="2 min ago"
       actions={
         <>
@@ -370,15 +362,6 @@ export function CreatePolstPage() {
 
   return (
     <DashboardPage
-      eyebrow={
-        <span>
-          <Link to="/polsts" className="hover:text-text-primary">
-            Standalone Polsts
-          </Link>{" "}
-          / Create single Polst
-        </span>
-      }
-      title="Create single Polst"
       actions={
         <>
           <SavedChip />

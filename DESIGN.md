@@ -363,12 +363,13 @@ container — no per-page widths — and lays out on the 12-column `SectionGrid`
 at 16px gutters; the shell's `main` carries the page padding
 (`px-8 pt-6 pb-10` at desktop).
 
-- **Header** — `h-16` (64px), sticky, a hairline `border-b` on a translucent
-  canvas wash (`bg-app-content/85` + `backdrop-blur`, the one allowed blur —
-  it's a sticky surface). Left: a compact **search field** (`h-9`,
-  `max-w-xs`, raised + bordered, ⌘K hint) that opens the command palette.
+- **Header** — `h-12` (48px), sticky, **white** (`surface-raised`) with a
+  hairline `border-b`. Left: **breadcrumbs** — the route resolved to named
+  crumbs (ids become object names: "Campaigns › Packaging Direction Test"),
+  quiet parents as links, the current page in primary ink. There is no
+  visible search field; the **⌘K command palette** carries all search.
   Right, `ml-auto`: the **primary Create button** (labeled, with menu), a
-  quiet 36×36 bell, and the **account chip** (bordered, monogram + brand
+  quiet 32×32 bell, and the **account chip** (bordered, monogram + brand
   name + chevron). Below `lg` the wordmark rides the header since the rail
   is hidden.
 - **Notifications** — a Shopify-style panel (see `alerts.png`): a titled header
@@ -378,18 +379,16 @@ at 16px gutters; the shell's `main` carries the page padding
 - **Account switcher** — even parent padding (`p-1.5`) so every row (workspaces,
   the signed-in person, Log out) shares the same inset — nothing sits flush to
   the edge. Workspaces are `menuitem`s so focus opens on the current one.
-- **Sidebar** — the dark rail: fixed `inset-y-0`, `w-64`, **collapsible to an
-  80px icon rail** (labels drop, `title` tooltips carry the names). Top: the
-  brand block (violet logo tile + inverted wordmark), then a quiet Collapse
-  control. Nav rides in **groups**: the daily work (Home, Campaigns, Polsts,
+- **Sidebar** — the dark rail: fixed `inset-y-0`, `w-64`, no collapse. Top:
+  the **wordmark alone**, inverted and generously sized (`h-8`) — no logo
+  tile. Nav rides in **groups**: the daily work (Home, Campaigns, Polsts,
   Distribution), a labeled **LEARN** band (Analytics, Audience), and — pinned
   at the foot — Settings plus the **signed-in user card** (violet initials
   disc, name, role, on a `sidenav-hover` panel). Rows are **14px medium**,
   `h-9`, `rounded-md`: inactive `sidenav-muted`, hover a soft
   `sidenav-hover` wash, active a **`sidenav-active` panel in white ink**
   with the glyph filled (Material Symbols `FILL 1`). Analytics' children
-  indent under the active parent (hidden while collapsed). Statuses are
-  **never** nav.
+  indent under the active parent. Statuses are **never** nav.
 - **Canvas** — the page scrolls as a page (document scroll, no inner
   scroller, no rounded border frame). White cards lift straight off the
   `app-content` canvas. `body` matches the canvas so overscroll never
@@ -414,8 +413,9 @@ at 16px gutters; the shell's `main` carries the page padding
 Borrowed from the reference shell — larger, calmer headings; weight stays
 at 500–650, never bold-black:
 
-- **Page title** — `text-2xl lg:text-3xl font-semibold tracking-tight`
-  (24 → 30px). **Page subtitle** — `text-base` (16px) secondary.
+- **Pages carry no title or description.** The header breadcrumbs name
+  where you are; content does the explaining. A slim top row holds the
+  freshness stamp (left) and page actions (right) when a page has them.
 - **Card / section title** — `text-base font-semibold` (16px).
 - **Metric value** — `text-2xl font-semibold tracking-tight tabular-nums`
   (24px) on tiles and the stat strip alike.
@@ -482,11 +482,12 @@ string and get the right treatment for free.
 Every screen is composed from this fixed set — extend by **prop**, never by
 fork. New surface area should feel assembled, not authored:
 
-- **`DashboardShell`** — the frame above. **`DashboardPage`** — the page header
-  (eyebrow, title, description, actions) + the one centered 1152px column
-  (the shell supplies the outer padding).
-  Pass `updated` ("2 min ago") and every page states its data recency next to
-  the title — numbers without a freshness stamp are rumors.
+- **`DashboardShell`** — the frame above. **`DashboardPage`** — the one
+  centered 1152px column (the shell supplies the outer padding), topped by a
+  slim optional row: `updated` freshness left, `actions` right. No titles,
+  no descriptions — the header breadcrumbs own page identity.
+  Pass `updated` ("2 min ago") and every page states its data recency —
+  numbers without a freshness stamp are rumors.
 - **`DecisionBrief`** — the **Decision Narrative** as one reusable object:
   `SignalBadge` + updated stamp → a 20px headline (the call) → what changed
   and why → an amber **caveat** line → an **evidence strip** (label/value

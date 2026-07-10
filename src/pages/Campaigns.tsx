@@ -115,7 +115,6 @@ export function CampaignsPage() {
 
   return (
     <DashboardPage
-      title="Campaigns"
       actions={
         <Button asChild>
           <Link to="/campaigns/new">Create campaign</Link>
@@ -171,13 +170,6 @@ export function CampaignDetailPage() {
 
   return (
     <DashboardPage
-      eyebrow={
-        <Link to="/campaigns" className="hover:text-text-primary">
-          Campaigns
-        </Link>
-      }
-      title={campaign.name}
-      description={campaign.decision}
       updated="2 min ago"
       actions={
         <Button onClick={() => setActive(campaign.responses > 0 ? "Insights" : "Distribution")}>
@@ -912,15 +904,6 @@ export function CreateCampaignPage() {
 
   return (
     <DashboardPage
-      eyebrow={
-        <span>
-          <Link to="/campaigns" className="hover:text-text-primary">
-            Campaigns
-          </Link>{" "}
-          / Create campaign
-        </span>
-      }
-      title="Create campaign"
       actions={
         <>
           <SavedChip />

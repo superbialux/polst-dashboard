@@ -290,8 +290,6 @@ export function DistributionPage() {
 
   return (
     <DashboardPage
-      title="Distribution"
-      description="Channels are your reusable connections — website, email, Instagram, QR, creators. Sources are the tracked instances of a channel that feed a specific campaign or Polst."
       updated="2 min ago"
       actions={
         <>
@@ -628,12 +626,6 @@ export function ChannelDetailPage() {
   const sources = DISTRIBUTION_SOURCES.filter((s) => s.channel === channel.name);
   return (
     <DashboardPage
-      eyebrow={
-        <Link to="/distribution" className="hover:text-text-primary">
-          Distribution
-        </Link>
-      }
-      title={channel.name}
       actions={<Button variant="secondary">Create source</Button>}
     >
       <SectionGrid>
@@ -747,12 +739,6 @@ export function CreatorDetailPage() {
   const benchmark = TIER_BENCHMARKS.find((t) => t.tier === creator.tier);
   return (
     <DashboardPage
-      eyebrow={
-        <Link to="/distribution" className="hover:text-text-primary">
-          Distribution
-        </Link>
-      }
-      title={creator.name}
       actions={
         <Button
           variant="secondary"

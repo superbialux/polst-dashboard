@@ -508,7 +508,7 @@ export function SettingsPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [section, setSection] = useState<SettingsSection>("Workspace");
   return (
-    <DashboardPage title="Settings">
+    <DashboardPage>
       <SectionGrid>
         {/* Local settings navigation — settings are a map, not one scroll. */}
         <nav aria-label="Settings sections" className="self-start lg:sticky lg:top-16 lg:col-span-3">
@@ -596,8 +596,6 @@ function ModulesCard() {
 export function NotFoundPage() {
   return (
     <DashboardPage
-      title="Page not found"
-      description="This route is not part of the V1 dashboard map."
       actions={
         <Button asChild>
           <a href="/">Back to Home</a>

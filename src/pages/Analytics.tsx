@@ -203,9 +203,6 @@ export function AnalyticsOverviewPage() {
   );
   return (
     <DashboardPage
-      eyebrow="Analytics"
-      title="Overview"
-      description="What the whole workspace is learning — per-campaign decisions live on each campaign."
       updated="2 min ago"
       actions={<ExportMenu />}
     >
@@ -421,8 +418,6 @@ function FindingCard({ finding }: { finding: Finding }) {
 export function AnalyticsAcquisitionPage() {
   return (
     <DashboardPage
-      eyebrow="Analytics"
-      title="Acquisition"
       actions={<ExportMenu />}
     >
       <FilterBar channels={CHANNEL_NAMES} verticals={VERTICALS} />
@@ -524,8 +519,6 @@ function ChurnRow({ risk }: { risk: ChurnRisk }) {
 export function AnalyticsRetentionPage() {
   return (
     <DashboardPage
-      eyebrow="Analytics"
-      title="Retention"
       actions={<ExportMenu />}
     >
       <FilterBar channels={CHANNEL_NAMES} verticals={VERTICALS} />
@@ -608,8 +601,6 @@ export function AnalyticsInsightsPage() {
   const withSignal = CAMPAIGNS.filter((c) => c.responses > 0);
   return (
     <DashboardPage
-      eyebrow="Analytics"
-      title="Insights"
     >
       <SectionGrid>
         {INSIGHTS.map((insight) => (
@@ -681,8 +672,6 @@ const reportColumns: Array<DataColumn<Report>> = [
 export function AnalyticsReportsPage() {
   return (
     <DashboardPage
-      eyebrow="Analytics"
-      title="Reports"
       actions={<ExportMenu />}
     >
       <SectionGrid>

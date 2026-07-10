@@ -176,7 +176,6 @@ function SectionHeading({ title }: { title: string }) {
 }
 
 export function HomePage() {
-  const firstName = WORKSPACE.owner.split(" ")[0];
   const [range, setRange] = useState<StatRange>("30D");
   const [campaignFilter, setCampaignFilter] = useState<ListFilter>("Active");
   const [polstFilter, setPolstFilter] = useState<ListFilter>("Active");
@@ -187,18 +186,13 @@ export function HomePage() {
   return (
     // One narrow reading column for the whole page (the shell owns padding)
     <div className="mx-auto max-w-dashboard space-y-6">
-        {/* Compact header — a small salutation, the data contract beside it.
-            The strongest position on the page belongs to the briefing below. */}
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 className="font-display text-2xl font-semibold leading-8 tracking-tight text-text-primary lg:text-3xl lg:leading-9">
-              Good afternoon, {firstName}
-            </h1>
-            <span className="flex items-center gap-1 text-xs text-text-tertiary">
-              <Icon name="sync" size={14} />
-              Updated 2 min ago
-            </span>
-          </div>
+        {/* No page title — breadcrumbs name the page; just the data
+            contract on the left and the one page-level action right. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="flex items-center gap-1 text-xs text-text-tertiary">
+            <Icon name="sync" size={14} />
+            Updated 2 min ago
+          </span>
           <Button variant="secondary" size="sm" asChild>
             <Link to="/analytics">
               View analytics

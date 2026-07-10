@@ -4,11 +4,13 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
-import { PolstSymbol, PolstWordmark } from "@/components/PolstLogo";
+import { PolstWordmark } from "@/components/PolstLogo";
 import { Menu, MenuItem } from "@/components/Menu";
 import { useModules } from "@/lib/modules";
 import {
   CAMPAIGNS,
+  CHANNELS,
+  CREATORS,
   DISTRIBUTION_SOURCES,
   SINGLE_POLSTS,
   WORKSPACE,
@@ -51,15 +53,13 @@ const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   },
 ];
 
-const navLinkClass = (collapsed: boolean) =>
-  ({ isActive }: { isActive: boolean }) =>
-    cn(
-      "flex h-9 items-center rounded-md text-sm font-medium transition-colors",
-      collapsed ? "justify-center px-0" : "gap-3 px-3",
-      isActive
-        ? "bg-sidenav-active text-sidenav-fg"
-        : "text-sidenav-muted hover:bg-sidenav-hover hover:text-sidenav-fg",
-    );
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+    isActive
+      ? "bg-sidenav-active text-sidenav-fg"
+      : "text-sidenav-muted hover:bg-sidenav-hover hover:text-sidenav-fg",
+  );
 
 /** Rail icons inherit the row's ink; the active row alone fills its glyph. */
 function NavIcon({ name, active }: { name: string; active: boolean }) {
@@ -67,19 +67,13 @@ function NavIcon({ name, active }: { name: string; active: boolean }) {
 }
 
 /** The shell: one dark surface — the full-height sidebar rail — beside a
- *  light column that stacks a sticky 64px header over the working canvas.
+ *  light column that stacks a sticky 48px header over the working canvas.
  *  The page owns the document scroll; nothing nests a second scroller. */
 export function DashboardShell({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
   return (
     <div className="min-h-dvh bg-app-content text-text-primary">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
-      <div
-        className={cn(
-          "transition-[padding] duration-200",
-          collapsed ? "lg:pl-20" : "lg:pl-64",
-        )}
-      >
+      <Sidebar />
+      <div className="lg:pl-64">
         <Header />
         <main id="main-content" className="px-4 pb-10 pt-6 sm:px-6 lg:px-8">
           {children}
@@ -89,13 +83,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   );
 }
 
-function Sidebar({
-  collapsed,
-  onToggle,
-}: {
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
+function Sidebar() {
   const location = useLocation();
   const { modules } = useModules();
   const groups = NAV_GROUPS.map((group) => ({
@@ -120,55 +108,19 @@ function Sidebar({
     ),
   }));
   return (
-    <aside
-      className={cn(
-        "fixed inset-y-0 left-0 z-30 hidden flex-col bg-sidenav py-5 transition-[width] duration-200 lg:flex",
-        collapsed ? "w-20 px-3" : "w-64 px-3",
-      )}
-    >
-      {/* Brand block — the logo lives on the rail, not in the header */}
-      <Link
-        to="/"
-        aria-label="Home"
-        className={cn(
-          "flex items-center pb-5",
-          collapsed ? "justify-center" : "gap-2.5 px-3",
-        )}
-      >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-default">
-          <PolstSymbol className="h-5 w-5 brightness-0 invert" />
-        </span>
-        {!collapsed ? <PolstWordmark className="h-6 brightness-0 invert" /> : null}
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-sidenav px-3 py-5 lg:flex">
+      {/* Brand block — the wordmark alone, generously sized on the rail */}
+      <Link to="/" aria-label="Home" className="flex items-center px-3 pb-6">
+        <PolstWordmark className="h-8 brightness-0 invert" />
       </Link>
-
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        title={collapsed ? "Expand" : "Collapse"}
-        className={cn(
-          "mb-3 flex h-9 items-center rounded-md text-sm font-medium text-sidenav-muted transition-colors hover:bg-sidenav-hover hover:text-sidenav-fg",
-          collapsed ? "justify-center px-0" : "gap-3 px-3",
-        )}
-      >
-        <Icon
-          name="chevron_left"
-          size={20}
-          className={cn("shrink-0 transition-transform", collapsed && "rotate-180")}
-        />
-        {!collapsed ? <span>Collapse</span> : null}
-      </button>
 
       <nav aria-label="Primary" className="scroll-subtle flex flex-1 flex-col overflow-y-auto">
         {groups.map((group, gi) => (
           <div key={group.label ?? gi} className={cn(gi > 0 && "mt-5")}>
-            {group.label && !collapsed ? (
+            {group.label ? (
               <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-sidenav-muted">
                 {group.label}
               </p>
-            ) : null}
-            {group.label && collapsed ? (
-              <div className="mx-3 mb-2 h-px bg-sidenav-active" aria-hidden />
             ) : null}
             <ul className="space-y-1">
               {group.items.map((item) => {
@@ -179,21 +131,16 @@ function Sidebar({
                       location.pathname.startsWith(`${item.to}/`);
                 return (
                   <li key={item.to}>
-                    <NavLink
-                      to={item.to}
-                      end={item.to === "/"}
-                      title={collapsed ? item.label : undefined}
-                      className={navLinkClass(collapsed)}
-                    >
+                    <NavLink to={item.to} end={item.to === "/"} className={navLinkClass}>
                       {({ isActive }) => (
                         <>
                           <NavIcon name={item.icon} active={isActive} />
-                          {!collapsed ? <span className="truncate">{item.label}</span> : null}
+                          <span className="truncate">{item.label}</span>
                         </>
                       )}
                     </NavLink>
 
-                    {item.children && parentActive && !collapsed ? (
+                    {item.children && parentActive ? (
                       <ul className="mt-1 space-y-0.5 pl-11">
                         {item.children.map((child) => (
                           <li key={child.to}>
@@ -221,38 +168,26 @@ function Sidebar({
         ))}
 
         <div className="mt-auto space-y-3 pt-4">
-          <NavLink
-            to="/settings"
-            title={collapsed ? "Settings" : undefined}
-            className={navLinkClass(collapsed)}
-          >
+          <NavLink to="/settings" className={navLinkClass}>
             {({ isActive }) => (
               <>
                 <NavIcon name="settings" active={isActive} />
-                {!collapsed ? <span>Settings</span> : null}
+                <span>Settings</span>
               </>
             )}
           </NavLink>
 
           {/* The signed-in person, pinned to the rail's foot */}
-          <div
-            className={cn(
-              "flex items-center rounded-md bg-sidenav-hover",
-              collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5",
-            )}
-            title={collapsed ? WORKSPACE.owner : undefined}
-          >
+          <div className="flex items-center gap-3 rounded-md bg-sidenav-hover px-3 py-2.5">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-xs font-semibold text-text-on-accent">
               {initialsOf(WORKSPACE.owner)}
             </span>
-            {!collapsed ? (
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-sidenav-fg">
-                  {WORKSPACE.owner}
-                </span>
-                <span className="block truncate text-xs text-sidenav-muted">Owner</span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-sidenav-fg">
+                {WORKSPACE.owner}
               </span>
-            ) : null}
+              <span className="block truncate text-xs text-sidenav-muted">Owner</span>
+            </span>
           </div>
         </div>
       </nav>
@@ -276,28 +211,14 @@ function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border-default bg-app-content/85 px-4 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border-default bg-surface-raised px-4 sm:px-6 lg:px-8">
       {/* Below lg the rail is hidden, so the wordmark rides the header */}
       <Link to="/" aria-label="Home" className="lg:hidden">
         <PolstWordmark className="h-6" />
       </Link>
 
-      {/* Search — a button styled as a field; the real input lives in the dialog */}
-      <button
-        type="button"
-        onClick={() => setSearchOpen(true)}
-        className="relative hidden h-9 w-full max-w-xs rounded-md border border-border-default bg-surface-raised pl-9 pr-12 text-left text-ui text-text-tertiary outline-none transition-colors hover:bg-surface-subtle md:block"
-      >
-        <Icon
-          name="search"
-          size={18}
-          className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-icon-secondary"
-        />
-        Search
-        <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-sm border border-border-default px-1 font-sans text-xs font-medium text-text-tertiary">
-          ⌘K
-        </kbd>
-      </button>
+      {/* Where you are — search moved entirely behind ⌘K */}
+      <Breadcrumbs />
 
       {/* Right — the primary create action, then quiet utilities */}
       <div className="ml-auto flex items-center gap-2">
@@ -308,6 +229,99 @@ function Header() {
 
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
+  );
+}
+
+/* ── Breadcrumbs ─────────────────────────────────────────────────── */
+
+type Crumb = { label: string; to?: string };
+
+/** Resolve the current route into named crumbs — ids become object names. */
+function buildCrumbs(pathname: string): Crumb[] {
+  if (pathname === "/") return [{ label: "Home" }];
+  const seg = pathname.split("/").filter(Boolean);
+  switch (seg[0]) {
+    case "campaigns": {
+      const crumbs: Crumb[] = [{ label: "Campaigns", to: "/campaigns" }];
+      if (seg[1] === "new") crumbs.push({ label: "Create campaign" });
+      else if (seg[1]) {
+        const campaign = CAMPAIGNS.find((c) => c.id === seg[1]);
+        crumbs.push({ label: campaign?.name ?? "Campaign" });
+      }
+      return crumbs;
+    }
+    case "polsts": {
+      const crumbs: Crumb[] = [{ label: "Standalone Polsts", to: "/polsts" }];
+      if (seg[1] === "new") crumbs.push({ label: "Create single Polst" });
+      else if (seg[1]) {
+        const polst = SINGLE_POLSTS.find((p) => p.id === seg[1]);
+        crumbs.push({ label: polst?.question ?? "Polst" });
+      }
+      return crumbs;
+    }
+    case "distribution": {
+      const crumbs: Crumb[] = [{ label: "Distribution", to: "/distribution" }];
+      if (seg[1] === "channels" && seg[2]) {
+        const channel = CHANNELS.find((c) => c.id === seg[2]);
+        crumbs.push({ label: channel?.name ?? "Channel" });
+      } else if (seg[1] === "creators" && seg[2]) {
+        const creator = CREATORS.find((c) => c.id === seg[2]);
+        crumbs.push({ label: creator?.name ?? "Creator" });
+      }
+      return crumbs;
+    }
+    case "analytics": {
+      const crumbs: Crumb[] = [{ label: "Analytics", to: "/analytics" }];
+      const child: Record<string, string> = {
+        acquisition: "Acquisition",
+        retention: "Retention",
+        insights: "Insights",
+        reports: "Reports",
+      };
+      crumbs.push({ label: seg[1] ? (child[seg[1]] ?? "Overview") : "Overview" });
+      return crumbs;
+    }
+    case "audience":
+      return [{ label: "Audience" }];
+    case "settings":
+      return [{ label: "Settings" }];
+    default:
+      return [{ label: "Page not found" }];
+  }
+}
+
+/** The header's location line: quiet parents, the current page in ink. */
+function Breadcrumbs() {
+  const { pathname } = useLocation();
+  const crumbs = buildCrumbs(pathname);
+  return (
+    <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 md:flex">
+      {crumbs.map((crumb, i) => {
+        const last = i === crumbs.length - 1;
+        return (
+          <span key={`${crumb.label}-${i}`} className="flex min-w-0 items-center gap-1.5">
+            {i > 0 ? (
+              <Icon name="chevron_right" size={16} className="shrink-0 text-icon-tertiary" />
+            ) : null}
+            {crumb.to && !last ? (
+              <Link
+                to={crumb.to}
+                className="whitespace-nowrap text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
+              >
+                {crumb.label}
+              </Link>
+            ) : (
+              <span
+                aria-current={last ? "page" : undefined}
+                className="truncate text-sm font-medium text-text-primary"
+              >
+                {crumb.label}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -547,9 +561,9 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-/** A 36×36 quiet icon control for the light 64px header. */
+/** A 32×32 quiet icon control, sized to the 48px white header. */
 const headerButton =
-  "grid h-9 w-9 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary";
+  "grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary";
 
 function CreateMenu() {
   const navigate = useNavigate();
@@ -619,7 +633,7 @@ function NotificationsMenu() {
       trigger={({ toggle }) => (
         <button onClick={toggle} aria-label="Notifications" className={cn(headerButton, "relative")}>
           <Icon name="notifications" size={20} />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-pill bg-status-danger ring-2 ring-app-content" />
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-pill bg-status-danger ring-2 ring-surface-raised" />
         </button>
       )}
     >
@@ -688,7 +702,7 @@ function AccountMenu() {
       trigger={({ toggle }) => (
         <button
           onClick={toggle}
-          className="flex h-9 items-center gap-2 rounded-md border border-border-default bg-surface-raised pl-1.5 pr-2 text-text-primary transition-colors hover:bg-surface-subtle"
+          className="flex h-8 items-center gap-2 rounded-md border border-border-default bg-surface-raised pl-1 pr-1.5 text-text-primary transition-colors hover:bg-surface-subtle"
         >
           <WorkspaceMark initials={WORKSPACE.initials} size="sm" />
           <span className="hidden text-sm font-medium sm:inline">{WORKSPACE.brand}</span>

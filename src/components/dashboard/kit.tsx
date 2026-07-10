@@ -30,9 +30,6 @@ import {
 /* ── Page scaffold ───────────────────────────────────────────────── */
 
 type PageProps = {
-  eyebrow?: ReactNode;
-  title: string;
-  description?: string;
   /** Data recency, e.g. "2 min ago" — rendered as a quiet refresh line so
    *  every page states how fresh its numbers are. */
   updated?: string;
@@ -40,47 +37,29 @@ type PageProps = {
   children: ReactNode;
 };
 
-/** The standard page: a header (eyebrow, title, description, actions)
- *  over a centered, vertically-rhythmic column. Every page shares the
+/** The standard page: a centered, vertically-rhythmic column. Pages carry
+ *  no title or description — the header breadcrumbs name where you are;
+ *  content does the explaining. An optional slim top row holds the data
+ *  freshness (left) and the page's actions (right). Every page shares the
  *  one `max-w-dashboard` container — no per-page widths. */
-export function DashboardPage({
-  eyebrow,
-  title,
-  description,
-  updated,
-  actions,
-  children,
-}: PageProps) {
+export function DashboardPage({ updated, actions, children }: PageProps) {
   return (
     <div className="mx-auto max-w-dashboard space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          {eyebrow ? (
-            <div className="mb-1.5 text-sm font-medium text-text-secondary">
-              {eyebrow}
-            </div>
-          ) : null}
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 className="text-balance font-display text-2xl font-semibold leading-8 tracking-tight text-text-primary lg:text-3xl lg:leading-9">
-              {title}
-            </h1>
-            {updated ? (
-              <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                <Icon name="sync" size={14} />
-                Updated {updated}
-              </span>
-            ) : null}
-          </div>
-          {description ? (
-            <p className="mt-2 max-w-2xl text-base leading-6 text-text-secondary">
-              {description}
-            </p>
+      {updated || actions ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {updated ? (
+            <span className="flex items-center gap-1 text-xs text-text-tertiary">
+              <Icon name="sync" size={14} />
+              Updated {updated}
+            </span>
+          ) : (
+            <span aria-hidden />
+          )}
+          {actions ? (
+            <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
           ) : null}
         </div>
-        {actions ? (
-          <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
-        ) : null}
-      </div>
+      ) : null}
       {children}
     </div>
   );
