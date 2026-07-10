@@ -720,13 +720,8 @@ function AccountMenu() {
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-default font-display text-xs font-semibold text-text-on-accent">
             {WORKSPACE.initials}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-sidenav-fg">
-              {WORKSPACE.brand}
-            </span>
-            <span className="block truncate text-xs text-sidenav-muted">
-              {WORKSPACE.domain}
-            </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidenav-fg">
+            {WORKSPACE.brand}
           </span>
           <Icon name="unfold_more" size={18} className="shrink-0 text-sidenav-muted" />
         </button>
@@ -739,11 +734,8 @@ function AccountMenu() {
           className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-surface-subtle"
         >
           <WorkspaceMark initials={ws.initials} size="sm" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-display text-sm font-semibold text-text-primary">
-              {ws.name}
-            </span>
-            <span className="block truncate text-xs text-text-secondary">{ws.domain}</span>
+          <span className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-text-primary">
+            {ws.name}
           </span>
           {ws.current ? <Icon name="check" size={18} className="text-accent-default" /> : null}
         </button>
