@@ -62,7 +62,7 @@ const NAV_GROUPS: Array<{ items: NavItem[] }> = [
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+    "flex h-9 items-center gap-3 rounded-md px-2 text-sm font-medium transition-colors",
     isActive
       ? "bg-sidenav-active text-sidenav-fg"
       : "text-sidenav-muted hover:bg-sidenav-hover hover:text-sidenav-fg",
@@ -134,13 +134,13 @@ function Sidebar() {
     <aside className="scroll-subtle fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto bg-sidenav pb-2 lg:flex">
       {/* Brand block — a 48px strip mirroring the header across the seam:
           the wordmark left-aligned, the surface named beside it */}
-      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center gap-2 px-5">
+      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center gap-2 px-4">
         <PolstWordmark className="h-6 brightness-0 invert" />
         <span className="mt-0.5 truncate text-sm text-sidenav-muted">Brand Dashboard</span>
       </Link>
 
       {/* The workspace switcher lives right under the brand */}
-      <div className="px-2 pb-4 pt-2">
+      <div className="px-2 pb-2">
         <AccountMenu />
       </div>
 
@@ -169,7 +169,7 @@ function Sidebar() {
                     </NavLink>
 
                     {item.children && parentActive ? (
-                      <ul className="mt-1 space-y-0.5 pl-11">
+                      <ul className="mt-1 space-y-0.5 pl-8">
                         {item.children.map((child) => (
                           <li key={child.to}>
                             <NavLink
@@ -177,7 +177,7 @@ function Sidebar() {
                               end={child.to === item.to}
                               className={({ isActive }) =>
                                 cn(
-                                  "block rounded-sm px-3 py-1.5 text-sm font-medium text-sidenav-muted transition-colors hover:text-sidenav-fg",
+                                  "block rounded-sm px-2 py-1.5 text-sm font-medium text-sidenav-muted transition-colors hover:text-sidenav-fg",
                                   isActive && "text-sidenav-fg",
                                 )
                               }
@@ -206,7 +206,7 @@ function Sidebar() {
           </NavLink>
 
           {/* The signed-in person, pinned to the rail's foot */}
-          <div className="flex items-center gap-3 rounded-md bg-sidenav-hover px-3 py-2.5">
+          <div className="flex items-center gap-3 rounded-md bg-sidenav-hover p-2">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-xs font-semibold text-text-on-accent">
               {initialsOf(WORKSPACE.owner)}
             </span>
@@ -710,7 +710,7 @@ function AccountMenu() {
       trigger={({ toggle }) => (
         <button
           onClick={toggle}
-          className="flex w-full items-center gap-3 rounded-md bg-sidenav-hover px-3 py-2.5 text-left transition-colors hover:bg-sidenav-active"
+          className="flex w-full items-center gap-3 rounded-md bg-sidenav-hover p-2 text-left transition-colors hover:bg-sidenav-active"
         >
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-default font-display text-xs font-semibold text-text-on-accent">
             {WORKSPACE.initials}
