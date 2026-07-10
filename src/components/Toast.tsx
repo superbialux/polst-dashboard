@@ -34,9 +34,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex justify-center px-4 lg:bottom-8"
       >
         {message && (
-          <div className="flex items-center gap-2 rounded-pill bg-btn-primary-bg py-2.5 pl-3.5 pr-4 font-display text-sm font-semibold leading-5 text-btn-primary-fg shadow-pop">
-            <Icon name="check_circle" size={20} />
-            {message}
+          <div className="pointer-events-auto flex min-h-10 max-w-md items-center gap-3 rounded-md border border-border-default bg-surface-raised py-2 pl-3 pr-2 font-display text-sm font-semibold leading-5 text-text-primary shadow-pop">
+            <span className="min-w-0 flex-1">{message}</span>
+            <button
+              type="button"
+              aria-label="Dismiss notification"
+              onClick={() => setMessage(null)}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-sm text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary"
+            >
+              <Icon name="close" size={18} />
+            </button>
           </div>
         )}
       </div>

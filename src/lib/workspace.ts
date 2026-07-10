@@ -60,6 +60,12 @@ export type Stat = {
   spark?: number[];
   /** The metric's definition — formula and denominator, in plain words. */
   info?: string;
+  /** Short, metric-specific actions shown beside the expanded chart. */
+  insights?: Array<{
+    text: string;
+    to: string;
+    tone: "success" | "warning" | "danger" | "accent";
+  }>;
 };
 
 export type StatRange = "7D" | "30D" | "90D" | "All";
@@ -77,8 +83,107 @@ const STAT_INFO: Record<string, string> = {
     "Voters who finished a full Polst sequence ÷ voters who started one.",
 };
 
-const withInfo = (stats: Stat[]) =>
-  stats.map((stat) => ({ ...stat, info: STAT_INFO[stat.label] }));
+const trendSentence = (stat: Stat, range: StatRange) => {
+  const subject = stat.label === "Total views" ? "Views" : stat.label === "Total votes" ? "Votes" : stat.label;
+  const movement = stat.trend === "down" ? "fell" : stat.trend === "up" ? "rose" : "held steady";
+  return range === "All"
+    ? `${subject} ${movement} ${stat.delta} since launch.`
+    : `${subject} ${movement} ${stat.delta} versus the previous period.`;
+};
+
+const STAT_INSIGHTS: Record<
+  string,
+  (
+    stat: Stat,
+    range: StatRange,
+  ) => Array<{
+    text: string;
+    to: string;
+    tone: "success" | "warning" | "danger" | "accent";
+  }>
+> = {
+  "Total views": (stat, range) => [
+    {
+      text: trendSentence(stat, range),
+      to: "/analytics",
+      tone: stat.trend === "down" ? "danger" : "success",
+    },
+    {
+      text: "QR traffic saw the largest decline: 42% fewer visits.",
+      to: "/distribution",
+      tone: "warning",
+    },
+    {
+      text: "Game Day Creative Test has no live sources yet.",
+      to: "/campaigns/game-day-creative",
+      tone: "danger",
+    },
+  ],
+  "Total votes": (stat, range) => [
+    {
+      text: trendSentence(stat, range),
+      to: "/analytics",
+      tone: stat.trend === "down" ? "danger" : "success",
+    },
+    {
+      text: "Website delivers 48% of all responses.",
+      to: "/distribution",
+      tone: "success",
+    },
+    {
+      text: "Holiday Gifting Bundles is 308 responses short of target.",
+      to: "/campaigns/holiday-gifting-bundles",
+      tone: "warning",
+    },
+  ],
+  "Engagement rate": (stat, range) => [
+    {
+      text:
+        range === "All"
+          ? `Engagement rose ${stat.delta} since launch to ${stat.value}.`
+          : `Engagement is up ${stat.delta} to ${stat.value}.`,
+      to: "/analytics",
+      tone: "success",
+    },
+    {
+      text: "QR engagement trails website traffic by 3.8 points.",
+      to: "/distribution",
+      tone: "warning",
+    },
+    {
+      text: "Packaging questions have the strongest response rate.",
+      to: "/campaigns/packaging-direction",
+      tone: "success",
+    },
+  ],
+  "Completion rate": (stat, range) => [
+    {
+      text:
+        range === "All"
+          ? `Completion rose ${stat.delta} since launch to ${stat.value}.`
+          : `Completion is up ${stat.delta} to ${stat.value}.`,
+      to: "/analytics",
+      tone: "success",
+    },
+    {
+      text: "Conference Booth QR has the most room to grow: 293 scans but only 41% completion.",
+      to: "/distribution",
+      tone: "danger",
+    },
+    {
+      text: "Its landing step is the biggest lever.",
+      to: "/distribution",
+      tone: "accent",
+    },
+  ],
+};
+
+const withInfo = (stats: Stat[], range: StatRange) =>
+  stats.map((stat) => ({
+    ...stat,
+    info: STAT_INFO[stat.label],
+    insights: STAT_INSIGHTS[stat.label]?.(stat, range),
+  }));
 
 /** Mini-stats by range — values, deltas, and shape all shift with the filter.
  *  Volumes reconcile with the rest of the workspace: campaigns run ~1–2k
@@ -89,25 +194,25 @@ export const DASHBOARD_STATS: Record<StatRange, Stat[]> = {
     { label: "Total votes", value: "612", delta: "6%", trend: "down", spark: [104, 96, 98, 88, 82, 76, 68] },
     { label: "Engagement rate", value: "14.9%", delta: "1.2%", trend: "up", spark: [14.2, 14.4, 14.5, 14.6, 14.8, 14.8, 15] },
     { label: "Completion rate", value: "66.2%", delta: "2.1 pts", trend: "up", spark: [65, 65, 66, 66, 66, 66, 67] },
-  ]),
+  ], "7D"),
   "30D": withInfo([
     { label: "Total views", value: "17,240", delta: "18%", trend: "down", spark: [820, 760, 740, 680, 620, 560, 480] },
     { label: "Total votes", value: "2,431", delta: "11%", trend: "down", spark: [118, 108, 112, 96, 92, 84, 74] },
     { label: "Engagement rate", value: "14.1%", delta: "4.2%", trend: "up", spark: [12.8, 13.1, 13.2, 13.6, 13.8, 14, 14.1] },
     { label: "Completion rate", value: "65.0%", delta: "5.7 pts", trend: "up", spark: [61, 63, 62, 64, 64, 65, 65] },
-  ]),
+  ], "30D"),
   "90D": withInfo([
     { label: "Total views", value: "46,890", delta: "12%", trend: "down", spark: [2050, 1880, 2160, 1740, 1860, 1520, 1400] },
     { label: "Total votes", value: "6,318", delta: "8%", trend: "down", spark: [284, 262, 296, 238, 252, 214, 208] },
     { label: "Engagement rate", value: "13.5%", delta: "0.9%", trend: "up", spark: [12.9, 13, 12.9, 13.2, 13.3, 13.4, 13.5] },
     { label: "Completion rate", value: "61.8%", delta: "3.2 pts", trend: "up", spark: [58, 59, 60, 60, 61, 61, 62] },
-  ]),
+  ], "90D"),
   All: withInfo([
     { label: "Total views", value: "128,400", delta: "210%", trend: "up", spark: [4200, 9400, 14800, 20200, 26400, 31200, 38600] },
     { label: "Total votes", value: "16,482", delta: "180%", trend: "up", spark: [520, 1320, 2260, 3080, 3900, 4820, 5640] },
     { label: "Engagement rate", value: "12.8%", delta: "2.4%", trend: "up", spark: [10.9, 11.4, 11.8, 12.1, 12.4, 12.6, 12.8] },
     { label: "Completion rate", value: "58.9%", delta: "12 pts", trend: "up", spark: [44, 49, 52, 55, 57, 58, 59] },
-  ]),
+  ], "All"),
 };
 
 /** The data contract behind every number on the strip: the exact window,
@@ -313,22 +418,22 @@ export const CAMPAIGNS: Campaign[] = [
     id: "loyalty-program-naming",
     name: "Loyalty Program Naming",
     decision: "What should we call the rewards program?",
-    status: "Scheduled",
+    status: "Active",
     event: "None",
     polsts: 2,
-    pollsActive: 0,
-    pollsStarted: 0,
+    pollsActive: 2,
+    pollsStarted: 2,
     pollsCompleted: 0,
-    responses: 0,
+    responses: 362,
     target: 800,
-    completion: "—",
-    winner: "—",
-    signal: "Not started",
-    confidence: "—",
-    sampleNote: "",
-    nextAction: "Add sources",
-    dates: "Starts Jun 30",
-    topSource: "—",
+    completion: "62%",
+    winner: "North Star Club +8 pts",
+    signal: "Directional",
+    confidence: "Low",
+    sampleNote: "Early website-only sample; add a second source before deciding.",
+    nextAction: "Keep collecting",
+    dates: "Jun 30 – Jul 14",
+    topSource: "Website embed",
     vertical: "Lifestyle",
   },
   {
@@ -1178,15 +1283,15 @@ export const CAMPAIGN_DETAILS: Record<string, CampaignDetail> = {
     caveats: ["Wrap preference flips between sources; treat it as unresolved."],
   },
   "loyalty-program-naming": {
-    summary: "Scheduled to start Jun 30. Two name candidates are staged; no sources attached yet.",
-    nextStep: "Attach at least one distribution source before the start date.",
-    journey: { started: 0, completed: 0 },
+    summary: "North Star Club leads by 8 points, but the sample is still website-only.",
+    nextStep: "Keep collecting and add a second source before deciding.",
+    journey: { started: 362, completed: 224 },
     chain: [
-      { id: "lp-name", question: "Which rewards name sticks?", optionA: "Pantry Points", optionB: "North Star Club", split: "—", responses: 0 },
-      { id: "lp-tier", question: "Which tier name feels premium?", optionA: "Gold Shelf", optionB: "First Harvest", split: "—", responses: 0 },
+      { id: "lp-name", question: "Which rewards name sticks?", optionA: "Pantry Points", optionB: "North Star Club", split: "46 / 54", responses: 362 },
+      { id: "lp-tier", question: "Which tier name feels premium?", optionA: "Gold Shelf", optionB: "First Harvest", split: "52 / 48", responses: 224 },
     ],
-    findings: [],
-    caveats: ["No responses yet — the campaign has not started."],
+    findings: ["North Star Club leads by 8 points in the first website sample."],
+    caveats: ["Website is the only active source, so treat the lead as directional."],
   },
   "back-to-school-snacks": {
     summary: "Scheduled for the back-to-school window starting Jul 8. Three questions staged; no sources attached yet.",

@@ -5,7 +5,7 @@ import { Modal } from "@/components/Modal";
 import { Menu, MenuItem } from "@/components/Menu";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Field, TextInput, Select } from "@/components/Field";
+import { Checkbox, Field, SelectMenu, TextInput } from "@/components/Field";
 import { PollComposer } from "@/components/PollComposer";
 import {
   DashboardCard,
@@ -54,6 +54,11 @@ import {
   type FunnelSource,
 } from "@/lib/workspace";
 import { creatorColumns, sourceColumns } from "./Distribution";
+
+const EVENT_OPTIONS = [
+  { value: "None", label: "None" },
+  ...KEY_DATES.map((date) => ({ value: date.title, label: date.title })),
+];
 
 /* ── Campaigns list ──────────────────────────────────────────────── */
 
@@ -111,7 +116,14 @@ const columns: Array<DataColumn<Campaign>> = [
 
 export function CampaignsPage() {
   const [active, setActive] = useState("All");
-  const rows = useMemo(() => filterByStatus(CAMPAIGNS, active), [active]);
+  const [query, setQuery] = useState("");
+  const rows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return filterByStatus(CAMPAIGNS, active).filter((campaign) =>
+      !normalized || [campaign.name, campaign.decision, campaign.event, campaign.vertical]
+        .some((value) => value.toLowerCase().includes(normalized)),
+    );
+  }, [active, query]);
 
   return (
     <DashboardPage
@@ -127,6 +139,8 @@ export function CampaignsPage() {
           active={active}
           onChange={setActive}
           placeholder="Search campaigns"
+          query={query}
+          onQueryChange={setQuery}
         />
         <DataTable
           rows={rows}
@@ -481,10 +495,7 @@ function SelectFromLibraryModal({
             key={polst.id}
             className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
           >
-            <input
-              type="checkbox"
-              className="h-4 w-4 shrink-0 rounded-sm border-border-strong accent-accent-default"
-            />
+            <Checkbox label={`Select ${polst.question}`} />
             <PollThumb options={polstOptions(polst)} />
             <div className="min-w-0 flex-1">
               <p className="truncate font-display text-sm font-bold text-text-primary">
@@ -764,12 +775,12 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
             </Field>
             <Field label="Linked event">
               {(fieldId) => (
-                <Select id={fieldId} defaultValue={campaign.event}>
-                  <option>None</option>
-                  {KEY_DATES.map((date) => (
-                    <option key={date.id}>{date.title}</option>
-                  ))}
-                </Select>
+                <SelectMenu
+                  id={fieldId}
+                  label="Linked event"
+                  defaultValue={campaign.event}
+                  options={EVENT_OPTIONS}
+                />
               )}
             </Field>
             <div className="sm:col-span-2">
@@ -935,12 +946,12 @@ export function CreateCampaignPage() {
                   }
                 >
                   {(fieldId) => (
-                    <Select id={fieldId} defaultValue="None">
-                      <option>None</option>
-                      {KEY_DATES.map((date) => (
-                        <option key={date.id}>{date.title}</option>
-                      ))}
-                    </Select>
+                    <SelectMenu
+                      id={fieldId}
+                      label="Linked event"
+                      defaultValue="None"
+                      options={EVENT_OPTIONS}
+                    />
                   )}
                 </Field>
                 <div className="sm:col-span-2">
@@ -989,10 +1000,9 @@ export function CreateCampaignPage() {
                     key={source.id}
                     className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
+                      label={`Select ${source.name}`}
                       defaultChecked={source.id === "website-embed"}
-                      className="h-4 w-4 shrink-0 rounded-sm border-border-strong accent-accent-default"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-display text-sm font-semibold text-text-primary">

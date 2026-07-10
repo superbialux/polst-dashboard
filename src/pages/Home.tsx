@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import {
   ActionCard,
@@ -8,12 +7,10 @@ import {
   CampaignRow,
   DashboardCard,
   DashboardPage,
-  DecisionBrief,
-  FilterTabs,
+  DateRangeMenu,
   NextStepsCard,
-  PageTabs,
-  PolstMiniRow,
   SectionGrid,
+  SignalBadge,
   type SetupStep,
   StatsStrip,
   WorkspaceCalendar,
@@ -22,98 +19,77 @@ import { cn } from "@/lib/utils";
 import {
   CAMPAIGNS,
   DASHBOARD_STATS,
+  ATTENTION_ITEMS,
   KEY_DATES,
-  SINGLE_POLSTS,
-  STAT_RANGES,
-  STAT_SCOPES,
   STAT_XTICKS,
+  type Campaign,
+  type ListItem,
   type StatRange,
-  type Status,
-  WORKSPACE,
 } from "@/lib/workspace";
-
-/** The status filters shared by the Campaigns and Polsts cards. */
-const LIST_FILTERS = ["Active", "Queued"] as const;
-type ListFilter = (typeof LIST_FILTERS)[number];
-const matchesFilter = (status: Status, filter: ListFilter) =>
-  filter === "Active" ? status === "Active" : status === "Scheduled" || status === "Draft";
 
 /* ── The attention queue ─────────────────────────────────────────────
    Ranked by severity: what blocks a campaign, then what erodes one, then
-   what's simply waiting on you. Each row carries its evidence and one
-   action — never a bare metric. */
+   what's simply waiting on you. The shared data also drives the sidebar count. */
 
-type AttentionItem = {
-  severity: "blocker" | "warning" | "task";
-  title: string;
-  evidence: string;
-  cta: { label: string; to: string };
+const ATTENTION_TONE: Record<string, string> = {
+  "game-day-distribution": "bg-status-danger",
+  "super-bowl-uncovered": "bg-status-danger",
+  "event-hook-draft": "bg-icon-secondary",
+  "conference-completion": "bg-status-warning",
 };
 
-const ATTENTION_QUEUE: AttentionItem[] = [
-  {
-    severity: "blocker",
-    title: "Game Day Creative Test has no sources",
-    evidence: "It launches Jun 10 — in the current state it will collect zero responses.",
-    cta: { label: "Assign a source", to: "/distribution" },
-  },
-  {
-    severity: "warning",
-    title: "Conference Booth QR is losing 6 in 10 voters",
-    evidence: "Scans are steady (100+ this week) but completion sits at 41% vs your 68% average.",
-    cta: { label: "Inspect source", to: "/distribution" },
-  },
-  {
-    severity: "task",
-    title: "“Which tagline should we use?” is still a draft",
-    evidence: "The Polst is written but has no schedule and no source, so it can't run.",
-    cta: { label: "Finish Polst", to: "/polsts/event-hook" },
-  },
-  {
-    severity: "task",
-    title: "The Flavor Launch report is ready to share",
-    evidence: "That campaign wrapped Monday; the decision and evidence are packaged.",
-    cta: { label: "Open report", to: "/analytics/reports" },
-  },
-];
-
-const SEVERITY_META: Record<AttentionItem["severity"], { icon: string; className: string }> = {
-  blocker: { icon: "error", className: "text-status-danger" },
-  warning: { icon: "warning", className: "text-status-warning" },
-  task: { icon: "arrow_circle_right", className: "text-icon-secondary" },
-};
-
-function AttentionRow({ item }: { item: AttentionItem }) {
-  const meta = SEVERITY_META[item.severity];
+function AttentionRow({ item }: { item: ListItem }) {
   return (
-    <li className="flex items-start gap-3 px-4 py-3">
-      <Icon name={meta.icon} size={20} className={cn("mt-0.5 shrink-0", meta.className)} />
-      <div className="min-w-0 flex-1">
-        <p className="font-display text-sm font-semibold leading-5 text-text-primary">
-          {item.title}
-        </p>
-        <p className="mt-0.5 text-sm leading-5 text-text-secondary">{item.evidence}</p>
-      </div>
-      <Button variant="secondary" size="sm" className="shrink-0" asChild>
-        <Link to={item.cta.to}>{item.cta.label}</Link>
-      </Button>
+    <li className="flex min-h-12 items-center gap-3 px-4 py-2.5">
+      <span
+        aria-hidden
+        className={cn("h-2 w-2 shrink-0 rounded-pill", ATTENTION_TONE[item.id] ?? "bg-icon-secondary")}
+      />
+      <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-text-primary">
+        {item.title}
+      </p>
+      {item.to ? (
+        <Button variant="secondary" size="sm" className="shrink-0" asChild>
+          <Link to={item.to}>{item.action}</Link>
+        </Button>
+      ) : null}
     </li>
   );
 }
 
 /** The workspace setup checklist (Shopify "Get your first N" pattern). */
 const SETUP_STEPS: SetupStep[] = [
-  { title: "Name your first campaign", done: true },
+  {
+    title: "Name your first campaign",
+    description: "Packaging Direction Test is ready.",
+    done: true,
+    cta: { label: "View campaign", to: "/campaigns/packaging-direction" },
+    media: { tone: "green", icon: "campaign", placement: "side" },
+  },
   {
     title: "Add a distribution source",
-    description:
-      "Connect where your Polst collects responses — a website embed, a QR code, or a social link — so Game Day Creative Test can go live on Jun 10.",
+    description: "Connect a link, QR code, or embed.",
     cta: { label: "Add a source", to: "/distribution" },
     media: { tone: "accent", icon: "hub", placement: "side" },
   },
-  { title: "Confirm the campaign schedule" },
-  { title: "Complete your brand profile" },
-  { title: "Invite a teammate" },
+  {
+    title: "Confirm the campaign schedule",
+    description: "Confirm launch and end dates.",
+    cta: { label: "Review schedule", to: "/campaigns/game-day-creative" },
+    media: { tone: "amber", icon: "calendar_month", placement: "side" },
+  },
+  {
+    title: "Complete your brand profile",
+    description: "Add your logo, website, and timezone.",
+    cta: { label: "Open profile", to: "/settings" },
+    media: { tone: "neutral", icon: "business", placement: "side" },
+  },
+  {
+    title: "Invite a teammate",
+    description: "Add teammates and choose access.",
+    cta: { label: "Manage team", to: "/settings" },
+    media: { tone: "green", icon: "group", placement: "side" },
+  },
 ];
 
 /** Date helpers for the event bento (ISO → "Jun 11" / "Jun 22–26"). */
@@ -176,121 +152,92 @@ function SectionHeading({ title }: { title: string }) {
   );
 }
 
+function ReadyDecisionCard({ campaign }: { campaign: Campaign }) {
+  return (
+    <DashboardCard title="Ready to decide" className="lg:col-span-4">
+      <SignalBadge signal={campaign.signal} detail={`${campaign.confidence} confidence`} />
+      <Link
+        to={`/campaigns/${campaign.id}`}
+        className="mt-2 block font-display text-base font-semibold leading-6 text-text-primary hover:text-text-accent"
+      >
+        {campaign.name}
+      </Link>
+      <dl className="mt-3 grid grid-cols-2 gap-3 border-y border-border-default py-3">
+        <div>
+          <dt className="text-xs text-text-secondary">Lead</dt>
+          <dd className="mt-0.5 text-sm font-semibold text-text-primary">{campaign.winner}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-secondary">Responses</dt>
+          <dd className="mt-0.5 text-sm font-semibold tabular-nums text-text-primary">
+            {campaign.responses.toLocaleString()} / {campaign.target.toLocaleString()}
+          </dd>
+        </div>
+      </dl>
+      <Button className="mt-3 w-full" asChild>
+        <Link to={`/campaigns/${campaign.id}`}>Review decision</Link>
+      </Button>
+    </DashboardCard>
+  );
+}
+
 export function HomePage() {
   const [range, setRange] = useState<StatRange>("30D");
-  const [campaignFilter, setCampaignFilter] = useState<ListFilter>("Active");
-  const [polstFilter, setPolstFilter] = useState<ListFilter>("Active");
-
-  const campaigns = CAMPAIGNS.filter((c) => matchesFilter(c.status, campaignFilter)).slice(0, 20);
-  const polsts = SINGLE_POLSTS.filter((p) => matchesFilter(p.status, polstFilter)).slice(0, 20);
+  const campaigns = CAMPAIGNS.filter((campaign) => campaign.status === "Active");
+  const readyCampaign = campaigns.find((campaign) => campaign.signal === "Leading") ?? campaigns[0];
 
   return (
-    <DashboardPage
-      actions={
-        <Button variant="secondary" asChild>
-          <Link to="/analytics">View analytics</Link>
-        </Button>
-      }
-    >
-
-        {/* The one decision that's ready — status, change, why, caveat, action */}
-        <DecisionBrief
-          signal="Leading"
-          signalDetail="High confidence"
-          headline="Packaging Direction Test is ready to decide"
-          summary="Matte Forest has held an 18-point lead for six straight days, and the lead holds on website and QR traffic alike. Responses passed your 1,200 target this morning."
-          caveat="QR voters skew older than your audience baseline — check the source mix before announcing."
-          evidence={[
-            {
-              label: "Confidence",
-              value: "High",
-              info: "Scored from sample size vs target, source diversity, and lead stability. Here: balanced across 3 independent sources; QR voters skew older than baseline.",
-            },
-            {
-              label: "Responses vs target",
-              value: "1,486 of 1,200",
-              info: "Completed votes on this campaign's Polsts, against the response target set at launch.",
-            },
-            { label: "Lead", value: "Option B +18 pts" },
-            { label: "Sources reporting", value: "3 of 3" },
-            { label: "Lead stable for", value: "6 days" },
-          ]}
-          primary={{ label: "Review recommendation", to: "/campaigns/packaging-direction" }}
-          secondary={{ label: "See all campaigns", to: "/campaigns" }}
-        />
-
-        {/* Everything else that needs a human, ranked by severity */}
-        <DashboardCard title="Needs attention" padded={false} bodyClassName="pb-1">
-          <ul className="divide-y divide-border-default">
-            {ATTENTION_QUEUE.map((item) => (
-              <AttentionRow key={item.title} item={item} />
-            ))}
-          </ul>
-        </DashboardCard>
-
-        {/* Campaigns own the wide column; recent Polsts support them */}
-        <SectionGrid>
-          <DashboardCard
-            title="Campaigns"
-            className="lg:col-span-8"
-            bodyClassName="pt-2"
-            action={
-              <FilterTabs
-                tabs={LIST_FILTERS}
-                active={campaignFilter}
-                onChange={(t) => setCampaignFilter(t as ListFilter)}
-              />
-            }
-          >
-            <div className="-mx-2 space-y-0.5">
-              {campaigns.length ? (
-                campaigns.map((c) => <CampaignRow key={c.id} campaign={c} />)
-              ) : (
-                <EmptyRow label="No campaigns in this view." />
-              )}
-            </div>
-          </DashboardCard>
-
-          <DashboardCard
-            title="Recent Polsts"
-            className="lg:col-span-4"
-            bodyClassName="pt-2"
-            action={
-              <FilterTabs
-                tabs={LIST_FILTERS}
-                active={polstFilter}
-                onChange={(t) => setPolstFilter(t as ListFilter)}
-              />
-            }
-          >
-            <div className="-mx-2 space-y-0.5">
-              {polsts.length ? (
-                polsts.slice(0, 4).map((p) => <PolstMiniRow key={p.id} polst={p} />)
-              ) : (
-                <EmptyRow label="No Polsts in this view." />
-              )}
-            </div>
-          </DashboardCard>
-        </SectionGrid>
-
-        {/* Workspace health — demoted below the work, with its data contract */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <SectionHeading title="Workspace health" />
-            <PageTabs tabs={STAT_RANGES} active={range} onChange={setRange} />
+    <DashboardPage>
+        {/* Real-time health leads without a section title. */}
+        <section className="space-y-2">
+          <div className="flex justify-end">
+            <DateRangeMenu value={range} onChange={setRange} />
           </div>
           <StatsStrip
             stats={DASHBOARD_STATS[range]}
             xTicks={STAT_XTICKS[range]}
-            scope={STAT_SCOPES[range]}
           />
         </section>
 
         <NextStepsCard
           title="Get your workspace launch-ready"
-          intro="A few steps left before your first campaign runs clean end to end."
           steps={SETUP_STEPS}
         />
+
+        <DashboardCard
+          title="Active campaigns"
+          bodyClassName="pt-2"
+          action={
+            <Button variant="secondary" size="sm" asChild>
+              <Link to="/campaigns">View all</Link>
+            </Button>
+          }
+        >
+          <div className="-mx-2 space-y-0.5">
+            {campaigns.length ? (
+              campaigns.map((c) => <CampaignRow key={c.id} campaign={c} />)
+            ) : (
+              <EmptyRow label="No active campaigns." />
+            )}
+          </div>
+        </DashboardCard>
+
+        {/* Structured priorities, without generated narrative copy. */}
+        <SectionGrid>
+          {readyCampaign ? <ReadyDecisionCard campaign={readyCampaign} /> : null}
+          <DashboardCard
+            title={`${ATTENTION_ITEMS.length} need attention`}
+            className="lg:col-span-8"
+            padded={false}
+            bodyClassName="pb-1"
+          >
+            <ul className="divide-y divide-border-default">
+              {ATTENTION_ITEMS.map((item) => (
+                <AttentionRow key={item.id} item={item} />
+              ))}
+            </ul>
+          </DashboardCard>
+        </SectionGrid>
 
         {/* The calendar + key dates: one planning band */}
         <SectionHeading title="Plan ahead" />
@@ -313,6 +260,7 @@ export function HomePage() {
             );
           })}
         </SectionGrid>
+
     </DashboardPage>
   );
 }

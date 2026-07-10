@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Field, TextInput, Select } from "@/components/Field";
+import { Checkbox, Field, SelectMenu, TextInput } from "@/components/Field";
 import { PollCard } from "@/components/PollCard";
 import { PollComposer, type ComposerState } from "@/components/PollComposer";
 import {
@@ -36,6 +36,11 @@ import {
   type SinglePolst,
 } from "@/lib/workspace";
 import { sourceColumns } from "./Distribution";
+
+const EVENT_OPTIONS = [
+  { value: "None", label: "None" },
+  ...KEY_DATES.map((date) => ({ value: date.title, label: date.title })),
+];
 
 /** The operational default: the object's identity is a small paired thumb,
  *  the row is owned by status, scope, evidence, and recency. */
@@ -102,7 +107,7 @@ type View = (typeof VIEWS)[number]["key"];
 
 function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   return (
-    <div role="group" aria-label="View mode" className="flex rounded-md border border-border-default bg-surface-raised p-0.5">
+    <div role="group" aria-label="View mode" className="flex h-[37px] rounded-md border border-border-default bg-surface-raised p-1">
       {VIEWS.map((option) => (
         <button
           key={option.key}
@@ -111,7 +116,7 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
           aria-label={option.label}
           onClick={() => onChange(option.key)}
           className={cn(
-            "grid h-7 w-8 place-items-center rounded-sm text-icon-secondary transition-colors hover:text-icon-primary",
+            "grid h-[29px] w-8 place-items-center rounded-sm text-icon-secondary transition-colors hover:text-icon-primary",
             view === option.key && "bg-surface-subtle text-icon-primary",
           )}
         >
@@ -167,7 +172,14 @@ function PolstGridCard({ polst }: { polst: SinglePolst }) {
 export function PolstsPage() {
   const [active, setActive] = useState("All");
   const [view, setView] = useState<View>("list");
-  const rows = useMemo(() => filterByStatus(SINGLE_POLSTS, active), [active]);
+  const [query, setQuery] = useState("");
+  const rows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return filterByStatus(SINGLE_POLSTS, active).filter((polst) =>
+      !normalized || [polst.question, polst.optionA, polst.optionB, polst.topSource]
+        .some((value) => value.toLowerCase().includes(normalized)),
+    );
+  }, [active, query]);
 
   return (
     <DashboardPage
@@ -185,6 +197,8 @@ export function PolstsPage() {
               active={active}
               onChange={setActive}
               placeholder="Search Polsts"
+              query={query}
+              onQueryChange={setQuery}
               className="min-w-0 flex-1 border-b-0 p-0"
             />
             <ViewToggle view={view} onChange={setView} />
@@ -210,6 +224,8 @@ export function PolstsPage() {
             active={active}
             onChange={setActive}
             placeholder="Search Polsts"
+            query={query}
+            onQueryChange={setQuery}
             action={<ViewToggle view={view} onChange={setView} />}
           />
           <DataTable
@@ -397,12 +413,12 @@ export function CreatePolstPage() {
                   </Field>
                   <Field label="Linked event">
                     {(fieldId) => (
-                      <Select id={fieldId} defaultValue="None">
-                        <option>None</option>
-                        {KEY_DATES.map((date) => (
-                          <option key={date.id}>{date.title}</option>
-                        ))}
-                      </Select>
+                      <SelectMenu
+                        id={fieldId}
+                        label="Linked event"
+                        defaultValue="None"
+                        options={EVENT_OPTIONS}
+                      />
                     )}
                   </Field>
                 </div>
@@ -418,10 +434,7 @@ export function CreatePolstPage() {
                       key={source.id}
                       className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
                     >
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 shrink-0 rounded-sm border-border-strong accent-accent-default"
-                      />
+                      <Checkbox label={`Select ${source.name}`} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-display text-sm font-semibold text-text-primary">
                           {source.name}

@@ -1,6 +1,8 @@
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "./Icon";
+import { Menu, MenuItem } from "./Menu";
+import { Button } from "./ui/button";
 
 /** Shared chrome for every text-ish control so inputs and selects match:
  *  40px tall, control radius, raised surface, default border. */
@@ -98,27 +100,162 @@ export function TextInput({
   );
 }
 
-/** Native select on the shared control chrome with our own chevron. */
-export function Select({
+export type SelectOption = {
+  value: string;
+  label: string;
+  icon?: string;
+  disabled?: boolean;
+};
+
+/** Menu-backed single select. Compact selectors use the same 32px trigger as
+ * analytics date ranges; form fields keep the shared 40px input height. */
+export function SelectMenu({
   id,
+  label,
+  options,
+  value,
+  defaultValue = "",
+  onValueChange,
+  placeholder = "Select",
+  icon,
+  compact = false,
+  align = "start",
+  name,
+  disabled = false,
   className,
-  children,
-  ...rest
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+}: {
+  id?: string;
+  label: string;
+  options: SelectOption[];
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (next: string) => void;
+  placeholder?: string;
+  icon?: string;
+  compact?: boolean;
+  align?: "start" | "end";
+  name?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [internalValue, setInternalValue] = useState(defaultValue);
+  const selectedValue = value ?? internalValue;
+  const selected = options.find((option) => option.value === selectedValue);
+  const choose = (next: string) => {
+    if (value === undefined) setInternalValue(next);
+    onValueChange?.(next);
+  };
+
   return (
-    <div className="relative">
-      <select
+    <>
+      <Menu
+      label={label}
+      align={align}
+      rootClassName={compact ? "shrink-0" : "w-full"}
+      className={cn(compact ? "min-w-52" : "w-full min-w-full")}
+      trigger={({ open, toggle }) => (
+        <Button
+          id={id}
+          type="button"
+          variant="secondary"
+          size={compact ? "md" : "lg"}
+          disabled={disabled}
+          onClick={toggle}
+          aria-label={label}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className={cn(
+            "justify-between",
+            compact
+              ? "max-w-full"
+              : "h-10 w-full px-3 font-sans text-base font-normal lg:text-sm",
+            !selected && "text-text-tertiary",
+            className,
+          )}
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            {icon ? <Icon name={icon} size={18} className="shrink-0" /> : null}
+            <span className="truncate">{selected?.label ?? placeholder}</span>
+          </span>
+          <Icon
+            name="arrow_drop_down"
+            size={18}
+            className={cn("shrink-0 transition-transform", open && "rotate-180")}
+          />
+        </Button>
+      )}
+    >
+      {options.map((option) => (
+        <MenuItem
+          key={option.value}
+          icon={option.icon}
+          label={option.label}
+          selected={option.value === selectedValue}
+          disabled={option.disabled}
+          onClick={() => choose(option.value)}
+        />
+      ))}
+      </Menu>
+      {name ? <input type="hidden" name={name} value={selectedValue} /> : null}
+    </>
+  );
+}
+
+/** Tokenized checkbox with native input semantics and a stable visual across
+ * browsers. The transparent input fills the control, so labels and table cells
+ * both get the same click target. */
+export function Checkbox({
+  id,
+  label,
+  checked,
+  defaultChecked = false,
+  onCheckedChange,
+  name,
+  value,
+  disabled = false,
+  className,
+}: {
+  id?: string;
+  label: string;
+  checked?: boolean;
+  defaultChecked?: boolean;
+  onCheckedChange?: (next: boolean) => void;
+  name?: string;
+  value?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [internalChecked, setInternalChecked] = useState(defaultChecked);
+  const active = checked ?? internalChecked;
+  return (
+    <span className={cn("relative inline-grid h-4 w-4 shrink-0 place-items-center", className)}>
+      <input
         id={id}
-        className={cn(CONTROL, "appearance-none px-3 pr-10", className)}
-        {...rest}
-      >
-        {children}
-      </select>
-      <Icon
-        name="keyboard_arrow_down"
-        size={20}
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-icon-secondary"
+        type="checkbox"
+        aria-label={label}
+        checked={active}
+        name={name}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => {
+          if (checked === undefined) setInternalChecked(event.target.checked);
+          onCheckedChange?.(event.target.checked);
+        }}
+        className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
       />
-    </div>
+      <span
+        aria-hidden
+        className={cn(
+          "grid h-4 w-4 place-items-center rounded-sm border transition-colors",
+          "peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1",
+          active
+            ? "border-accent-default bg-accent-default text-text-on-accent"
+            : "border-border-strong bg-surface-raised text-transparent",
+          disabled && "opacity-50",
+        )}
+      >
+        <Icon name="check" size={14} />
+      </span>
+    </span>
   );
 }

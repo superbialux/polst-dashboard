@@ -16,6 +16,7 @@ import { Menu, MenuItem } from "@/components/Menu";
 import { useModules } from "@/lib/modules";
 import {
   CAMPAIGNS,
+  ATTENTION_ITEMS,
   CHANNELS,
   CREATORS,
   DISTRIBUTION_SOURCES,
@@ -31,9 +32,8 @@ type NavItem = {
   children?: Array<{ label: string; to: string }>;
 };
 
-/** Nav rides in three bands split by hairline dividers — never labeled
- *  sections: the daily work (campaign-first), then the learning surfaces,
- *  and — pinned at the bottom — administration. */
+/** Nav rides in three bands split by hairline dividers: daily work,
+ *  learning surfaces, then workspace administration. */
 const NAV_GROUPS: Array<{ items: NavItem[] }> = [
   {
     items: [
@@ -58,6 +58,9 @@ const NAV_GROUPS: Array<{ items: NavItem[] }> = [
       { label: "Audience", icon: "groups", to: "/audience" },
     ],
   },
+  {
+    items: [{ label: "Settings", icon: "settings", to: "/settings" }],
+  },
 ];
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -68,13 +71,11 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
       : "text-sidenav-muted hover:bg-sidenav-hover hover:text-sidenav-fg",
   );
 
-/** Rail icons inherit the row's ink; the active row alone fills its glyph.
- *  18px glyphs at regular (400) weight, centered in a fixed 20px box so
- *  every label starts on the same axis. */
+/** Every rail glyph and identity mark occupies the same 20px column. */
 function NavIcon({ name, active }: { name: string; active: boolean }) {
   return (
     <span className="grid h-5 w-5 shrink-0 place-items-center">
-      <Icon name={name} size={18} weight={400} filled={active} />
+      <Icon name={name} size={20} weight={400} filled={active} />
     </span>
   );
 }
@@ -97,9 +98,23 @@ export function HeaderActions({ children }: { children: ReactNode }) {
  *  The page owns the document scroll; nothing nests a second scroller. */
 export function DashboardShell({ children }: { children: ReactNode }) {
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Cmd/Ctrl-K opens the same workspace search as the sidebar control.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <div className="min-h-dvh bg-app-content text-text-primary">
-      <Sidebar />
+      <Sidebar onSearch={() => setSearchOpen(true)} />
       <div className="lg:pl-64">
         <Header onActionsSlot={setActionsSlot} />
         <HeaderActionsContext.Provider value={actionsSlot}>
@@ -108,11 +123,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </main>
         </HeaderActionsContext.Provider>
       </div>
+      <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }
 
-function Sidebar() {
+function Sidebar({ onSearch }: { onSearch: () => void }) {
   const location = useLocation();
   const { modules } = useModules();
   const groups = NAV_GROUPS.map((group) => ({
@@ -138,24 +154,34 @@ function Sidebar() {
   }));
   return (
     <aside className="scroll-subtle fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto bg-sidenav pb-2 lg:flex">
-      {/* Brand block — a 48px strip mirroring the header across the seam:
-          the wordmark left-aligned, the surface named beside it */}
-      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center px-4">
-        <PolstWordmark className="h-6 brightness-0 invert" />
-      </Link>
-
-      {/* The workspace switcher lives right under the brand */}
-      <div className="px-2 pb-2">
-        <AccountMenu />
+      <div className="flex h-12 shrink-0 items-center border-b border-sidenav-active px-2">
+        <WorkspaceMenu />
+      </div>
+      <div className="px-2 pb-3 pt-2">
+        <button
+          type="button"
+          onClick={onSearch}
+          aria-label="Search the workspace"
+          aria-keyshortcuts="Meta+K Control+K"
+          className="flex h-9 w-full items-center gap-2 rounded-md border border-sidenav-active bg-sidenav-hover px-2 text-left text-sm font-medium text-sidenav-muted transition-colors hover:bg-sidenav-active hover:text-sidenav-fg"
+        >
+          <span className="grid h-5 w-5 shrink-0 place-items-center">
+            <Icon name="search" size={20} />
+          </span>
+          <span className="min-w-0 flex-1 truncate">Search</span>
+          <kbd className="rounded-sm border border-sidenav-active px-1.5 py-0.5 font-sans text-[10px] font-medium leading-none text-sidenav-muted">
+            ⌘K
+          </kbd>
+        </button>
       </div>
 
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
         {groups.map((group, gi) => (
           <div key={gi}>
             {gi > 0 ? (
-              <div aria-hidden className="my-3 h-px bg-sidenav-active" />
+              <div aria-hidden className="my-2 h-px bg-sidenav-active" />
             ) : null}
-            <ul className="space-y-1">
+            <ul className="space-y-px">
               {group.items.map((item) => {
                 const parentActive =
                   item.to === "/"
@@ -174,7 +200,7 @@ function Sidebar() {
                     </NavLink>
 
                     {item.children && parentActive ? (
-                      <ul className="mt-1 space-y-0.5 pl-7">
+                      <ul className="mt-1 space-y-px pl-7">
                         {item.children.map((child) => (
                           <li key={child.to}>
                             <NavLink
@@ -200,28 +226,10 @@ function Sidebar() {
           </div>
         ))}
 
-        <div className="mt-auto space-y-3 pt-4">
-          <NavLink to="/settings" className={navLinkClass}>
-            {({ isActive }) => (
-              <>
-                <NavIcon name="settings" active={isActive} />
-                <span>Settings</span>
-              </>
-            )}
-          </NavLink>
-
-          {/* The signed-in person, pinned to the rail's foot */}
-          <div className="flex items-center gap-3 rounded-md bg-sidenav-hover p-2">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-xs font-semibold text-text-on-accent">
-              {initialsOf(WORKSPACE.owner)}
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium text-sidenav-fg">
-                {WORKSPACE.owner}
-              </span>
-              <span className="block truncate text-xs text-sidenav-muted">Owner</span>
-            </span>
-          </div>
+        <div className="mt-auto pt-4">
+          <SidebarSuggestions />
+          <div aria-hidden className="my-2 h-px bg-sidenav-active" />
+          <UserMenu />
         </div>
       </nav>
     </aside>
@@ -233,20 +241,6 @@ function Header({
 }: {
   onActionsSlot: (el: HTMLElement | null) => void;
 }) {
-  const [searchOpen, setSearchOpen] = useState(false);
-
-  // ⌘K / Ctrl-K opens the workspace search from anywhere.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   return (
     <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border-default bg-surface-raised px-4 sm:px-5">
       {/* Below lg the rail is hidden, so the wordmark rides the header */}
@@ -263,7 +257,6 @@ function Header({
         <NotificationsMenu />
       </div>
 
-      <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 }
@@ -703,27 +696,28 @@ function NotificationsMenu() {
   );
 }
 
-/** The workspace switcher — the same card anatomy as the signed-in user
- *  card at the rail's foot (soft panel, 32px mark, name + sub-line), plus
- *  an unfold glyph. The panel itself stays a light overlay, like every menu. */
-function AccountMenu() {
+/** The rail starts with company context; account actions live at its foot. */
+function WorkspaceMenu() {
   return (
     <Menu
-      label="Account"
+      label="Switch company"
       align="start"
+      rootClassName="w-full"
       className="w-72 p-1.5"
-      trigger={({ toggle }) => (
+      trigger={({ open, toggle }) => (
         <button
+          type="button"
           onClick={toggle}
-          className="flex w-full items-center gap-3 rounded-md border border-sidenav-active p-2 text-left transition-colors hover:bg-sidenav-hover"
+          aria-expanded={open}
+          className="grid h-9 w-full grid-cols-[20px_minmax(0,1fr)_20px] items-center gap-2 rounded-md px-2 transition-colors hover:bg-sidenav-hover"
         >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-default font-display text-xs font-semibold text-text-on-accent">
+          <span className="grid h-5 w-5 place-items-center rounded-xs bg-accent-default font-display text-[8px] font-bold leading-none text-text-on-accent">
             {WORKSPACE.initials}
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidenav-fg">
+          <span className="min-w-0 truncate text-center text-sm font-medium leading-5 text-sidenav-fg">
             {WORKSPACE.brand}
           </span>
-          <Icon name="unfold_more" size={18} className="shrink-0 text-sidenav-muted" />
+          <Icon name="unfold_more" size={20} className="text-sidenav-muted" />
         </button>
       )}
     >
@@ -740,21 +734,80 @@ function AccountMenu() {
           {ws.current ? <Icon name="check" size={18} className="text-accent-default" /> : null}
         </button>
       ))}
+    </Menu>
+  );
+}
 
-      <div className="my-1.5 h-px bg-border-default" />
+/** Compact, dismissible triage prompt anchored above the signed-in user. */
+function SidebarSuggestions() {
+  const [visible, setVisible] = useState(true);
+  if (!visible) return null;
+  const firstItem = ATTENTION_ITEMS[0];
 
-      <div className="flex items-center gap-3 rounded-md px-2.5 py-2">
-        <span className="grid h-8 w-8 place-items-center rounded-pill bg-avatar-bg font-display text-xs font-bold text-text-inverse">
-          {initialsOf(WORKSPACE.owner)}
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-text-primary">
+  return (
+    <section
+      aria-labelledby="sidebar-suggestions-title"
+      className="rounded-md border border-sidenav-active bg-sidenav-hover p-3"
+    >
+      <p
+        id="sidebar-suggestions-title"
+        className="text-sm font-semibold text-sidenav-fg"
+      >
+        {ATTENTION_ITEMS.length} items need attention
+      </p>
+      <p className="mt-1 text-xs leading-5 text-sidenav-muted">
+        {firstItem.title} <span className="text-sidenav-fg">+{ATTENTION_ITEMS.length - 1} more</span>
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Link
+          to={firstItem.to ?? "/"}
+          className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-sm border border-sidenav-active bg-sidenav-active px-3 text-xs font-semibold text-sidenav-fg transition-colors hover:bg-surface-strong hover:text-text-primary"
+        >
+          Review items
+        </Link>
+        <button
+          type="button"
+          onClick={() => setVisible(false)}
+          aria-label="Dismiss suggestions"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-sm border border-sidenav-active text-sidenav-muted transition-colors hover:bg-sidenav-active hover:text-sidenav-fg"
+        >
+          <Icon name="close" size={18} />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** The bottom account menu intentionally exposes one action: log out. */
+function UserMenu() {
+  return (
+    <Menu
+      label="User account"
+      align="start"
+      side="top"
+      rootClassName="w-full"
+      className="w-full p-1.5"
+      trigger={({ open, toggle }) => (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-sidenav-hover"
+        >
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-[8px] font-bold leading-none text-text-on-accent">
+            {initialsOf(WORKSPACE.owner)}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-sidenav-fg">
             {WORKSPACE.owner}
           </span>
-          <span className="block truncate text-xs text-text-secondary">{WORKSPACE.email}</span>
-        </span>
-      </div>
-
+          <Icon
+            name={open ? "expand_more" : "more_horiz"}
+            size={20}
+            className="shrink-0 text-sidenav-muted"
+          />
+        </button>
+      )}
+    >
       <MenuItem icon="logout" label="Log out" />
     </Menu>
   );

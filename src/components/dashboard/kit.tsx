@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
-import { Menu, MenuItem } from "@/components/Menu";
-import { Select } from "@/components/Field";
+import { SelectMenu, TextInput } from "@/components/Field";
 import { HeaderActions } from "./Shell";
+import type { AnalyticsFilters, AnalyticsRange } from "@/lib/analytics";
 import {
   formatNumber,
   polstOptions,
@@ -309,8 +309,8 @@ export function DecisionBrief({
 /* ── Filters ─────────────────────────────────────────────────────── */
 
 /** Segmented tab group on a subtle track — the in-page status filter. */
-/** The one segmented select across the app — status filters, time ranges, page
- *  tabs. 32px tall (matches buttons), **white** (raised + bordered) so it reads
+/** The one segmented select across the app — status filters and page tabs.
+ *  32px tall (matches buttons), **white** (raised + bordered) so it reads
  *  against the page background, with a light active pill. Scrolls if it can't
  *  fit. `FilterTabs` / `PageTabs` are thin aliases so every select is identical. */
 export function SegmentedControl<T extends string>({
@@ -327,7 +327,7 @@ export function SegmentedControl<T extends string>({
   return (
     <div
       className={cn(
-        "inline-flex h-8 items-center gap-0.5 rounded-md border border-border-default bg-surface-raised p-0.5",
+        "inline-flex h-[37px] max-w-full items-center gap-0.5 overflow-x-auto rounded-md border border-border-default bg-surface-raised p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className,
       )}
     >
@@ -338,7 +338,7 @@ export function SegmentedControl<T extends string>({
           onClick={() => onChange(tab)}
           aria-pressed={active === tab}
           className={cn(
-            "h-7 whitespace-nowrap rounded-sm px-3 font-display text-ui font-semibold transition-colors",
+            "h-[29px] shrink-0 whitespace-nowrap rounded-sm px-3 font-display text-ui font-semibold transition-colors",
             active === tab
               ? "bg-surface-subtle text-text-primary shadow-sm"
               : "text-text-secondary hover:text-text-primary",
@@ -369,6 +369,8 @@ export function SearchAndFilters({
   active,
   onChange,
   placeholder,
+  query,
+  onQueryChange,
   action,
   className,
 }: {
@@ -376,10 +378,13 @@ export function SearchAndFilters({
   active: string;
   onChange: (tab: string) => void;
   placeholder: string;
+  query: string;
+  onQueryChange: (next: string) => void;
   /** Extra control on the trailing edge (e.g. a view toggle). */
   action?: ReactNode;
   className?: string;
 }) {
+  const searchId = useId();
   return (
     <div
       className={cn(
@@ -389,18 +394,18 @@ export function SearchAndFilters({
     >
       <FilterTabs tabs={tabs} active={active} onChange={onChange} />
       <div className="flex items-center gap-2">
-        <label className="relative w-full lg:w-72">
-          <span className="sr-only">{placeholder}</span>
-          <Icon
-            name="search"
-            size={20}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-icon-secondary"
-          />
-          <input
-            className="h-9 w-full rounded-md border border-border-default bg-surface-raised pl-10 pr-3 text-ui text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-border-accent"
+        <div className="w-full lg:w-72">
+          <label htmlFor={searchId} className="sr-only">{placeholder}</label>
+          <TextInput
+            id={searchId}
+            type="search"
+            icon="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            className="h-[37px] text-ui"
             placeholder={placeholder}
           />
-        </label>
+        </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
     </div>
@@ -669,7 +674,19 @@ type Stat = {
   spark?: number[];
   /** The metric's definition — formula and denominator, in plain words. */
   info?: string;
+  insights?: Array<{
+    text: string;
+    to: string;
+    tone: "success" | "warning" | "danger" | "accent";
+  }>;
 };
+
+const INSIGHT_TONES = {
+  success: { border: "border-status-success", dot: "bg-status-success" },
+  warning: { border: "border-status-warning", dot: "bg-status-warning" },
+  danger: { border: "border-status-danger", dot: "bg-status-danger" },
+  accent: { border: "border-accent-default", dot: "bg-accent-default" },
+} as const;
 
 const trendClass = (trend?: Stat["trend"]) =>
   trend === "up"
@@ -854,9 +871,7 @@ export function StatsStrip({
 }: {
   stats: Stat[];
   xTicks: string[];
-  /** The data contract for every number on the strip: exact period, the
-   *  comparison period, and the object scope. Always show it — deltas
-   *  without a stated baseline are decoration. */
+  /** Optional scope copy for surfaces that do not already establish it. */
   scope?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -930,12 +945,35 @@ export function StatsStrip({
         )}
       >
         <div className="overflow-hidden">
-          <div className="px-2 pb-2 pt-4">
+          <div
+            className={cn(
+              "grid gap-4 px-2 pb-2 pt-4",
+              active.insights?.length && "lg:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)]",
+            )}
+          >
             <TrendChart series={series} previous={previous} xTicks={xTicks} />
-            {active.info ? (
-              <p className="mt-2 pl-11 text-xs text-text-tertiary">
-                {active.label}: {active.info} Dashed line is the previous period.
-              </p>
+            {active.insights?.length ? (
+              <div>
+                <ul className="space-y-2">
+                  {active.insights.map((insight) => (
+                    <li key={insight.text}>
+                      <Link
+                        to={insight.to}
+                        className={cn(
+                          "flex h-9 items-center gap-2 rounded-sm border bg-surface-raised py-2 pl-3 pr-2.5 text-sm leading-5 text-text-primary transition-colors hover:bg-surface-subtle",
+                          INSIGHT_TONES[insight.tone].border,
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn("h-2 w-2 shrink-0 rounded-pill", INSIGHT_TONES[insight.tone].dot)}
+                        />
+                        <span className="truncate">{insight.text}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
           </div>
         </div>
@@ -1231,16 +1269,6 @@ export function PolstMiniRow({ polst }: { polst: SinglePolst }) {
   );
 }
 
-/** A single active/started/completed count in a campaign row. */
-function PollStat({ label, value }: { label: string; value: number }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="font-semibold text-text-primary tabular-nums">{value}</span>
-      {label}
-    </span>
-  );
-}
-
 /** A dot separator between inline stats. */
 const StatDot = () => (
   <span aria-hidden className="text-border-strong">
@@ -1248,10 +1276,8 @@ const StatDot = () => (
   </span>
 );
 
-/** A campaign in the Home "Campaigns" card: name + run dates, status, its
- *  completion rate, and the active/started/completed Polst breakdown. */
+/** An active campaign summary for Home: signal, response progress, and live Polsts. */
 export function CampaignRow({ campaign }: { campaign: Campaign }) {
-  const hasCompletion = campaign.completion !== "—";
   return (
     <Link
       to={`/campaigns/${campaign.id}`}
@@ -1261,28 +1287,23 @@ export function CampaignRow({ campaign }: { campaign: Campaign }) {
         <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
           {campaign.name}
         </p>
-        <StatusBadge status={campaign.status} />
+        <SignalBadge signal={campaign.signal} />
       </div>
       <p className="mt-0.5 text-xs text-text-secondary">{campaign.dates}</p>
-      {/* Every number says what it measures: completion is a rate, the
-          Polst counts are inventory — never a bare "71% complete". */}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-secondary">
-        {hasCompletion ? (
-          <>
-            <span className="font-semibold tabular-nums text-text-primary">
-              {campaign.completion} completion rate
-            </span>
-            <StatDot />
-          </>
-        ) : null}
         <span className="inline-flex items-center gap-1">
           <span className="font-semibold tabular-nums text-text-primary">
-            {campaign.pollsActive} of {campaign.polsts}
+            {formatNumber(campaign.responses)} / {formatNumber(campaign.target)}
           </span>
-          Polsts live
+          responses
         </span>
         <StatDot />
-        <PollStat label="finished" value={campaign.pollsCompleted} />
+        <span>
+          <span className="font-semibold tabular-nums text-text-primary">
+            {campaign.pollsActive}
+          </span>{" "}
+          Polsts live
+        </span>
       </div>
     </Link>
   );
@@ -1962,10 +1983,12 @@ export function Switch({
   checked,
   onChange,
   label,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -1973,19 +1996,27 @@ export function Switch({
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative h-5 w-9 shrink-0 rounded-pill transition-colors duration-150",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-default",
-        checked ? "bg-accent-default" : "bg-surface-strong",
+        "group inline-flex shrink-0 items-center justify-center rounded-md p-2 transition-colors duration-150 hover:bg-surface-subtle",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+        "disabled:pointer-events-none disabled:opacity-50",
       )}
     >
       <span
         className={cn(
-          "absolute top-0.5 h-4 w-4 rounded-pill bg-surface-raised shadow-sm transition-[left] duration-150",
-          checked ? "left-[18px]" : "left-0.5",
+          "relative h-5 w-9 rounded-pill transition-colors duration-150",
+          checked ? "bg-accent-default" : "bg-surface-strong",
         )}
-      />
+      >
+        <span
+          className={cn(
+            "absolute left-0.5 top-0.5 h-4 w-4 rounded-pill bg-surface-raised shadow-sm transition-transform duration-150",
+            checked ? "translate-x-4" : "translate-x-0",
+          )}
+        />
+      </span>
     </button>
   );
 }
@@ -2032,70 +2063,85 @@ export function ConnectCard({ integration }: { integration: Integration }) {
 
 /* ── Filter bar ──────────────────────────────────────────────────── */
 
-/** The shared analytics filter row: date range, channel, vertical —
- *  available on every cross-campaign view. Pass a controlled vertical to
- *  actually filter a table; the rest hold their own (visual) state. */
+export type DateRangeValue = AnalyticsRange;
+
+const DATE_RANGE_OPTIONS: Array<{ value: DateRangeValue; label: string }> = [
+  { value: "7D", label: "Last 7 days" },
+  { value: "30D", label: "Last 30 days" },
+  { value: "90D", label: "Last 90 days" },
+  { value: "All", label: "All time" },
+];
+
+/** Shared reporting-window control for every analytics surface. */
+export function DateRangeMenu({
+  value,
+  onChange,
+}: {
+  value: DateRangeValue;
+  onChange: (next: DateRangeValue) => void;
+}) {
+  return (
+    <SelectMenu
+      label="Date range"
+      value={value}
+      onValueChange={(next) => onChange(next as DateRangeValue)}
+      options={DATE_RANGE_OPTIONS.map((option) => ({ ...option, icon: "calendar_today" }))}
+      icon="calendar_month"
+      compact
+    />
+  );
+}
+
+/** Shared controlled analytics filters. Every control belongs to the query;
+ *  pages never render a selector that does not change their data. */
 export function FilterBar({
+  filters,
+  onChange,
   verticals,
-  vertical,
-  onVertical,
   channels,
+  utms,
   className,
 }: {
+  filters: AnalyticsFilters;
+  onChange: (next: AnalyticsFilters) => void;
   verticals?: string[];
-  vertical?: string;
-  onVertical?: (next: string) => void;
   channels?: string[];
+  utms?: string[];
   className?: string;
 }) {
-  const [range, setRange] = useState("Last 30 days");
-  const [channel, setChannel] = useState("All channels");
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <Menu
-        label="Date range"
-        trigger={({ toggle }) => (
-          <Button variant="secondary" onClick={toggle}>
-            <Icon name="calendar_month" size={18} />
-            {range}
-            <Icon name="arrow_drop_down" size={18} />
-          </Button>
-        )}
-      >
-        {["Last 7 days", "Last 30 days", "Last 90 days", "Year to date"].map((preset) => (
-          <MenuItem
-            key={preset}
-            icon="calendar_today"
-            label={preset}
-            onClick={() => setRange(preset)}
-          />
-        ))}
-      </Menu>
+      <DateRangeMenu
+        value={filters.range}
+        onChange={(range) => onChange({ ...filters, range })}
+      />
       {channels?.length ? (
-        <Select
-          aria-label="Channel"
-          value={channel}
-          onChange={(e) => setChannel(e.target.value)}
-          className="h-8 w-auto py-0 text-sm"
-        >
-          <option>All channels</option>
-          {channels.map((name) => (
-            <option key={name}>{name}</option>
-          ))}
-        </Select>
+        <SelectMenu
+          label="Channel"
+          value={filters.channel}
+          onValueChange={(channel) => onChange({ ...filters, channel })}
+          options={["All channels", ...channels].map((name) => ({ value: name, label: name }))}
+          compact
+        />
       ) : null}
       {verticals?.length ? (
-        <Select
-          aria-label="Vertical"
-          value={vertical}
-          onChange={(e) => onVertical?.(e.target.value)}
-          className="h-8 w-auto py-0 text-sm"
-        >
-          <option>All verticals</option>
-          {verticals.map((name) => (
-            <option key={name}>{name}</option>
-          ))}
-        </Select>
+        <SelectMenu
+          label="Vertical"
+          value={filters.vertical}
+          onValueChange={(vertical) => onChange({ ...filters, vertical })}
+          options={["All verticals", ...verticals].map((name) => ({ value: name, label: name }))}
+          compact
+        />
+      ) : null}
+      {utms?.length ? (
+        <SelectMenu
+          label="UTM group"
+          value={filters.utm}
+          onValueChange={(utm) => onChange({ ...filters, utm })}
+          options={["All UTM groups", ...utms].map((name) => ({ value: name, label: name }))}
+          align="end"
+          compact
+        />
       ) : null}
     </div>
   );

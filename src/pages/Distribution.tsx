@@ -4,7 +4,7 @@ import { Modal } from "@/components/Modal";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Field, TextInput } from "@/components/Field";
+import { Checkbox, Field, TextInput } from "@/components/Field";
 import {
   DashboardCard,
   DashboardPage,
@@ -491,13 +491,7 @@ function AssignSourcesModal({
     {
       header: "",
       className: "w-10",
-      cell: () => (
-        <input
-          type="checkbox"
-          aria-label="Select source"
-          className="h-4 w-4 rounded-sm border-border-strong accent-accent-default"
-        />
-      ),
+      cell: (row) => <Checkbox label={`Select ${row.name}`} />,
     },
     ...sourceColumns.slice(0, 4),
     { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },

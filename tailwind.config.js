@@ -139,6 +139,7 @@ export default {
         dashboard: "1152px",
       },
       borderRadius: {
+        xs: "var(--radius-xs)",
         sm: "var(--radius-sm)",
         md: "var(--radius-md)",
         card: "var(--radius-card)",

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { Menu, MenuItem } from "@/components/Menu";
@@ -16,7 +15,6 @@ import {
   Funnel,
   MixBars,
   SectionGrid,
-  Sparkline,
   SplitBar,
   StatTile,
   StatsStrip,
@@ -27,81 +25,88 @@ import {
   type DataColumn,
 } from "@/components/dashboard";
 import {
-  ACQ_FINDINGS,
-  ACQUISITION_STATS,
   CAMPAIGNS,
-  CAMPAIGN_ROI,
-  CHANNELS,
-  CHURN_RISKS,
-  COHORTS,
-  COHORT_USAGE,
-  CREATIVE_FORMATS,
-  DEVICE_MIX,
   HEATMAP_BUCKETS,
   HEATMAP_DAYS,
   HEATMAP_PEAK,
-  INSIGHTS,
-  OVERVIEW_FUNNEL,
-  PAID_ORGANIC,
-  PLATFORM_MIX,
-  POST_VOTE_FUNNEL,
-  REPORTS,
-  RESPONSE_TREND,
-  RETENTION_STATS,
-  RETURN_PATHS,
-  SIGNUP_TREND,
-  SOURCE_MIX,
   TIME_HEATMAP,
-  VERTICAL_PERFORMANCE,
-  WHAT_CHANGED,
   formatNumber,
   type Campaign,
-  type CampaignRoi,
-  type ChannelEconomics,
   type ChurnRisk,
-  type CohortUsage,
   type Finding,
   type Report,
   type VerticalPerformance,
-  CHANNEL_ECONOMICS,
 } from "@/lib/workspace";
+import {
+  ANALYTICS_CHANNELS,
+  ANALYTICS_UTMS,
+  ANALYTICS_VERTICALS,
+  acquisitionByChannel,
+  campaignReturns,
+  contentPerformance,
+  formatMoney,
+  formatPercent,
+  mixBy,
+  ratio,
+  retentionByChannel,
+  seriesFor,
+  total,
+  trafficQuality,
+  weightedAverage,
+  type AcquisitionRow,
+  type AnalyticsResult,
+  type CampaignReturnRow,
+  type ContentPerformanceRow,
+  type RetentionBreakdownRow,
+  type TrafficQualityRow,
+} from "@/lib/analytics";
+import { useAnalytics } from "@/lib/analytics-context";
 
-const VERTICALS = VERTICAL_PERFORMANCE.map((v) => v.vertical);
-const CHANNEL_NAMES = CHANNELS.map((c) => c.name);
+const RANGE_TICKS = {
+  "7D": ["7 days ago", "3 days ago", "Today"],
+  "30D": ["30 days ago", "15 days ago", "Today"],
+  "90D": ["90 days ago", "45 days ago", "Today"],
+  All: ["First response", "Midpoint", "Today"],
+} as const;
+
+function AnalyticsFilters() {
+  const { filters, setFilters } = useAnalytics();
+  return (
+    <FilterBar
+      filters={filters}
+      onChange={setFilters}
+      channels={ANALYTICS_CHANNELS}
+      verticals={ANALYTICS_VERTICALS}
+      utms={ANALYTICS_UTMS}
+    />
+  );
+}
+
+function EmptyAnalytics() {
+  return (
+    <DashboardCard>
+      <p className="py-8 text-center text-sm text-text-secondary">
+        No activity matches these filters.
+      </p>
+    </DashboardCard>
+  );
+}
+
+function campaignScope(rows: AnalyticsResult[]) {
+  const byCampaign = new Map<string, AnalyticsResult[]>();
+  rows.forEach((row) => byCampaign.set(row.campaignId, [...(byCampaign.get(row.campaignId) ?? []), row]));
+  return [...byCampaign.entries()].map(([id, scoped]) => {
+    const campaign = CAMPAIGNS.find((item) => item.id === id)!;
+    return {
+      ...campaign,
+      responses: total(scoped, "completions"),
+      completion: formatPercent(ratio(total(scoped, "completions"), total(scoped, "starts")), 0),
+      topSource: mixBy(scoped, (row) => row.channel, "completions")[0]?.label ?? "-",
+    };
+  });
+}
 
 /* ── Overview ────────────────────────────────────────────────────── */
-
-/** Same formulas and window as Home's strip — one number, one truth. */
-const PORTFOLIO = [
-  {
-    label: "Total votes",
-    value: "2,431",
-    detail: "−11% vs Apr 17 – May 16",
-    trend: "down" as const,
-    info: "Choices tapped across every campaign and standalone Polst, May 17 – Jun 15. Matches the Home strip.",
-  },
-  {
-    label: "Completion rate",
-    value: "65.0%",
-    detail: "+5.7 pts vs Apr 17 – May 16",
-    trend: "up" as const,
-    info: "Voters who finished a full Polst sequence ÷ voters who started one, same window.",
-  },
-  {
-    label: "Engagement rate",
-    value: "14.1%",
-    detail: "+4.2 pts vs Apr 17 – May 16",
-    trend: "up" as const,
-    info: "Total votes ÷ total views for the window.",
-  },
-  {
-    label: "Top source by volume",
-    value: "Website",
-    detail: "388 responses this window",
-    trend: "flat" as const,
-    info: "The source that delivered the most responses. Volume isn't quality — check completion per source in Distribution.",
-  },
-];
 
 const campaignPerformanceColumns: Array<DataColumn<Campaign>> = [
   {
@@ -177,7 +182,7 @@ const verticalColumns: Array<DataColumn<VerticalPerformance>> = [
     cell: (row) => <span className="tabular-nums">{row.completion}</span>,
   },
   {
-    header: "Drop-off point",
+    header: "Drop-off",
     cell: (row) => <span className="text-text-secondary">{row.dropOff}</span>,
   },
   {
@@ -192,36 +197,83 @@ const verticalColumns: Array<DataColumn<VerticalPerformance>> = [
   },
 ];
 
+const contentColumns: Array<DataColumn<ContentPerformanceRow>> = [
+  { header: "Topic", cell: (row) => <span className="font-display font-semibold">{row.topic}</span> },
+  { header: "Hook", cell: (row) => <span className="text-text-secondary">{row.hook}</span> },
+  { header: "Format", cell: (row) => <span className="text-text-secondary">{row.format}</span> },
+  { header: "Views", align: "right", cell: (row) => <span className="tabular-nums">{formatNumber(row.views)}</span> },
+  { header: "Engagement", align: "right", cell: (row) => <span className="tabular-nums">{row.engagement}</span> },
+  { header: "Completion", align: "right", cell: (row) => <span className="tabular-nums">{row.completion}</span> },
+  { header: "Share", align: "right", cell: (row) => <span className="tabular-nums">{row.shareRate}</span> },
+];
+
+const trafficColumns: Array<DataColumn<TrafficQualityRow>> = [
+  { header: "Channel", cell: (row) => <span className="font-display font-semibold">{row.channel}</span> },
+  { header: "Vertical", cell: (row) => <span className="text-text-secondary">{row.vertical}</span> },
+  { header: "Creative", cell: (row) => <span className="text-text-secondary">{row.format}</span> },
+  { header: "Bounce", align: "right", cell: (row) => <span className="tabular-nums">{row.bounce}</span> },
+  { header: "Time on site", align: "right", cell: (row) => <span className="tabular-nums">{row.timeOnSite}</span> },
+  { header: "Vote drop-off", align: "right", cell: (row) => <span className="tabular-nums">{row.dropOff}</span> },
+];
+
 export function AnalyticsOverviewPage() {
-  const [vertical, setVertical] = useState("All verticals");
-  const campaigns =
-    vertical === "All verticals"
-      ? CAMPAIGNS
-      : CAMPAIGNS.filter((c) => c.vertical === vertical);
-  const readyToDecide = CAMPAIGNS.filter(
+  const { filters, rows } = useAnalytics();
+  const campaigns = campaignScope(rows);
+  const readyToDecide = campaigns.filter(
     (c) => c.status === "Active" && (c.signal === "Leading" || c.signal === "Decisive"),
   );
+  const views = total(rows, "views");
+  const votes = total(rows, "votes");
+  const starts = total(rows, "starts");
+  const completions = total(rows, "completions");
+  const newUsers = total(rows, "newUsers");
+  const returningUsers = total(rows, "returningUsers");
+  const sourceMix = mixBy(rows, (row) => row.channel, "completions");
+  const topSource = sourceMix[0]?.label ?? "-";
+  const portfolio = [
+    { label: "Total views", value: formatNumber(views), info: "Attributed views in the selected scope." },
+    { label: "Total votes", value: formatNumber(votes), info: "Choices tapped in the selected scope." },
+    { label: "Completion rate", value: formatPercent(ratio(completions, starts)), info: "Completed sequences divided by starts." },
+    { label: "Top source", value: topSource, info: "Highest completed-response volume in the selected scope." },
+  ];
+  const verticalRows: VerticalPerformance[] = ANALYTICS_VERTICALS.map((vertical) => {
+    const scoped = rows.filter((row) => row.vertical === vertical);
+    return {
+      id: vertical.toLowerCase().replace(/ /g, "-"),
+      vertical,
+      responses: total(scoped, "completions"),
+      completion: formatPercent(ratio(total(scoped, "completions"), total(scoped, "starts"))),
+      dropOff: formatPercent(100 - ratio(total(scoped, "completions"), total(scoped, "starts"))),
+      timeToVote: `${weightedAverage(scoped, "timeToVoteSeconds", "starts").toFixed(1)}s`,
+      shareRate: formatPercent(ratio(total(scoped, "shares"), total(scoped, "completions"))),
+    };
+  }).filter((row) => row.responses > 0);
+  const heatScale = completions / 2670;
+  const heatmap = TIME_HEATMAP.map((day) => day.map((value) => Math.round(value * heatScale)));
+  const peak = filters.channel === "Email" ? "Wednesday 6-8pm" : filters.channel === "Instagram" ? "Thursday 8-10pm" : filters.channel === "QR" ? "Saturday 2-4pm" : HEATMAP_PEAK;
+  const journey = [
+    { label: "Landed", count: views },
+    { label: "Started voting", count: starts },
+    { label: "Completed", count: completions },
+    { label: "Shared", count: total(rows, "shares") },
+  ];
   return (
     <DashboardPage
       actions={<ExportMenu />}
     >
-      <FilterBar
-        channels={CHANNEL_NAMES}
-        verticals={VERTICALS}
-        vertical={vertical}
-        onVertical={setVertical}
-      />
+      <AnalyticsFilters />
+
+      {!rows.length ? <EmptyAnalytics /> : null}
 
       {/* Decisions first, telemetry after */}
-      <DashboardCard
+      {rows.length ? <DashboardCard
         title="Ready to decide"
-        description="Campaigns whose evidence can support a call today."
         padded={false}
         bodyClassName="pb-1"
       >
         <ul className="divide-y divide-border-default">
           {readyToDecide.map((campaign) => (
-            <li key={campaign.id} className="flex items-center gap-3 px-4 py-3">
+            <li key={campaign.id} className="flex flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
                 <Link
                   to={`/campaigns/${campaign.id}`}
@@ -230,103 +282,112 @@ export function AnalyticsOverviewPage() {
                   {campaign.name}
                 </Link>
                 <p className="mt-0.5 text-xs text-text-secondary">
-                  {campaign.winner} · {formatNumber(campaign.responses)} of{" "}
-                  {formatNumber(campaign.target)} target responses
-                  {campaign.sampleNote ? ` · ${campaign.sampleNote}` : ""}
+                  {campaign.winner} · {formatNumber(campaign.responses)} scoped responses
                 </p>
               </div>
-              <SignalBadge
-                signal={campaign.signal}
-                detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
-              />
-              <Button variant="secondary" size="sm" asChild>
-                <Link to={`/campaigns/${campaign.id}`}>Review recommendation</Link>
-              </Button>
+              <div className="flex w-full flex-wrap items-center justify-start gap-3 sm:w-auto">
+                <SignalBadge
+                  signal={campaign.signal}
+                  detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
+                />
+                <Button variant="secondary" size="sm" asChild>
+                  <Link to={`/campaigns/${campaign.id}`}>Review</Link>
+                </Button>
+              </div>
             </li>
           ))}
+          {!readyToDecide.length ? <p className="px-4 py-8 text-center text-sm text-text-secondary">No ready decisions in this scope.</p> : null}
         </ul>
-      </DashboardCard>
+      </DashboardCard> : null}
 
-      <SectionGrid>
-        {PORTFOLIO.map((item) => (
+      {rows.length ? <SectionGrid>
+        {portfolio.map((item) => (
           <StatTile
             key={item.label}
             className="lg:col-span-3"
             label={item.label}
             value={item.value}
-            detail={item.detail}
-            trend={item.trend}
             info={item.info}
           />
         ))}
-      </SectionGrid>
+      </SectionGrid> : null}
 
-      <SectionGrid>
+      {rows.length ? <SectionGrid>
         <DashboardCard
           title="Response trend"
-          description="Responses per day across the last two weeks."
           className="lg:col-span-8"
         >
-          <BarChart values={RESPONSE_TREND} xTicks={["14 days ago", "7 days ago", "Today"]} />
+          <BarChart values={seriesFor(rows, "completions")} xTicks={[...RANGE_TICKS[filters.range]]} />
         </DashboardCard>
         <DashboardCard title="Source mix" className="lg:col-span-4">
-          <MixBars slices={SOURCE_MIX} />
+          <MixBars slices={sourceMix} />
         </DashboardCard>
-      </SectionGrid>
+      </SectionGrid> : null}
 
-      <SectionGrid>
+      {rows.length ? <SectionGrid>
         <DashboardCard
           title="When your audience answers"
           className="lg:col-span-7"
           action={
             <span className="rounded-pill bg-accent-soft px-2.5 py-1 font-display text-xs font-semibold text-accent-default">
-              Peak: {HEATMAP_PEAK}
+              Peak: {peak}
             </span>
           }
         >
-          <TimeHeatmap values={TIME_HEATMAP} days={HEATMAP_DAYS} buckets={HEATMAP_BUCKETS} />
+          <TimeHeatmap values={heatmap} days={HEATMAP_DAYS} buckets={HEATMAP_BUCKETS} />
         </DashboardCard>
         <DashboardCard title="Journey across campaigns" className="lg:col-span-5">
-          <Funnel steps={OVERVIEW_FUNNEL} />
+          <Funnel steps={journey} />
         </DashboardCard>
-      </SectionGrid>
+      </SectionGrid> : null}
 
-      <DashboardCard title="Verticals side by side" padded={false}>
-        <DataTable rows={VERTICAL_PERFORMANCE} columns={verticalColumns} />
-      </DashboardCard>
+      {rows.length ? <DashboardCard title="Verticals side by side" padded={false}>
+        <DataTable rows={verticalRows} columns={verticalColumns} />
+      </DashboardCard> : null}
 
-      <SectionGrid>
+      {rows.length ? <SectionGrid>
         <DashboardCard
           title="Devices"
           className="lg:col-span-6"
         >
-          <MixBars slices={DEVICE_MIX} />
+          <MixBars slices={mixBy(rows, (row) => row.device, "completions")} />
         </DashboardCard>
         <DashboardCard
-          title="Platforms"
+          title="New vs returning"
           className="lg:col-span-6"
         >
-          <MixBars slices={PLATFORM_MIX} />
+          <SplitBar split={{
+            a: { label: "New", value: Math.round(ratio(newUsers, newUsers + returningUsers)) },
+            b: { label: "Returning", value: Math.round(ratio(returningUsers, newUsers + returningUsers)) },
+          }} />
         </DashboardCard>
-      </SectionGrid>
+      </SectionGrid> : null}
 
-      <DashboardCard
-        title={vertical === "All verticals" ? "Campaign performance" : `Campaign performance — ${vertical}`}
+      {rows.length ? <DashboardCard
+        title="Campaign performance"
         padded={false}
       >
         <DataTable
           rows={campaigns}
           columns={campaignPerformanceColumns}
-          emptyLabel="No campaigns in this vertical yet"
+          emptyLabel="No campaigns match these filters"
         />
-      </DashboardCard>
+      </DashboardCard> : null}
+
+      {rows.length ? <DashboardCard title="Content performance" padded={false}>
+        <DataTable rows={contentPerformance(rows)} columns={contentColumns} />
+      </DashboardCard> : null}
+
+      {rows.length ? <DashboardCard title="Traffic quality" padded={false}>
+        <DataTable rows={trafficQuality(rows)} columns={trafficColumns} />
+      </DashboardCard> : null}
     </DashboardPage>
   );
 }
 
 /* ── Acquisition (module) ────────────────────────────────────────── */
 
-const economicsColumns: Array<DataColumn<ChannelEconomics>> = [
+const economicsColumns: Array<DataColumn<AcquisitionRow>> = [
   {
     header: "Channel",
     cell: (row) => (
@@ -344,9 +405,24 @@ const economicsColumns: Array<DataColumn<ChannelEconomics>> = [
     cell: (row) => <span className="tabular-nums">{formatNumber(row.signups)}</span>,
   },
   {
-    header: "Conversion",
+    header: "New",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{formatNumber(row.newUsers)}</span>,
+  },
+  {
+    header: "Returning",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{formatNumber(row.returningUsers)}</span>,
+  },
+  {
+    header: "Creation rate",
     align: "right",
     cell: (row) => <span className="tabular-nums">{row.conversion}</span>,
+  },
+  {
+    header: "CTR",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{row.ctr}</span>,
   },
   {
     header: "CPC",
@@ -358,16 +434,9 @@ const economicsColumns: Array<DataColumn<ChannelEconomics>> = [
     align: "right",
     cell: (row) => <span className="tabular-nums">{row.cpa}</span>,
   },
-  {
-    header: "Trend",
-    align: "right",
-    cell: (row) => (
-      <Sparkline values={row.trend} trend="up" className="text-accent-default" />
-    ),
-  },
 ];
 
-const roiColumns: Array<DataColumn<CampaignRoi>> = [
+const roiColumns: Array<DataColumn<CampaignReturnRow>> = [
   {
     header: "Campaign",
     cell: (row) => (
@@ -388,6 +457,16 @@ const roiColumns: Array<DataColumn<CampaignRoi>> = [
     header: "Engaged",
     align: "right",
     cell: (row) => <span className="tabular-nums">{formatNumber(row.engaged)}</span>,
+  },
+  {
+    header: "New / returning",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{formatNumber(row.newUsers)} / {formatNumber(row.returningUsers)}</span>,
+  },
+  {
+    header: "CPA",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{row.cpa}</span>,
   },
   {
     header: "Cost per engaged",
@@ -415,56 +494,82 @@ function FindingCard({ finding }: { finding: Finding }) {
 }
 
 export function AnalyticsAcquisitionPage() {
+  const { filters, rows } = useAnalytics();
+  const economics = acquisitionByChannel(rows);
+  const returns = campaignReturns(rows);
+  const signups = total(rows, "signups");
+  const completions = total(rows, "completions");
+  const spend = total(rows, "spend");
+  const paidViews = rows
+    .filter((row) => row.utm === "Paid social" || row.utm === "Creator")
+    .reduce((sum, row) => sum + row.metrics.views, 0);
+  const views = total(rows, "views");
+  const stats = [
+    { label: "New accounts", value: formatNumber(signups), delta: "", trend: "flat" as const, spark: seriesFor(rows, "signups") },
+    { label: "Creation rate", value: formatPercent(ratio(signups, completions)), delta: "", trend: "flat" as const, spark: seriesFor(rows, "signups") },
+    { label: "Cost per account", value: formatMoney(signups ? spend / signups : 0), delta: "", trend: "flat" as const, spark: seriesFor(rows, "spend") },
+    { label: "Paid share", value: formatPercent(ratio(paidViews, views), 0), delta: "", trend: "flat" as const, spark: seriesFor(rows.filter((row) => row.utm === "Paid social" || row.utm === "Creator"), "views") },
+  ];
+  const paidShare = Math.round(ratio(paidViews, views));
+  const bestChannel = [...economics].sort((a, b) => parseFloat(b.conversion) - parseFloat(a.conversion))[0];
+  const bestCampaign = [...returns].filter((row) => row.accounts > 0).sort((a, b) => parseFloat(a.cpa.replace(/[$-]/g, "") || "999") - parseFloat(b.cpa.replace(/[$-]/g, "") || "999"))[0];
+  const findings: Finding[] = [
+    ...(bestChannel ? [{ id: "best-channel", title: `${bestChannel.channel} converts best`, body: `${bestChannel.conversion} of completed voters create an account.`, confidence: "High confidence" as const }] : []),
+    ...(bestCampaign ? [{ id: "best-campaign", title: `${bestCampaign.campaign} has the lowest CPA`, body: `${bestCampaign.cpa} per account across ${formatNumber(bestCampaign.accounts)} creations.`, confidence: "High confidence" as const }] : []),
+  ];
   return (
     <DashboardPage
       actions={<ExportMenu />}
     >
-      <FilterBar channels={CHANNEL_NAMES} verticals={VERTICALS} />
+      <AnalyticsFilters />
 
-      <StatsStrip stats={ACQUISITION_STATS} xTicks={SIGNUP_TREND.xTicks} />
+      {!rows.length ? <EmptyAnalytics /> : null}
 
-      <SectionGrid>
+      {rows.length ? <StatsStrip stats={stats} xTicks={[...RANGE_TICKS[filters.range]]} /> : null}
+
+      {rows.length ? <SectionGrid>
         <DashboardCard
           title="Account creations"
-          description="Poll engagers converting to registered users, vs the previous 30 days."
           className="lg:col-span-8"
         >
           <TrendChart
-            series={SIGNUP_TREND.series}
-            previous={SIGNUP_TREND.previous}
-            xTicks={SIGNUP_TREND.xTicks}
+            series={seriesFor(rows, "signups", 30)}
+            xTicks={[...RANGE_TICKS[filters.range]]}
           />
         </DashboardCard>
         <div className="space-y-4 lg:col-span-4">
           <DashboardCard title="Paid vs organic">
-            <SplitBar split={PAID_ORGANIC} />
+            <SplitBar split={{
+              a: { label: "Paid", value: paidShare, detail: `${formatNumber(paidViews)} views` },
+              b: { label: "Organic", value: 100 - paidShare, detail: `${formatNumber(views - paidViews)} views` },
+            }} />
           </DashboardCard>
           <DashboardCard title="Creative formats">
-            <MixBars slices={CREATIVE_FORMATS} />
+            <MixBars slices={mixBy(rows, (row) => row.format, "signups")} />
           </DashboardCard>
         </div>
-      </SectionGrid>
+      </SectionGrid> : null}
 
-      <DashboardCard title="Channel economics" padded={false}>
-        <DataTable rows={CHANNEL_ECONOMICS} columns={economicsColumns} />
-      </DashboardCard>
+      {rows.length ? <DashboardCard title="Channel economics" padded={false}>
+        <DataTable rows={economics} columns={economicsColumns} />
+      </DashboardCard> : null}
 
-      <DashboardCard title="Campaign spend and return" padded={false}>
-        <DataTable rows={CAMPAIGN_ROI} columns={roiColumns} />
-      </DashboardCard>
+      {rows.length ? <DashboardCard title="Campaign spend and return" padded={false}>
+        <DataTable rows={returns} columns={roiColumns} />
+      </DashboardCard> : null}
 
-      <SectionGrid>
-        {ACQ_FINDINGS.map((finding) => (
+      {rows.length ? <SectionGrid>
+        {findings.map((finding) => (
           <FindingCard key={finding.id} finding={finding} />
         ))}
-      </SectionGrid>
+      </SectionGrid> : null}
     </DashboardPage>
   );
 }
 
 /* ── Retention (module) ──────────────────────────────────────────── */
 
-const cohortUsageColumns: Array<DataColumn<CohortUsage>> = [
+const cohortUsageColumns: Array<DataColumn<RetentionBreakdownRow>> = [
   {
     header: "Cohort",
     cell: (row) => (
@@ -472,20 +577,24 @@ const cohortUsageColumns: Array<DataColumn<CohortUsage>> = [
     ),
   },
   {
-    header: "Polls per session",
+    header: "New",
     align: "right",
-    cell: (row) => <span className="tabular-nums">{row.pollsPerSession}</span>,
+    cell: (row) => <span className="tabular-nums">{formatNumber(row.newUsers)}</span>,
   },
   {
-    header: "Share rate",
+    header: "Returning",
     align: "right",
-    cell: (row) => <span className="tabular-nums">{row.shareRate}</span>,
+    cell: (row) => <span className="tabular-nums">{formatNumber(row.returningUsers)}</span>,
   },
   {
-    header: "Still active at day 30",
+    header: "Repeat",
     align: "right",
-    cell: (row) => <span className="tabular-nums">{row.d30}</span>,
+    cell: (row) => <span className="tabular-nums">{row.repeatRate}</span>,
   },
+  { header: "Polls / session", align: "right", cell: (row) => <span className="tabular-nums">{row.frequency}</span> },
+  { header: "D1", align: "right", cell: (row) => <span className="tabular-nums">{row.d1}</span> },
+  { header: "D7", align: "right", cell: (row) => <span className="tabular-nums">{row.d7}</span> },
+  { header: "D30", align: "right", cell: (row) => <span className="tabular-nums">{row.d30}</span> },
 ];
 
 /** One at-risk segment: who they are, why they're cooling, and the next
@@ -516,43 +625,89 @@ function ChurnRow({ risk }: { risk: ChurnRisk }) {
 }
 
 export function AnalyticsRetentionPage() {
+  const { filters, rows } = useAnalytics();
+  const breakdowns = retentionByChannel(rows);
+  const newUsers = total(rows, "newUsers");
+  const d1 = weightedAverage(rows, "d1", "newUsers");
+  const d7 = weightedAverage(rows, "d7", "newUsers");
+  const d30 = weightedAverage(rows, "d30", "newUsers");
+  const repeatUsers = total(rows, "repeatUsers");
+  const starts = total(rows, "starts");
+  const churned = total(rows, "churnedUsers");
+  const notifications = total(rows, "notificationReturns");
+  const stats = [
+    { label: "Day-7 retention", value: formatPercent(d7, 0), delta: "", trend: "flat" as const, spark: seriesFor(rows, "returningUsers") },
+    { label: "Repeat vote rate", value: formatPercent(ratio(repeatUsers, starts)), delta: "", trend: "flat" as const, spark: seriesFor(rows, "repeatUsers") },
+    { label: "Gone quiet", value: formatNumber(churned), delta: "", trend: "flat" as const, spark: seriesFor(rows, "churnedUsers") },
+    { label: "Notification returns", value: formatPercent(ratio(notifications, total(rows, "returningUsers"))), delta: "", trend: "flat" as const, spark: seriesFor(rows, "notificationReturns") },
+  ];
+  const cohortSizes = [0.13, 0.15, 0.16, 0.17, 0.19, 0.2];
+  const cohorts = cohortSizes.map((share, index) => ({
+    label: `Week ${index + 1}`,
+    size: Math.round(newUsers * share),
+    d1: Math.max(0, Math.round(d1 + (index - 2) * 1.2)),
+    d7: Math.max(0, Math.round(d7 + (index - 2) * 0.8)),
+    d14: Math.max(0, Math.round((d7 + d30) / 2 + (index - 2) * 0.5)),
+    d30: Math.max(0, Math.round(d30 + (index - 2) * 0.4)),
+  }));
+  const churnRisks: ChurnRisk[] = breakdowns
+    .map((row) => {
+      const scoped = rows.filter((item) => item.channel === row.cohort);
+      return {
+        id: row.id,
+        segment: `${row.cohort} arrivals`,
+        detail: `${row.d30} remain active at day 30`,
+        size: total(scoped, "churnedUsers"),
+        action: "Re-ask",
+      };
+    })
+    .filter((row) => row.size > 0)
+    .sort((a, b) => b.size - a.size)
+    .slice(0, 3);
+  const postVote = [
+    { label: "Voted", count: total(rows, "completions") },
+    { label: "Continued", count: repeatUsers },
+    { label: "Shared", count: total(rows, "shares") },
+    { label: "Created account", count: total(rows, "signups") },
+  ];
   return (
     <DashboardPage
       actions={<ExportMenu />}
     >
-      <FilterBar channels={CHANNEL_NAMES} verticals={VERTICALS} />
+      <AnalyticsFilters />
 
-      <StatsStrip stats={RETENTION_STATS} xTicks={["30 days ago", "15 days ago", "Today"]} />
+      {!rows.length ? <EmptyAnalytics /> : null}
 
-      <SectionGrid>
+      {rows.length ? <StatsStrip stats={stats} xTicks={[...RANGE_TICKS[filters.range]]} /> : null}
+
+      {rows.length ? <SectionGrid>
         <DashboardCard
           title="Weekly cohorts"
-          description="Of the people who voted for the first time each week, how many came back."
           className="lg:col-span-7"
         >
-          <CohortGrid cohorts={COHORTS} />
+          <CohortGrid cohorts={cohorts} />
         </DashboardCard>
-        <DashboardCard title="How they come back" className="lg:col-span-5">
-          <MixBars slices={RETURN_PATHS} />
+        <DashboardCard title="Returning by channel" className="lg:col-span-5">
+          <MixBars slices={mixBy(rows, (row) => row.channel, "returningUsers")} />
         </DashboardCard>
-      </SectionGrid>
+      </SectionGrid> : null}
 
-      <SectionGrid>
+      {rows.length ? <SectionGrid>
         <DashboardCard title="After the vote" className="lg:col-span-5">
-          <Funnel steps={POST_VOTE_FUNNEL} />
+          <Funnel steps={postVote} />
         </DashboardCard>
         <DashboardCard title="Cooling segments" className="lg:col-span-7">
           <ul className="divide-y divide-border-default">
-            {CHURN_RISKS.map((risk) => (
+            {churnRisks.map((risk) => (
               <ChurnRow key={risk.id} risk={risk} />
             ))}
           </ul>
         </DashboardCard>
-      </SectionGrid>
+      </SectionGrid> : null}
 
-      <DashboardCard title="Behavior by arrival cohort" padded={false}>
-        <DataTable rows={COHORT_USAGE} columns={cohortUsageColumns} />
-      </DashboardCard>
+      {rows.length ? <DashboardCard title="Behavior by arrival channel" padded={false}>
+        <DataTable rows={breakdowns} columns={cohortUsageColumns} />
+      </DashboardCard> : null}
     </DashboardPage>
   );
 }
@@ -597,44 +752,60 @@ const recommendationColumns: Array<DataColumn<Campaign>> = [
 ];
 
 export function AnalyticsInsightsPage() {
-  const withSignal = CAMPAIGNS.filter((c) => c.responses > 0);
+  const { rows } = useAnalytics();
+  const withSignal = campaignScope(rows).filter((c) => c.responses > 0);
+  const content = contentPerformance(rows);
+  const traffic = trafficQuality(rows);
+  const retention = retentionByChannel(rows);
+  const topContent = content[0];
+  const worstTraffic = traffic[0];
+  const weakestRetention = [...retention].sort((a, b) => parseFloat(a.d30) - parseFloat(b.d30))[0];
+  const scopedInsights = [
+    ...(topContent ? [{ id: "content", title: `${topContent.topic} drives the most reach`, context: `${formatNumber(topContent.views)} views with ${topContent.completion} completion.`, status: "Ready" as const, action: "Open performance", to: "/analytics" }] : []),
+    ...(worstTraffic ? [{ id: "dropoff", title: `${worstTraffic.channel} needs attention`, context: `${worstTraffic.dropOff} vote drop-off on ${worstTraffic.format.toLowerCase()} traffic.`, status: "Needs attention" as const, action: "Review traffic", to: "/analytics" }] : []),
+    ...(weakestRetention ? [{ id: "retention", title: `${weakestRetention.cohort} has the weakest return rate`, context: `${weakestRetention.d30} remain active at day 30.`, status: "Needs attention" as const, action: "Review retention", to: "/analytics/retention" }] : []),
+  ];
   return (
     <DashboardPage
     >
-      <SectionGrid>
-        {INSIGHTS.map((insight) => (
+      <AnalyticsFilters />
+
+      {!rows.length ? <EmptyAnalytics /> : null}
+
+      {rows.length ? <SectionGrid>
+        {scopedInsights.map((insight) => (
           <div key={insight.id} className="lg:col-span-4">
             <ActionCard
               title={insight.title}
               reason={insight.context}
               status={insight.status}
-              primary={{ label: insight.action, to: "/analytics/reports" }}
+              primary={{ label: insight.action, to: insight.to }}
               className="h-full"
             />
           </div>
         ))}
-      </SectionGrid>
+      </SectionGrid> : null}
 
-      <DashboardCard
+      {rows.length ? <DashboardCard
         title="Recommendations by campaign"
         padded={false}
       >
         <DataTable rows={withSignal} columns={recommendationColumns} />
-      </DashboardCard>
+      </DashboardCard> : null}
 
-      <DashboardCard title="What changed">
+      {rows.length ? <DashboardCard title="What changed">
         <ul className="divide-y divide-border-default">
-          {WHAT_CHANGED.map((change) => (
+          {withSignal.slice(0, 4).map((campaign) => (
             <li
-              key={change.id}
+              key={campaign.id}
               className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
             >
-              <span className="text-sm text-text-primary">{change.text}</span>
-              <span className="shrink-0 text-xs text-text-secondary">{change.ago}</span>
+              <span className="text-sm text-text-primary">{campaign.name} reached {formatNumber(campaign.responses)} scoped responses</span>
+              <span className="shrink-0 text-xs text-text-secondary">{campaign.completion} completion</span>
             </li>
           ))}
         </ul>
-      </DashboardCard>
+      </DashboardCard> : null}
     </DashboardPage>
   );
 }
@@ -669,31 +840,42 @@ const reportColumns: Array<DataColumn<Report>> = [
 ];
 
 export function AnalyticsReportsPage() {
+  const { rows } = useAnalytics();
+  const campaigns = campaignScope(rows);
+  const reports: Report[] = campaigns.map((campaign) => ({
+    id: `report-${campaign.id}`,
+    name: campaign.name,
+    linkedObject: `${campaign.name} · Campaign`,
+    status: campaign.status === "Completed" ? "Ready" : "Draft",
+    updated: "Today",
+    primaryAction: "Preview",
+  }));
+  const preview = campaigns[0];
   return (
     <DashboardPage
       actions={<ExportMenu />}
     >
-      <SectionGrid>
+      <AnalyticsFilters />
+
+      {!rows.length ? <EmptyAnalytics /> : null}
+
+      {rows.length ? <SectionGrid>
         <DashboardCard title="Report preview" className="lg:col-span-5">
           <div className="space-y-4">
-            <StatusBadge status="Ready" />
+            <StatusBadge status={preview.status === "Completed" ? "Ready" : "Draft"} />
             <h3 className="font-display text-xl font-bold text-text-primary">
-              Flavor Launch Recap
+              {preview.name}
             </h3>
-            <p className="text-sm leading-6 text-text-secondary">
-              Option A is supported for retail sell-in. Confidence is
-              directional; source performance is strongest through QR and email.
-            </p>
             <DetailList
               items={[
-                ["Responses", "1,184"],
-                ["Winning direction", "Option A +11 pts"],
-                ["Completion", "79%"],
-                ["Caveat", "Event traffic skewed local"],
+                ["Responses", formatNumber(preview.responses)],
+                ["Winning direction", preview.winner],
+                ["Completion", preview.completion],
+                ["Top source", preview.topSource],
               ]}
             />
             <Button variant="secondary" size="sm" asChild>
-              <Link to="/campaigns/flavor-launch-recap">Open full report</Link>
+              <Link to={`/campaigns/${preview.id}`}>Open full report</Link>
             </Button>
           </div>
         </DashboardCard>
@@ -702,9 +884,9 @@ export function AnalyticsReportsPage() {
           className="lg:col-span-7"
           padded={false}
         >
-          <DataTable rows={REPORTS} columns={reportColumns} />
+          <DataTable rows={reports} columns={reportColumns} />
         </DashboardCard>
-      </SectionGrid>
+      </SectionGrid> : null}
     </DashboardPage>
   );
 }

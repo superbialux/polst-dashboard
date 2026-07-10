@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { ToastProvider } from "@/components/Toast";
 import { ModulesProvider } from "@/lib/modules";
+import { AnalyticsProvider } from "@/lib/analytics-context";
 import { DashboardShell } from "@/components/dashboard";
 import { HomePage } from "@/pages/Home";
 import {
@@ -32,8 +33,9 @@ export function App() {
   return (
     <ModulesProvider>
       <ToastProvider>
-        <DashboardShell>
-          <Routes>
+        <AnalyticsProvider>
+          <DashboardShell>
+            <Routes>
             <Route path="/" element={<HomePage />} />
 
             <Route path="/campaigns" element={<CampaignsPage />} />
@@ -58,8 +60,9 @@ export function App() {
             <Route path="/settings" element={<SettingsPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </DashboardShell>
+            </Routes>
+          </DashboardShell>
+        </AnalyticsProvider>
       </ToastProvider>
     </ModulesProvider>
   );

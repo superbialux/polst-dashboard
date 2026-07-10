@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Menu, MenuItem } from "@/components/Menu";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Field, TextInput, Select } from "@/components/Field";
+import { Field, SelectMenu, TextInput } from "@/components/Field";
 import {
   ConnectCard,
   DashboardCard,
@@ -33,6 +33,7 @@ import {
 /* ── Team ────────────────────────────────────────────────────────── */
 
 const ROLES: TeamRole[] = ["Owner", "Editor", "Viewer"];
+const optionsOf = (values: readonly string[]) => values.map((value) => ({ value, label: value }));
 
 const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
   Owner: "Full control, including billing and team",
@@ -222,11 +223,7 @@ function InviteUserModal({ open, onClose }: { open: boolean; onClose: () => void
         </Field>
         <Field label="Access">
           {(fieldId) => (
-            <Select id={fieldId} defaultValue="Editor">
-              {ROLES.map((role) => (
-                <option key={role}>{role}</option>
-              ))}
-            </Select>
+            <SelectMenu id={fieldId} label="Access" defaultValue="Editor" options={optionsOf(ROLES)} />
           )}
         </Field>
         <ul className="space-y-1.5 rounded-md bg-surface-subtle p-3">
@@ -256,6 +253,11 @@ const ACCENT_SWATCHES = [
 function BrandingCard() {
   const toast = useToast();
   const [accent, setAccent] = useState<(typeof ACCENT_SWATCHES)[number]["id"]>("violet");
+  const [typeface, setTypeface] = useState("System UI");
+  const [cornerRadius, setCornerRadius] = useState("Medium");
+  const activeSwatch = ACCENT_SWATCHES.find((swatch) => swatch.id === accent) ?? ACCENT_SWATCHES[0];
+  const typeClass = typeface === "Serif" ? "font-serif" : typeface === "Brand font" ? "font-display" : "font-sans";
+  const radiusClass = cornerRadius === "None" ? "rounded-none" : cornerRadius === "Small" ? "rounded-sm" : cornerRadius === "Large" ? "rounded-lg" : "rounded-md";
   return (
     <DashboardCard
       title="Embed appearance"
@@ -290,29 +292,35 @@ function BrandingCard() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Typeface">
               {(fieldId) => (
-                <Select id={fieldId} defaultValue="System UI">
-                  <option>System UI</option>
-                  <option>Serif</option>
-                  <option>Brand font</option>
-                </Select>
+                <SelectMenu
+                  id={fieldId}
+                  label="Typeface"
+                  value={typeface}
+                  onValueChange={setTypeface}
+                  options={optionsOf(["System UI", "Serif", "Brand font"])}
+                />
               )}
             </Field>
             <Field label="Corner radius">
               {(fieldId) => (
-                <Select id={fieldId} defaultValue="Medium">
-                  <option>None</option>
-                  <option>Small</option>
-                  <option>Medium</option>
-                  <option>Large</option>
-                </Select>
+                <SelectMenu
+                  id={fieldId}
+                  label="Corner radius"
+                  value={cornerRadius}
+                  onValueChange={setCornerRadius}
+                  options={optionsOf(["None", "Small", "Medium", "Large"])}
+                />
               )}
             </Field>
           </div>
         </div>
         <div className="lg:col-span-6">
           <p className="mb-2 text-sm font-semibold text-text-primary">Live preview</p>
-          <div className="rounded-md bg-surface-subtle p-4">
-            <p className="mb-3 font-display text-sm font-semibold text-text-primary">
+          <div
+            className={cn("bg-surface-subtle p-4", radiusClass)}
+            style={{ "--accent-default": `var(${activeSwatch.cssVar})` } as CSSProperties}
+          >
+            <p className={cn("mb-3 text-sm font-semibold text-text-primary", typeClass)}>
               {SINGLE_POLSTS[0].question}
             </p>
             <PollResults options={polstOptions(SINGLE_POLSTS[0])} dense />
@@ -358,12 +366,12 @@ function WorkspaceSection() {
           </Field>
           <Field label="Timezone">
             {(id) => (
-              <Select id={id} defaultValue={WORKSPACE.timezone}>
-                <option>America/Chicago</option>
-                <option>America/New_York</option>
-                <option>America/Los_Angeles</option>
-                <option>Europe/London</option>
-              </Select>
+              <SelectMenu
+                id={id}
+                label="Timezone"
+                defaultValue={WORKSPACE.timezone}
+                options={optionsOf(["America/Chicago", "America/New_York", "America/Los_Angeles", "Europe/London"])}
+              />
             )}
           </Field>
           <div>
@@ -391,29 +399,17 @@ function WorkspaceSection() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Default campaign duration">
             {(id) => (
-              <Select id={id} defaultValue="10 days">
-                <option>7 days</option>
-                <option>10 days</option>
-                <option>14 days</option>
-                <option>30 days</option>
-              </Select>
+              <SelectMenu id={id} label="Default campaign duration" defaultValue="10 days" options={optionsOf(["7 days", "10 days", "14 days", "30 days"])} />
             )}
           </Field>
           <Field label="Default date range">
             {(id) => (
-              <Select id={id} defaultValue="Last 30 days">
-                <option>Last 7 days</option>
-                <option>Last 30 days</option>
-                <option>Last 90 days</option>
-              </Select>
+              <SelectMenu id={id} label="Default date range" defaultValue="Last 30 days" options={optionsOf(["Last 7 days", "Last 30 days", "Last 90 days"])} />
             )}
           </Field>
           <Field label="Report format">
             {(id) => (
-              <Select id={id} defaultValue="Executive summary">
-                <option>Executive summary</option>
-                <option>Full evidence</option>
-              </Select>
+              <SelectMenu id={id} label="Report format" defaultValue="Executive summary" options={optionsOf(["Executive summary", "Full evidence"])} />
             )}
           </Field>
         </div>

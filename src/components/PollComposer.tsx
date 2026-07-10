@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { curatedImage } from "@/lib/workspace";
-import { CONTROL, Select } from "./Field";
+import { CONTROL, SelectMenu } from "./Field";
 import { Icon } from "./Icon";
 
 /** The consumer composer's anatomy (ported from the Polst app's "Ask the
@@ -271,19 +271,13 @@ export function PollComposer({
         </div>
       </div>
 
-      <Select
-        aria-label="Category"
+      <SelectMenu
+        label="Category"
         value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        className={cn(category === "" && "text-text-tertiary")}
-      >
-        <option value="">Select category</option>
-        {categories.map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
-        ))}
-      </Select>
+        onValueChange={setCategory}
+        placeholder="Select category"
+        options={categories.map((name) => ({ value: name, label: name }))}
+      />
 
       {/* Tags — typed then committed on Enter/comma, up to five. */}
       <div

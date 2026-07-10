@@ -90,6 +90,7 @@ typography:
     fontWeight: 600
     lineHeight: 1rem
 rounded:
+  xs: 2px        # compact marks and micro controls
   sm: 6px        # nested hover rows inside cards
   md: 8px        # controls: chips, buttons, inputs, option tiles
   card: 12px     # page-level containers: feed, rail boxes, modals
@@ -295,8 +296,9 @@ never changes.
   `black/50` + 2px blur), Drawer (push pattern, inert when closed), Menu
   (roving arrow-key focus; `side="top"` for footers). All stay mounted for
   their transitions and go `inert` when closed.
-- **Feedback** — one Toast at a time, `aria-live`, pill on the primary ink;
-  toasts never lie (clipboard failures say so). Skeletons mirror the
+- **Feedback** — one dismissible Toast at a time, `aria-live`, on a raised
+  token surface with a default border; it never assumes every message is a
+  success. Toasts never lie (clipboard failures say so). Skeletons mirror the
   card's bones during loads. EmptyStates pair an icon disc with one action.
   Discovery pages are **never empty**: exact matches → related → popular,
   with an honest notice banner.
@@ -378,25 +380,27 @@ at 16px gutters; the shell's `main` carries the page padding
   with filter / mark-all-read actions, then rows of **unread dot ·
   `source · time` · bold title · body** (no icon discs), and a "No more
   notifications" footer. All on page tokens, not chrome.
-- **Account switcher** — even parent padding (`p-1.5`) so every row (workspaces,
-  the signed-in person, Log out) shares the same inset — nothing sits flush to
-  the edge. Workspaces are `menuitem`s so focus opens on the current one.
+- **Company switcher** — company context owns the top of the rail. Its light
+  menu contains workspaces only, with even parent padding (`p-1.5`) so no row
+  sits flush to the edge. Workspaces are `menuitem`s so focus opens on the
+  current one. Account identity and actions never appear in this menu.
 - **Sidebar** — the dark rail: fixed `inset-y-0`, `w-64`, no collapse,
-  **8px outer insets** (`px-2 pb-2`, no top padding). Top: a **48px brand
-  strip mirroring the header across the seam** — the inverted wordmark
-  (`h-6`) left-aligned with a quiet "Brand Dashboard" beside it (sentence
-  case, never uppercase), no logo tile — with the **workspace switcher**
-  directly beneath it, wearing the same card anatomy as the user card at the
-  foot (soft `sidenav-hover` panel, 32px violet mark, name over domain,
-  unfold glyph; the panel opens as the usual light menu with workspaces,
-  the signed-in person, and Log out). Nav rides in
-  **groups**: the daily work (Home, Campaigns, Polsts,
-  Distribution), a labeled **LEARN** band (Analytics, Audience), and — pinned
-  at the foot — Settings plus the **signed-in user card** (violet initials
-  disc, name, role, on a `sidenav-hover` panel). Rows are **14px medium**,
-  `h-9`, `rounded-md`: inactive `sidenav-muted`, hover a soft
+  with **8px horizontal insets**. Its top **company switcher** sits in a 48px
+  band aligned exactly with the content header. A three-column grid centers the
+  workspace name between a 20px violet company mark (`radius-xs`) and 20px
+  unfold glyph. The next band begins beneath the header rule and contains the
+  full-width **Search** control, opening the same workspace command palette as
+  Cmd/Ctrl-K. Nav rides in
+  **groups**: the daily work (Home, Campaigns, Polsts, Distribution), learning
+  surfaces (Analytics, Audience), then Settings as its own separated group.
+  Pinned at the foot is a dismissible **attention card** with a real workspace
+  issue, count, and review action, followed by the **signed-in user row** (20px
+  violet initials disc and name). Its upward-opening account menu contains one
+  action only: Log out. Navigation rows are **14px medium**, separated by 1px,
+  with `0.5rem` around section rules. Rows are `h-9`, `rounded-md`: inactive
+  `sidenav-muted`, hover a soft
   `sidenav-hover` wash, active a **`sidenav-active` panel in white ink**
-  with the glyph filled (Material Symbols `FILL 1`). Analytics' children
+  with a 20px glyph, filled for the active item (Material Symbols `FILL 1`). Analytics' children
   indent under the active parent. Statuses are **never** nav.
 - **Canvas** — the page scrolls as a page (document scroll, no inner
   scroller, no rounded border frame). White cards lift straight off the
@@ -412,10 +416,22 @@ at 16px gutters; the shell's `main` carries the page padding
   `text-sm font-medium` (14px), matching the reference shell's calmer,
   roomier navigation. `cn()` registers `text-ui` with tailwind-merge so it
   survives alongside a `text-{color}` class.
-- **One height — 32px (`h-8`) in-page; 36px (`h-9`) in the chrome.**
-  Buttons, tabs, and selectors inside the page are 32px; the shell's
+- **Control heights follow context.** Buttons and compact analytics selectors
+  are 32px; list-toolbar tabs, search, and view controls are **37px** with
+  equal inset padding; labeled form inputs/selectors are 40px. The shell's
   header controls (search, bell, account chip) and rail rows are 36px to
   match the 64px header's scale. Icons inside controls are **20px**.
+- **One reporting-window control — `DateRangeMenu`.** Cross-campaign and
+  workspace analytics use the same Last 7/30/90 days / All time dropdown.
+  Segmented controls remain for status filters and page modes, not timeframes.
+- **One option dropdown — `SelectMenu`.** Analytics filters, form selects,
+  workspace defaults, category, event, access, and appearance choices all use
+  the same button + anchored `Menu` surface, arrow-key navigation, selected
+  check, and token styling. Compact toolbar selects are 32px; labeled form
+  selects are 40px to align with text inputs. Native `<select>` is not used.
+  Command menus (Export, Actions, Add Polst), the rich notification panel, and
+  the logo-bearing workspace switcher keep their specialized content while
+  sharing the same `Menu` surface.
 
 ## Type scale (dashboard)
 
@@ -500,8 +516,9 @@ fork. New surface area should feel assembled, not authored:
   `SignalBadge` + updated stamp → a 20px headline (the call) → what changed
   and why → an amber **caveat** line → an **evidence strip** (label/value
   pairs, each with an optional `InfoHint` definition) → one primary action.
-  Anywhere a result is summarized — Home's briefing, the campaign overview —
-  this pattern speaks first and charts sit under it as supporting evidence.
+  Within a decision context — primarily the campaign overview — this pattern
+  speaks before its supporting charts. Home uses a smaller structured
+  ready-to-decide card instead of generating a full narrative per campaign.
 - **`SignalBadge`** — the decision-signal vocabulary (see "Status is a tone").
   **`InfoHint`** — a hoverable ⓘ that reveals a metric's definition (formula +
   denominator); the inspectable data contract behind every number.
@@ -519,19 +536,23 @@ fork. New surface area should feel assembled, not authored:
   parent radius − padding), each with an eyebrow-weight label, a large value, a
   **filled-triangle** trend indicator (`arrow_drop_up/down`, up/down coloured) +
   delta, and a wide, smooth **accent (purple) `Sparkline`** — the mini charts
-  echo the expanded chart rather than the trend colour. Click a card (or the
+  echo the expanded chart rather than the trend colour. The expanded state is
+  a 60/40 chart-and-guidance grid with metric-specific clickable rows, each on
+  its own 36px neutral row with a semantic border and matching status dot, and
+  no decorative icons. Click a card (or the
   chevron) to **expand a full `LineChart`** below with a **smooth grid-rows
   reveal**: a smooth accent line + soft area fill over a **faded dashed
   previous-period line**, a light y-axis and date ticks (no redundant title).
-  The range is driven by a **`PageTabs` filter (7D / 30D / 90D / All)** above the
-  strip — `DASHBOARD_STATS[range]` and `STAT_XTICKS[range]` swap the values,
+  The range is driven by **`DateRangeMenu`** above the strip —
+  `DASHBOARD_STATS[range]` and `STAT_XTICKS[range]` swap the values,
   deltas, sparks, and axis labels together.
 - **`DataTable<T>`** — the one list primitive: typed columns, status pills,
   right-aligned row actions, an honest empty label. Products/Campaigns/Sources
   /Reports all render through it.
-- **`SegmentedControl`** — the **one** segmented select used everywhere (time
-  ranges, status filters, page tabs). **32px tall** to match buttons, **white**
-  (raised + bordered) so it reads against the page background, with a light
+- **`SegmentedControl`** — the **one** segmented mode control used for status
+  filters, page tabs, and compact view changes. It is **37px tall** in list
+  toolbars with equal 4px inset padding, and **white** (raised + bordered) so
+  it reads against the page background, with a light
   active pill. `FilterTabs` and `PageTabs` are thin aliases so every select is
   identical. `SearchAndFilters` pairs it with search atop a list card.
 - **`ActionCard`** — the **one** actionable-card shape (Home, bento, Insights):
@@ -625,13 +646,21 @@ fork. New surface area should feel assembled, not authored:
 - **`TimeHeatmap`** — day × 2-hour buckets in one hue (accent strength is the
   scale) with a Fewer→More legend; answers "when does our audience answer?"
   All heat surfaces stay single-hue — status colors never enter charts.
-- **`FilterBar`** — the shared analytics filter row (date preset menu ·
-  channel · vertical selects). Pass a controlled `vertical` to actually filter
-  a table; the demo rule is filters must visibly do something.
+- **`FilterBar`** — the shared, fully controlled analytics filter row (date
+  preset · channel · vertical · UTM group). `AnalyticsProvider` owns one scope
+  across Overview, Acquisition, Retention, Insights, and Reports, so a choice
+  persists between routes. Every visible aggregate, table, insight, and empty
+  state is derived from `lib/analytics.ts`; no selector is decorative.
 - **`Switch` + module flags** — `lib/modules.tsx` holds feature-flagged
   modules (Acquisition, Retention) in context + localStorage; Settings ›
   Modules toggles them and the sidebar reacts instantly. Off means gone —
-  no ghost nav items (`LockedCard` is only for teaser-tier content).
+  no ghost nav items (`LockedCard` is only for teaser-tier content). The
+  36×20px track sits inside **8px padding on every side**, producing a natural
+  52×36px target without fixed outer dimensions;
+  thumb motion uses `transform`, with shared focus/disabled states.
+- **`Checkbox`** — the single native-semantic, token-rendered checkbox for
+  source assignment and library selection. Browser-default checkbox styling
+  is never used.
 - **`ConnectCard`** — one integration (icon disc, name, what it feeds,
   Connected state or Connect button). Marketers see *integrations*; the word
   "API" stays inside the gated developer section.

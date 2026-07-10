@@ -194,6 +194,7 @@
     --shadow-pop: 0 8px 10px rgba(33, 38, 47, 0.18);
 
     /* ── Radius ────────────────────────────────────────────── */
+    --radius-xs:  2px;  /* compact marks and micro controls */
     --radius-sm:  6px;  /* nested hover rows inside cards */
     --radius-md:  8px;  /* shared control radius: chips, buttons, option cards */
     --radius-card: 12px; /* container radius: page-level cards (feed, side boxes) */
