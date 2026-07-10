@@ -211,11 +211,16 @@ export function HomePage() {
         {/* The one decision that's ready — status, change, why, caveat, action */}
         <DecisionBrief
           signal="Leading"
-          signalDetail="Option B +18 pts"
+          signalDetail="High confidence"
           headline="Packaging Direction Test is ready to decide"
           summary="Matte Forest has held an 18-point lead for six straight days, and the lead holds on website and QR traffic alike. Responses passed your 1,200 target this morning."
           caveat="QR voters skew older than your audience baseline — check the source mix before announcing."
           evidence={[
+            {
+              label: "Confidence",
+              value: "High",
+              info: "Scored from sample size vs target, source diversity, and lead stability. Here: balanced across 3 independent sources; QR voters skew older than baseline.",
+            },
             {
               label: "Responses vs target",
               value: "1,486 of 1,200",

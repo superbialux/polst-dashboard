@@ -2063,7 +2063,7 @@ export function ConnectCard({ integration }: { integration: Integration }) {
           variant="secondary"
           size="sm"
           className="shrink-0"
-          onClick={() => toast(`${integration.name} connection is not wired in this mockup`)}
+          onClick={() => toast(`Opening ${integration.name} to authorize the connection…`)}
         >
           Connect
         </Button>

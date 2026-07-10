@@ -276,8 +276,10 @@ export function PolstDetailPage() {
           <DashboardCard title="Where it runs">
             <p className="text-sm leading-6 text-text-secondary">
               This Polst runs standalone — it isn't part of a campaign, so it
-              carries its own schedule and sources. Attribution, reporting, and
-              recommendations live with campaigns.
+              carries its own schedule and sources. Campaign-grade attribution,
+              reporting, and recommendations live with campaigns; a standalone
+              Polst can export a simple results summary from Analytics ›
+              Reports.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button variant="secondary" size="sm" asChild>

@@ -165,6 +165,10 @@ export type Campaign = {
   winner: string;
   /** Decision-signal state (evidence), separate from lifecycle status. */
   signal: DecisionSignal;
+  /** Evidence strength: sample size vs target, source diversity, stability. */
+  confidence: "High" | "Medium" | "Low" | "—";
+  /** One honest line on sample quality — what supports or weakens the read. */
+  sampleNote: string;
   nextAction: string;
   dates: string;
   topSource: string;
@@ -188,6 +192,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "71%",
     winner: "Option B +18 pts",
     signal: "Leading",
+    confidence: "High",
+    sampleNote: "Balanced across 3 independent sources; QR voters skew older than baseline.",
     nextAction: "Review recommendation",
     dates: "Jun 3 – Jun 12",
     topSource: "Website embed",
@@ -208,6 +214,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "—",
     winner: "—",
     signal: "Not started",
+    confidence: "—",
+    sampleNote: "",
     nextAction: "Add sources",
     dates: "Jun 10 – Jun 19",
     topSource: "—",
@@ -228,6 +236,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "79%",
     winner: "Option A +11 pts",
     signal: "Decisive",
+    confidence: "High",
+    sampleNote: "Passed target with consistent splits across QR and email.",
     nextAction: "Export report",
     dates: "May 28 – Jun 5",
     topSource: "QR — Packaging",
@@ -248,6 +258,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "58%",
     winner: "Citrus Mint leading",
     signal: "Directional",
+    confidence: "Medium",
+    sampleNote: "Volume on track, but Instagram is underrepresented in the mix.",
     nextAction: "Review recommendation",
     dates: "Jun 1 – Jun 30",
     topSource: "Instagram story link",
@@ -268,6 +280,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "47%",
     winner: "Layout A +6 pts",
     signal: "Too close",
+    confidence: "Low",
+    sampleNote: "Only 640 of the 1,200 target — half the sample is still to come.",
     nextAction: "Keep running",
     dates: "Jun 12 – Jun 24",
     topSource: "Website embed",
@@ -288,6 +302,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "64%",
     winner: "Trio Box +9 pts",
     signal: "Leading",
+    confidence: "Medium",
+    sampleNote: "Email drives 55% of responses — one channel dominates the read.",
     nextAction: "Review recommendation",
     dates: "Jun 8 – Jun 20",
     topSource: "Email newsletter",
@@ -308,6 +324,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "—",
     winner: "—",
     signal: "Not started",
+    confidence: "—",
+    sampleNote: "",
     nextAction: "Add sources",
     dates: "Starts Jun 30",
     topSource: "—",
@@ -328,6 +346,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "—",
     winner: "—",
     signal: "Not started",
+    confidence: "—",
+    sampleNote: "",
     nextAction: "Add sources",
     dates: "Starts Jul 8",
     topSource: "—",
@@ -348,6 +368,8 @@ export const CAMPAIGNS: Campaign[] = [
     completion: "—",
     winner: "—",
     signal: "Not started",
+    confidence: "—",
+    sampleNote: "",
     nextAction: "Finish setup",
     dates: "Not scheduled",
     topSource: "—",
@@ -426,7 +448,7 @@ export const SINGLE_POLSTS: SinglePolst[] = [
     split: "62 / 38",
     completion: "81%",
     topSource: "Website embed",
-    nextAction: "Create report",
+    nextAction: "View results",
     dates: "May 20 – May 29",
   },
   {
@@ -889,8 +911,8 @@ export const REPORTS: Report[] = [
   },
   {
     id: "label-layout-report",
-    name: "Label Layout Test",
-    linkedObject: "Which label reads faster? · Polst",
+    name: "Label Layout Test — results summary",
+    linkedObject: "Which label reads faster? · Standalone Polst",
     status: "Ready",
     updated: "Feb 9",
     primaryAction: "Preview",
@@ -1224,9 +1246,9 @@ export type LinkAsset = {
 
 export const LINK_ASSETS: LinkAsset[] = [
   { id: "embed-website", name: "Website Embed", type: "Embed", linkedObject: "Packaging Direction Test", responses: 388, completion: "78%", lastCopied: "2h ago", status: "Assigned" },
-  { id: "link-newsletter", name: "Share Link — Newsletter", type: "Share link", linkedObject: "Flavor Launch Recap", responses: 486, completion: "72%", lastCopied: "Jun 1", status: "Assigned" },
-  { id: "link-instagram", name: "Instagram Story Link", type: "Share link", linkedObject: "Which headline wins?", responses: 214, completion: "64%", lastCopied: "Jun 3", status: "Unassigned" },
-  { id: "embed-landing", name: "Landing Page Embed", type: "Embed", linkedObject: "Summer Flavor Lineup", responses: 655, completion: "58%", lastCopied: "Jun 8", status: "Assigned" },
+  { id: "link-newsletter", name: "Share Link — Newsletter", type: "Share link", linkedObject: "Flavor Launch Recap", responses: 486, completion: "72%", lastCopied: "2w ago", status: "Assigned" },
+  { id: "link-instagram", name: "Instagram Story Link", type: "Share link", linkedObject: "—", responses: 214, completion: "64%", lastCopied: "12w ago", status: "Unassigned" },
+  { id: "embed-landing", name: "Landing Page Embed", type: "Embed", linkedObject: "Summer Flavor Lineup", responses: 655, completion: "58%", lastCopied: "1w ago", status: "Assigned" },
 ];
 
 export type InfluencerLink = {

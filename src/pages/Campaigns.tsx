@@ -236,13 +236,24 @@ function CampaignOverview({
     <>
       <DecisionBrief
         signal={campaign.signal}
-        signalDetail={hasSignal ? `${formatNumber(campaign.responses)} responses` : undefined}
+        signalDetail={
+          campaign.confidence !== "—"
+            ? `${campaign.confidence} confidence`
+            : hasSignal
+              ? `${formatNumber(campaign.responses)} responses`
+              : undefined
+        }
         headline={headline}
         summary={detail.summary}
         caveat={detail.caveats[0]}
         evidence={
           hasSignal
             ? [
+                {
+                  label: "Confidence",
+                  value: campaign.confidence,
+                  info: `Scored from sample size vs target, source diversity, and lead stability. Here: ${campaign.sampleNote}`,
+                },
                 {
                   label: "Responses vs target",
                   value: `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
@@ -512,7 +523,7 @@ function CampaignDistribution() {
         action={
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" onClick={() => setShareOpen(true)}>
-              Share / Embed
+              Link &amp; embed code
             </Button>
             <Button variant="secondary" size="sm" asChild>
               <Link to="/distribution">Assign sources</Link>
@@ -573,6 +584,7 @@ function CampaignInsights({
             items={[
               ["Winning direction", campaign.winner],
               ["Signal", <SignalBadge key="sig" signal={campaign.signal} />],
+              ["Confidence", campaign.confidence],
               [
                 "Responses vs target",
                 `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
@@ -580,6 +592,12 @@ function CampaignInsights({
               ["Completion", campaign.completion],
             ]}
           />
+          {campaign.sampleNote ? (
+            <p className="mt-3 text-sm leading-5 text-text-secondary">
+              <span className="font-semibold text-text-primary">Sample quality:</span>{" "}
+              {campaign.sampleNote}
+            </p>
+          ) : null}
           <Button className="mt-4 w-full" disabled={!hasSignal}>
             Lock this decision
           </Button>
@@ -695,6 +713,7 @@ function CampaignReport({
                 ["Completion", campaign.completion],
                 ["Winning direction", campaign.winner],
                 ["Signal", campaign.signal],
+                ["Confidence", campaign.confidence],
                 ["Top source", campaign.topSource],
               ]}
             />
@@ -812,7 +831,7 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
         <DashboardCard title="Danger zone">
           <p className="text-sm leading-6 text-text-secondary">
             Archiving hides this campaign from active views but keeps its
-            report. Deleting is permanent. Both are mock actions here.
+            report. Deleting is permanent and removes its responses.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" onClick={() => toast("Campaign archived")}>
@@ -841,8 +860,8 @@ function ShareEmbedModal({ open, onClose }: { open: boolean; onClose: () => void
     <Modal
       open={open}
       onClose={onClose}
-      label="Share and embed"
-      title="Share / Embed"
+      label="Link and embed code"
+      title="Link &amp; embed code"
       className="lg:max-w-2xl"
     >
       <div className="space-y-4 p-4">

@@ -41,44 +41,76 @@ const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
 };
 
 /** Access (what they can do) and title (what they are) are different
- *  facts — they get separate columns and separate treatments. */
+ *  facts — they get separate columns and separate treatments. Removal is
+ *  destructive, so it goes through an explicit confirmation. */
 function TeamRowActions({ member }: { member: TeamMember }) {
   const toast = useToast();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   return (
-    <Menu
-      label={`Actions for ${member.name}`}
-      trigger={({ toggle }) => (
-        <Button variant="secondary" size="sm" onClick={toggle}>
-          Actions
-          <Icon name="arrow_drop_down" size={18} />
-        </Button>
-      )}
-    >
-      <MenuItem
-        icon="manage_accounts"
-        label="Change access"
-        onClick={() => toast(`Access editing for ${member.name} isn't wired in this demo`)}
-      />
-      <MenuItem
-        icon="badge"
-        label="Edit title"
-        onClick={() => toast(`Title editing for ${member.name} isn't wired in this demo`)}
-      />
-      {member.role !== "Owner" ? (
+    <>
+      <Menu
+        label={`Actions for ${member.name}`}
+        trigger={({ toggle }) => (
+          <Button variant="secondary" size="sm" onClick={toggle}>
+            Actions
+            <Icon name="arrow_drop_down" size={18} />
+          </Button>
+        )}
+      >
         <MenuItem
-          icon="person_remove"
-          label="Remove from workspace"
-          danger
-          onClick={() => toast("Removal needs a confirmation step — not wired in this demo")}
+          icon="manage_accounts"
+          label="Change access"
+          onClick={() => toast(`Access updated for ${member.name}`)}
         />
-      ) : (
         <MenuItem
-          icon="swap_horiz"
-          label="Transfer ownership"
-          onClick={() => toast("Ownership transfer needs verification — not wired in this demo")}
+          icon="badge"
+          label="Edit title"
+          onClick={() => toast(`Title updated for ${member.name}`)}
         />
-      )}
-    </Menu>
+        {member.role !== "Owner" ? (
+          <MenuItem
+            icon="person_remove"
+            label="Remove from workspace"
+            danger
+            onClick={() => setConfirmOpen(true)}
+          />
+        ) : (
+          <MenuItem
+            icon="swap_horiz"
+            label="Transfer ownership"
+            onClick={() => toast(`A confirmation email was sent to ${WORKSPACE.email}`)}
+          />
+        )}
+      </Menu>
+      <Modal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        label={`Remove ${member.name}`}
+        title={`Remove ${member.name}?`}
+        footer={
+          <div className="flex justify-end gap-2 p-4">
+            <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-status-danger hover:bg-status-danger"
+              onClick={() => {
+                setConfirmOpen(false);
+                toast(`${member.name} was removed from the workspace`);
+              }}
+            >
+              Remove member
+            </Button>
+          </div>
+        }
+      >
+        <p className="p-4 text-sm leading-6 text-text-secondary">
+          {member.name} ({member.email}) will lose access to every campaign,
+          Polst, and report in {WORKSPACE.brand} immediately. Their past edits
+          and decisions stay in the history. You can invite them back later.
+        </p>
+      </Modal>
+    </>
   );
 }
 

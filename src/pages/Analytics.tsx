@@ -236,9 +236,13 @@ export function AnalyticsOverviewPage() {
                 <p className="mt-0.5 text-xs text-text-secondary">
                   {campaign.winner} · {formatNumber(campaign.responses)} of{" "}
                   {formatNumber(campaign.target)} target responses
+                  {campaign.sampleNote ? ` · ${campaign.sampleNote}` : ""}
                 </p>
               </div>
-              <SignalBadge signal={campaign.signal} />
+              <SignalBadge
+                signal={campaign.signal}
+                detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
+              />
               <Button variant="secondary" size="sm" asChild>
                 <Link to={`/campaigns/${campaign.id}`}>Review recommendation</Link>
               </Button>

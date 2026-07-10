@@ -146,8 +146,13 @@ const linkColumns: Array<DataColumn<LinkAsset>> = [
     cell: (row) => <span className="text-text-secondary">{row.type}</span>,
   },
   {
-    header: "Linked object",
-    cell: (row) => <span className="text-text-secondary">{row.linkedObject}</span>,
+    header: "Feeds",
+    cell: (row) =>
+      row.linkedObject === "—" ? (
+        <span className="text-text-tertiary">Nothing — responses go unattributed</span>
+      ) : (
+        <span className="text-text-secondary">{row.linkedObject}</span>
+      ),
   },
   {
     header: "Responses",
@@ -513,8 +518,8 @@ function AssignSourcesModal({
     >
       <div className="p-4">
         <p className="mb-3 text-sm text-text-secondary">
-          Attach existing attribution sources to this campaign. Mock only —
-          selecting a row does not persist.
+          Attach existing tracked sources to a campaign so every response it
+          collects is attributed from the first scan or click.
         </p>
         <div className="overflow-hidden rounded-md border border-border-default">
           <DataTable rows={DISTRIBUTION_SOURCES} columns={columns} />
