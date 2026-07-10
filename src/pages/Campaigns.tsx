@@ -294,9 +294,9 @@ function CampaignOverview({
               {dropStep ? (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-default pt-3">
                   <p className="min-w-0 text-sm leading-5 text-text-secondary">
-                    Most voters leave at “{dropStep.label}.” Switch the source filter
-                    above — if one source drives the drop, fix the source, not the
-                    question.
+                    Most voters leave at “{dropStep.label}” — switch the source
+                    filter above; if one source drives the drop, fix the source,
+                    not the question.
                   </p>
                   <Button variant="secondary" size="sm" onClick={() => onGoTo("Distribution")}>
                     Compare sources
