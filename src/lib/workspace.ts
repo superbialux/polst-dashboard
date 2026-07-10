@@ -790,7 +790,7 @@ export const DISTRIBUTION_SOURCES: DistributionSource[] = [
     name: "QR — Conference Booth",
     channel: "QR",
     type: "QR code",
-    linkedObject: "Game Day Creative Test",
+    linkedObject: "Summer Flavor Lineup",
     linkedType: "Campaign",
     responses: 120,
     completion: "41%",
@@ -1229,7 +1229,7 @@ export type QrAsset = {
 
 export const QR_CODES: QrAsset[] = [
   { id: "qr-packaging", name: "QR — Packaging", placement: "On-pack sticker", linkedObject: "Flavor Launch Recap", scans: 421, responses: 312, completion: "74%", status: "Assigned", created: "May 26" },
-  { id: "qr-conference", name: "QR — Conference Booth", placement: "Booth banner", linkedObject: "Game Day Creative Test", scans: 293, responses: 120, completion: "41%", status: "Assigned", created: "Jun 2" },
+  { id: "qr-conference", name: "QR — Conference Booth", placement: "Booth banner", linkedObject: "Summer Flavor Lineup", scans: 293, responses: 120, completion: "41%", status: "Assigned", created: "Jun 2" },
   { id: "qr-poster", name: "QR — Retail Poster", placement: "End-cap poster", linkedObject: "—", scans: 0, responses: 0, completion: "—", status: "Unassigned", created: "Jun 9" },
 ];
 
@@ -1415,7 +1415,7 @@ export type CampaignRoi = {
 
 export const CAMPAIGN_ROI: CampaignRoi[] = [
   { id: "roi-packaging", campaign: "Packaging Direction Test", spend: "$420", accounts: 88, engaged: 512, costPerEngaged: "$0.82" },
-  { id: "roi-gameday", campaign: "Game Day Creative Test", spend: "$610", accounts: 64, engaged: 388, costPerEngaged: "$1.57" },
+  { id: "roi-summer", campaign: "Summer Flavor Lineup", spend: "$610", accounts: 64, engaged: 388, costPerEngaged: "$1.57" },
   { id: "roi-flavor", campaign: "Flavor Launch Recap", spend: "$180", accounts: 102, engaged: 743, costPerEngaged: "$0.24" },
 ];
 
@@ -1680,10 +1680,10 @@ export const CREATORS: Creator[] = [
     responses: 71,
     completion: "68%",
     split: "54 / 46",
-    campaign: "Game Day Creative Test",
+    campaign: "Summer Flavor Lineup",
     clickTrend: [42, 51, 48, 60, 66, 62, 71, 78, 74, 83, 88, 92],
     links: [
-      { id: "lk-sr-story", name: "Story swipe-up", linkedObject: "Game Day Creative Test", clicks: 806, responses: 71, ctr: "4.2%" },
+      { id: "lk-sr-story", name: "Story swipe-up", linkedObject: "Summer Flavor Lineup", clicks: 806, responses: 71, ctr: "4.2%" },
     ],
   },
   {
