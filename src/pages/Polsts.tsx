@@ -171,10 +171,9 @@ export function PolstsPage() {
 
   return (
     <DashboardPage
-      updated="2 min ago"
       actions={
         <Button asChild>
-          <Link to="/polsts/new">Create single Polst</Link>
+          <Link to="/polsts/new">Create a Polst</Link>
         </Button>
       }
     >
@@ -185,7 +184,7 @@ export function PolstsPage() {
               tabs={STATUS_FILTERS}
               active={active}
               onChange={setActive}
-              placeholder="Search standalone Polsts"
+              placeholder="Search Polsts"
               className="min-w-0 flex-1 border-b-0 p-0"
             />
             <ViewToggle view={view} onChange={setView} />
@@ -210,7 +209,7 @@ export function PolstsPage() {
             tabs={STATUS_FILTERS}
             active={active}
             onChange={setActive}
-            placeholder="Search standalone Polsts"
+            placeholder="Search Polsts"
             action={<ViewToggle view={view} onChange={setView} />}
           />
           <DataTable
@@ -234,7 +233,6 @@ export function PolstDetailPage() {
 
   return (
     <DashboardPage
-      updated="2 min ago"
       actions={
         <>
           {/* Content-level actions only. Reporting and channel operations
@@ -338,7 +336,7 @@ export function PolstDetailPage() {
   );
 }
 
-/* ── Create single Polst ─────────────────────────────────────────── */
+/* ── Create a Polst ──────────────────────────────────────────────── */
 
 const POLST_STEPS = ["Content", "Schedule & sources", "Review"] as const;
 type PolstStep = (typeof POLST_STEPS)[number];

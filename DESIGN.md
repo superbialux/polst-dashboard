@@ -489,11 +489,9 @@ fork. New surface area should feel assembled, not authored:
 
 - **`DashboardShell`** — the frame above. **`DashboardPage`** — the one
   centered 1152px column (the shell supplies the outer padding). `actions`
-  teleport into the header's right-side slot; `updated` renders as a quiet
-  freshness line above the content. No titles, no descriptions — the header
-  breadcrumbs own page identity.
-  Pass `updated` ("2 min ago") and every page states its data recency —
-  numbers without a freshness stamp are rumors.
+  teleport into the header's right-side slot. No titles, no descriptions,
+  no chrome of its own — the header breadcrumbs own page identity and the
+  content does the explaining.
 - **`DecisionBrief`** — the **Decision Narrative** as one reusable object:
   `SignalBadge` + updated stamp → a 20px headline (the call) → what changed
   and why → an amber **caveat** line → an **evidence strip** (label/value
@@ -643,13 +641,17 @@ fork. New surface area should feel assembled, not authored:
   before it invents anything.
 - Route status through `StatusBadge` and dates/counts through the shared
   `formatNumber`; keep both themes correct by staying on semantic tokens.
+- Spend button weights by **context, never per-button taste**: `sm` (28px)
+  for row actions and card-header actions; `md` (32px, the default) for
+  header-slot actions, modal footers, wizard footers, and dominant in-card
+  CTAs (a Decision Brief's primary). `lg` exists for rare hero moments only.
+  Labels stay short — "Create a Polst", never "Create single Polst".
 - Lead with the next action. Stats orient, the calendar plans, cards tell the
   user what to do — analytics lives under Analytics, never on Home.
 - Honor the **metric contract**: every number states its exact window, its
   comparison window, and its scope (`StatsStrip scope`, `InfoHint`
-  definitions, `updated` stamps), and the same metric reconciles across Home,
-  Analytics, and campaign pages. A delta without a stated baseline is
-  decoration.
+  definitions), and the same metric reconciles across Home, Analytics, and
+  campaign pages. A delta without a stated baseline is decoration.
 - Separate lifecycle from decision signal — `StatusBadge` and `SignalBadge`
   are different questions, different components, different columns.
 

@@ -170,7 +170,6 @@ export function CampaignDetailPage() {
 
   return (
     <DashboardPage
-      updated="2 min ago"
       actions={
         <Button onClick={() => setActive(campaign.responses > 0 ? "Insights" : "Distribution")}>
           {campaign.nextAction}
@@ -266,7 +265,6 @@ function CampaignOverview({
                 { label: "Sources assigned", value: "0" },
               ]
         }
-        updated="2 min ago"
         primary={{
           label: campaign.nextAction,
           onClick: () => onGoTo(hasSignal ? "Insights" : "Distribution"),

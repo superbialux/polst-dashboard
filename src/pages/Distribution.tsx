@@ -290,13 +290,12 @@ export function DistributionPage() {
 
   return (
     <DashboardPage
-      updated="2 min ago"
       actions={
         <>
           <Button variant="secondary" onClick={() => setAssignOpen(true)}>
             Assign to campaign
           </Button>
-          <Button>Create tracked source</Button>
+          <Button>Create source</Button>
         </>
       }
     >

@@ -203,7 +203,6 @@ export function AnalyticsOverviewPage() {
   );
   return (
     <DashboardPage
-      updated="2 min ago"
       actions={<ExportMenu />}
     >
       <FilterBar

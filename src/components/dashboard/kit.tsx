@@ -31,9 +31,6 @@ import {
 /* ── Page scaffold ───────────────────────────────────────────────── */
 
 type PageProps = {
-  /** Data recency, e.g. "2 min ago" — rendered as a quiet refresh line so
-   *  every page states how fresh its numbers are. */
-  updated?: string;
   actions?: ReactNode;
   children: ReactNode;
 };
@@ -41,19 +38,12 @@ type PageProps = {
 /** The standard page: a centered, vertically-rhythmic column. Pages carry
  *  no title or description — the header breadcrumbs name where you are;
  *  content does the explaining. `actions` teleport into the header's
- *  right side (the page-contextual slot); `updated` renders as a quiet
- *  freshness line above the content. Every page shares the one
+ *  right side (the page-contextual slot). Every page shares the one
  *  `max-w-dashboard` container — no per-page widths. */
-export function DashboardPage({ updated, actions, children }: PageProps) {
+export function DashboardPage({ actions, children }: PageProps) {
   return (
     <div className="mx-auto max-w-dashboard space-y-6">
       {actions ? <HeaderActions>{actions}</HeaderActions> : null}
-      {updated ? (
-        <span className="flex items-center gap-1 text-xs text-text-tertiary">
-          <Icon name="sync" size={14} />
-          Updated {updated}
-        </span>
-      ) : null}
       {children}
     </div>
   );
@@ -252,7 +242,6 @@ export function DecisionBrief({
   summary,
   caveat,
   evidence,
-  updated,
   primary,
   secondary,
   className,
@@ -266,7 +255,6 @@ export function DecisionBrief({
   caveat?: string;
   /** The numbers behind the call: responses vs target, sources, lead. */
   evidence?: Array<{ label: string; value: string; info?: string }>;
-  updated?: string;
   primary?: Cta;
   secondary?: Cta;
   className?: string;
@@ -280,9 +268,6 @@ export function DecisionBrief({
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <SignalBadge signal={signal} detail={signalDetail} />
-        {updated ? (
-          <span className="text-xs text-text-tertiary">Updated {updated}</span>
-        ) : null}
       </div>
       <h2 className="mt-2 font-display text-xl font-semibold leading-7 text-text-primary">
         {headline}
@@ -311,8 +296,10 @@ export function DecisionBrief({
       ) : null}
       {primary || secondary ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          {primary ? <CtaButton cta={primary} /> : null}
-          {secondary ? <CtaButton cta={secondary} variant="secondary" /> : null}
+          {/* The page's dominant action rides the toolbar weight (32px),
+              never the compact row weight. */}
+          {primary ? <CtaButton cta={primary} size="md" /> : null}
+          {secondary ? <CtaButton cta={secondary} variant="secondary" size="md" /> : null}
         </div>
       ) : null}
     </section>

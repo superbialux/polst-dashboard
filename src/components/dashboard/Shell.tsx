@@ -282,8 +282,8 @@ function buildCrumbs(pathname: string): Crumb[] {
       return crumbs;
     }
     case "polsts": {
-      const crumbs: Crumb[] = [{ label: "Standalone Polsts", to: "/polsts" }];
-      if (seg[1] === "new") crumbs.push({ label: "Create single Polst" });
+      const crumbs: Crumb[] = [{ label: "Polsts", to: "/polsts" }];
+      if (seg[1] === "new") crumbs.push({ label: "Create a Polst" });
       else if (seg[1]) {
         const polst = SINGLE_POLSTS.find((p) => p.id === seg[1]);
         crumbs.push({ label: polst?.question ?? "Polst" });

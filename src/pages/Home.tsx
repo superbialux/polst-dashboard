@@ -186,13 +186,9 @@ export function HomePage() {
 
   return (
     <DashboardPage
-      updated="2 min ago"
       actions={
-        <Button variant="secondary" size="sm" asChild>
-          <Link to="/analytics">
-            View analytics
-            <Icon name="arrow_forward" size={20} />
-          </Link>
+        <Button variant="secondary" asChild>
+          <Link to="/analytics">View analytics</Link>
         </Button>
       }
     >
@@ -219,7 +215,6 @@ export function HomePage() {
             { label: "Sources reporting", value: "3 of 3" },
             { label: "Lead stable for", value: "6 days" },
           ]}
-          updated="2 min ago"
           primary={{ label: "Review recommendation", to: "/campaigns/packaging-direction" }}
           secondary={{ label: "See all campaigns", to: "/campaigns" }}
         />
