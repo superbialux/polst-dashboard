@@ -1230,7 +1230,7 @@ export type QrAsset = {
 export const QR_CODES: QrAsset[] = [
   { id: "qr-packaging", name: "QR — Packaging", placement: "On-pack sticker", linkedObject: "Flavor Launch Recap", scans: 421, responses: 312, completion: "74%", status: "Assigned", created: "May 26" },
   { id: "qr-conference", name: "QR — Conference Booth", placement: "Booth banner", linkedObject: "Game Day Creative Test", scans: 293, responses: 120, completion: "41%", status: "Assigned", created: "Jun 2" },
-  { id: "qr-poster", name: "QR — Retail Poster", placement: "End-cap poster", linkedObject: "Unassigned", scans: 0, responses: 0, completion: "—", status: "Unassigned", created: "Jun 9" },
+  { id: "qr-poster", name: "QR — Retail Poster", placement: "End-cap poster", linkedObject: "—", scans: 0, responses: 0, completion: "—", status: "Unassigned", created: "Jun 9" },
 ];
 
 export type LinkAsset = {
@@ -1265,19 +1265,22 @@ export type InfluencerLink = {
 
 export const INFLUENCER_LINKS: InfluencerLink[] = [
   { id: "inf-morningfeed", creator: "The Morning Feed", handle: "@themorningfeed", followers: "48k", linkedObject: "Packaging Direction Test", responses: 134, completion: "61%", split: "60 / 40", status: "Assigned" },
-  { id: "inf-snackreview", creator: "Snack Review Daily", handle: "@snackreviewdaily", followers: "22k", linkedObject: "Unassigned", responses: 0, completion: "—", split: "—", status: "Unassigned" },
+  { id: "inf-snackreview", creator: "Snack Review Daily", handle: "@snackreviewdaily", followers: "22k", linkedObject: "—", responses: 0, completion: "—", split: "—", status: "Unassigned" },
 ];
 
-/** Embed snippets (mock). One source of truth for both code blocks. */
+/** Embed snippets. One source of truth for both code blocks — they carry a
+ *  real campaign slug so no copy path ever shows a placeholder token. */
+export const CAMPAIGN_SHARE_URL = "https://polst.app/c/packaging-direction";
+
 export const EMBED_IFRAME = `<iframe
-  src="https://polst.app/embed/campaign/CAMPAIGN_ID"
+  src="https://polst.app/embed/c/packaging-direction"
   width="100%" height="600" frameborder="0"
   style="border:none;border-radius:12px;min-width:320px"
   title="Polst campaign" loading="lazy"></iframe>`;
 
 export const EMBED_SCRIPT = `<div id="polst-campaign"></div>
 <script async src="https://polst.app/embed.js"
-  data-campaign="CAMPAIGN_ID"></script>`;
+  data-campaign="packaging-direction"></script>`;
 
 /* ── Analytics: audience & platform breakdowns ───────────────────── */
 
@@ -1718,7 +1721,7 @@ export const CREATORS: Creator[] = [
     responses: 0,
     completion: "—",
     split: "—",
-    campaign: "Unassigned",
+    campaign: "—",
     clickTrend: [],
     links: [],
   },

@@ -415,7 +415,13 @@ function QrCard({ qr }: { qr: QrAsset }) {
             <StatusBadge status={qr.status} />
           </div>
           <p className="mt-0.5 text-xs text-text-secondary">{qr.placement}</p>
-          <p className="mt-0.5 truncate text-xs text-text-secondary">{qr.linkedObject}</p>
+          <p className="mt-0.5 truncate text-xs text-text-secondary">
+            {qr.linkedObject === "—" ? (
+              <span className="text-text-tertiary">Feeds nothing — scans go unattributed</span>
+            ) : (
+              `Feeds ${qr.linkedObject}`
+            )}
+          </p>
         </div>
       </div>
       <dl className="mt-4 grid grid-cols-3 gap-2 rounded-md bg-surface-subtle p-3 text-center">
@@ -678,8 +684,13 @@ const creatorLinkColumns: Array<DataColumn<Creator["links"][number]>> = [
     ),
   },
   {
-    header: "Linked object",
-    cell: (row) => <span className="text-text-secondary">{row.linkedObject}</span>,
+    header: "Feeds",
+    cell: (row) =>
+      row.linkedObject === "—" ? (
+        <span className="text-text-tertiary">Nothing — clicks go unattributed</span>
+      ) : (
+        <span className="text-text-secondary">{row.linkedObject}</span>
+      ),
   },
   {
     header: "Clicks",

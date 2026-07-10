@@ -517,7 +517,7 @@ const ALERTS: Alert[] = [
     source: "Distribution",
     time: "1h ago",
     title: "Game Day Creative Test has no sources",
-    body: "It's scheduled for Feb 6, but nothing is collecting responses yet.",
+    body: "It launches Jun 10, but nothing is collecting responses yet.",
     unread: true,
   },
   {

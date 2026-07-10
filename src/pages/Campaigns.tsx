@@ -34,6 +34,7 @@ import {
 import {
   CAMPAIGNS,
   CAMPAIGN_DETAILS,
+  CAMPAIGN_SHARE_URL,
   CREATORS,
   DISTRIBUTION_SOURCES,
   EMBED_IFRAME,
@@ -867,7 +868,7 @@ function ShareEmbedModal({ open, onClose }: { open: boolean; onClose: () => void
       <div className="space-y-4 p-4">
         <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-subtle p-2 pl-3">
           <p className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary">
-            https://polst.app/campaign/CAMPAIGN_ID
+            {CAMPAIGN_SHARE_URL}
           </p>
           <Button variant="secondary" size="sm" onClick={() => toast("Share link copied")}>
             <Icon name="content_copy" size={16} />
