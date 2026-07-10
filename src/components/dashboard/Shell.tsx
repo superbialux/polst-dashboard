@@ -17,9 +17,6 @@ import { useModules } from "@/lib/modules";
 import {
   CAMPAIGNS,
   ATTENTION_ITEMS,
-  CHANNELS,
-  CREATORS,
-  DISTRIBUTION_SOURCES,
   SINGLE_POLSTS,
   WORKSPACE,
   WORKSPACES,
@@ -59,7 +56,10 @@ const NAV_GROUPS: Array<{ items: NavItem[] }> = [
     ],
   },
   {
-    items: [{ label: "Settings", icon: "settings", to: "/settings" }],
+    items: [
+      { label: "Team", icon: "group", to: "/team" },
+      { label: "Settings", icon: "settings", to: "/settings" },
+    ],
   },
 ];
 
@@ -289,15 +289,7 @@ function buildCrumbs(pathname: string): Crumb[] {
       return crumbs;
     }
     case "distribution": {
-      const crumbs: Crumb[] = [{ label: "Distribution", to: "/distribution" }];
-      if (seg[1] === "channels" && seg[2]) {
-        const channel = CHANNELS.find((c) => c.id === seg[2]);
-        crumbs.push({ label: channel?.name ?? "Channel" });
-      } else if (seg[1] === "creators" && seg[2]) {
-        const creator = CREATORS.find((c) => c.id === seg[2]);
-        crumbs.push({ label: creator?.name ?? "Creator" });
-      }
-      return crumbs;
+      return [{ label: "Distribution" }];
     }
     case "analytics": {
       const crumbs: Crumb[] = [{ label: "Analytics", to: "/analytics" }];
@@ -314,6 +306,8 @@ function buildCrumbs(pathname: string): Crumb[] {
       return [{ label: "Audience" }];
     case "settings":
       return [{ label: "Settings" }];
+    case "team":
+      return [{ label: "Team" }];
     default:
       return [{ label: "Page not found" }];
   }
@@ -356,12 +350,12 @@ function Breadcrumbs() {
 
 /* ── Workspace search (⌘K) ───────────────────────────────────────── */
 
-type SearchEntity = "All" | "Campaigns" | "Polsts" | "Sources";
-const SEARCH_ENTITIES: SearchEntity[] = ["All", "Campaigns", "Polsts", "Sources"];
+type SearchEntity = "All" | "Campaigns" | "Polsts";
+const SEARCH_ENTITIES: SearchEntity[] = ["All", "Campaigns", "Polsts"];
 
 type SearchHit = { id: string; label: string; sublabel: string; to: string; entity: SearchEntity };
 
-/** The searchable universe: every campaign, Polst, and source by name. */
+/** The searchable universe: every campaign and Polst by name. */
 const SEARCH_INDEX: SearchHit[] = [
   ...CAMPAIGNS.map((c) => ({
     id: c.id,
@@ -377,19 +371,11 @@ const SEARCH_INDEX: SearchHit[] = [
     to: `/polsts/${p.id}`,
     entity: "Polsts" as const,
   })),
-  ...DISTRIBUTION_SOURCES.map((s) => ({
-    id: s.id,
-    label: s.name,
-    sublabel: `${s.channel} · ${s.linkedObject}`,
-    to: "/distribution",
-    entity: "Sources" as const,
-  })),
 ];
 
 const ENTITY_ICON: Record<Exclude<SearchEntity, "All">, string> = {
   Campaigns: "campaign",
   Polsts: "ballot",
-  Sources: "hub",
 };
 
 /** Wrap the matched span of a result label so the eye lands on why it hit. */
@@ -761,7 +747,7 @@ function SidebarSuggestions() {
       <div className="mt-3 flex gap-2">
         <Link
           to={firstItem.to ?? "/"}
-          className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-sm border border-sidenav-active bg-sidenav-active px-3 text-xs font-semibold text-sidenav-fg transition-colors hover:bg-surface-strong hover:text-text-primary"
+          className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-sm border border-sidenav-active bg-sidenav-active px-3 text-xs font-semibold text-sidenav-fg transition-colors hover:border-sidenav-muted"
         >
           Review items
         </Link>
@@ -769,7 +755,7 @@ function SidebarSuggestions() {
           type="button"
           onClick={() => setVisible(false)}
           aria-label="Dismiss suggestions"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-sm border border-sidenav-active text-sidenav-muted transition-colors hover:bg-sidenav-active hover:text-sidenav-fg"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-sm border border-sidenav-active text-sidenav-muted transition-colors hover:border-sidenav-muted hover:text-sidenav-fg"
         >
           <Icon name="close" size={18} />
         </button>

@@ -134,7 +134,7 @@ export function WorkspaceCalendar() {
   return (
     <DashboardCard padded={false}>
       {/* Month header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div className="flex items-center gap-2">
           <h2 className="min-w-40 font-display text-lg font-bold text-text-primary">{label}</h2>
           <div className="ml-1 flex items-center">

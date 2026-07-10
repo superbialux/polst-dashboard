@@ -336,7 +336,6 @@ function BrandingCard() {
 const SETTINGS_SECTIONS = [
   { key: "Workspace", icon: "storefront", blurb: "Brand profile and defaults" },
   { key: "Embed appearance", icon: "palette", blurb: "How embedded Polsts look" },
-  { key: "Team & permissions", icon: "group", blurb: "Members, access, invitations" },
   { key: "Modules & integrations", icon: "extension", blurb: "Optional analytics and connections" },
   { key: "Plan & developer", icon: "credit_card", blurb: "Subscription and API access" },
 ] as const;
@@ -501,7 +500,6 @@ function PlanSection() {
 /* ── Page ────────────────────────────────────────────────────────── */
 
 export function SettingsPage() {
-  const [inviteOpen, setInviteOpen] = useState(false);
   const [section, setSection] = useState<SettingsSection>("Workspace");
   return (
     <DashboardPage>
@@ -544,14 +542,19 @@ export function SettingsPage() {
         <div className="space-y-4 lg:col-span-9">
           {section === "Workspace" ? <WorkspaceSection /> : null}
           {section === "Embed appearance" ? <BrandingCard /> : null}
-          {section === "Team & permissions" ? (
-            <TeamSection onInvite={() => setInviteOpen(true)} />
-          ) : null}
           {section === "Modules & integrations" ? <ModulesSection /> : null}
           {section === "Plan & developer" ? <PlanSection /> : null}
         </div>
       </SectionGrid>
+    </DashboardPage>
+  );
+}
 
+export function TeamPage() {
+  const [inviteOpen, setInviteOpen] = useState(false);
+  return (
+    <DashboardPage>
+      <TeamSection onInvite={() => setInviteOpen(true)} />
       <InviteUserModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
     </DashboardPage>
   );

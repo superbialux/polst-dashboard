@@ -262,7 +262,7 @@ export function DecisionBrief({
   return (
     <section
       className={cn(
-        "rounded-card border border-border-default bg-surface-raised p-4 shadow-sm",
+        "rounded-card border border-border-default bg-surface-raised p-5 shadow-sm",
         className,
       )}
     >
@@ -388,7 +388,7 @@ export function SearchAndFilters({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-b border-border-default p-4 lg:flex-row lg:items-center lg:justify-between",
+        "flex flex-col gap-3 border-b border-border-default px-5 py-4 lg:flex-row lg:items-center lg:justify-between",
         className,
       )}
     >
@@ -454,7 +454,7 @@ export function DataTable<T extends { id: string }>({
               <th
                 key={column.header}
                 className={cn(
-                  "whitespace-nowrap px-3 py-3 font-semibold first:pl-4 last:pr-4",
+                  "whitespace-nowrap px-3 py-3 font-semibold first:pl-5 last:pr-5",
                   column.align === "right" && "text-right",
                   column.className,
                 )}
@@ -471,7 +471,6 @@ export function DataTable<T extends { id: string }>({
                 key={row.id}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={cn(
-                  "transition-colors",
                   "transition-colors hover:bg-surface-subtle",
                   onRowClick && "cursor-pointer",
                 )}
@@ -480,7 +479,7 @@ export function DataTable<T extends { id: string }>({
                   <td
                     key={column.header}
                     className={cn(
-                      "px-3 py-3 align-middle text-text-primary first:pl-4 last:pr-4",
+                      "px-3 py-3 align-middle text-text-primary first:pl-5 last:pr-5",
                       column.align === "right" && "text-right",
                       column.className,
                     )}
@@ -493,7 +492,7 @@ export function DataTable<T extends { id: string }>({
           ) : (
             <tr>
               <td
-                className="px-4 py-12 text-center text-sm text-text-secondary"
+                className="px-5 py-12 text-center text-sm text-text-secondary"
                 colSpan={columns.length}
               >
                 {emptyLabel}
@@ -1110,11 +1109,11 @@ export function ActionCard({
     <section
       className={cn(
         "group relative flex rounded-card border border-border-default bg-surface-raised shadow-sm",
-        media ? (bottom ? "flex-col overflow-hidden" : "overflow-hidden") : "gap-4 p-4",
+        media ? (bottom ? "flex-col overflow-hidden" : "overflow-hidden") : "gap-4 p-5",
         className,
       )}
     >
-      <div className={cn("flex min-w-0 flex-1 flex-col", media && "p-4")}>
+      <div className={cn("flex min-w-0 flex-1 flex-col", media && "p-5")}>
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             {eyebrow || progress ? (
@@ -1369,7 +1368,7 @@ export function NextStepsCard({
   const [openIdx, setOpenIdx] = useState(firstOpen);
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <section className="overflow-hidden rounded-card border border-border-default bg-surface-raised p-4 shadow-sm">
+    <section className="overflow-hidden rounded-card border border-border-default bg-surface-raised p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="mb-2 flex items-center gap-2 text-xs font-medium text-text-secondary">
@@ -1406,7 +1405,7 @@ export function NextStepsCard({
                       onClick={() => setOpenIdx(open ? -1 : i)}
                       aria-expanded={open}
                       className={cn(
-                        "flex w-full items-start gap-3 p-2 text-left transition-colors",
+                        "flex w-full items-start gap-3 py-2 text-left transition-colors",
                         !open && "rounded-md hover:bg-surface-subtle",
                       )}
                     >
@@ -1421,7 +1420,7 @@ export function NextStepsCard({
                       </span>
                     </button>
                     {open && (step.description || step.cta) ? (
-                      <div className="pb-2 pl-10 pr-2">
+                      <div className="pb-2 pl-7">
                         {step.description ? (
                           <p className="text-sm leading-5 text-text-secondary">{step.description}</p>
                         ) : null}

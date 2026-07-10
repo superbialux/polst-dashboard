@@ -446,6 +446,9 @@ at 500–650, never bold-black:
   (24px) on tiles and the stat strip alike.
 - **Body 14px, metadata 12px** as before; rail nav 14px medium.
 - **Card inset** — `p-5` (20px), still on the 4pt grid.
+- **Shared edges** — custom card headers, toolbars, table first/last columns,
+  and row actions align to that same 20px inset. Nested items may use 12–16px,
+  but a primary card never changes its outer content edge.
 
 ## Dashboard grid
 

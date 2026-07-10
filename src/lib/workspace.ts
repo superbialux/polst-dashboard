@@ -283,6 +283,28 @@ export type Campaign = {
 
 export const CAMPAIGNS: Campaign[] = [
   {
+    id: "summer-launch-draft",
+    name: "Summer launch",
+    decision: "",
+    status: "Draft",
+    event: "None",
+    polsts: 0,
+    pollsActive: 0,
+    pollsStarted: 0,
+    pollsCompleted: 0,
+    responses: 0,
+    target: 0,
+    completion: "—",
+    winner: "—",
+    signal: "Not started",
+    confidence: "—",
+    sampleNote: "",
+    nextAction: "Add Polsts",
+    dates: "Jul 10 – Jul 13",
+    topSource: "—",
+    vertical: "Lifestyle",
+  },
+  {
     id: "packaging-direction",
     name: "Packaging Direction Test",
     decision: "Which packaging direction should we launch?",
@@ -540,6 +562,20 @@ export const SINGLE_POLSTS: SinglePolst[] = [
     completion: "—",
     topSource: "—",
     nextAction: "Finish Polst",
+    dates: "Not scheduled",
+  },
+  {
+    id: "archived-draft",
+    question: "Which seasonal badge feels clearer?",
+    optionA: "Limited batch",
+    optionB: "Seasonal pick",
+    status: "Archived",
+    event: "None",
+    responses: 0,
+    split: "—",
+    completion: "—",
+    topSource: "—",
+    nextAction: "Restore draft",
     dates: "Not scheduled",
   },
   {
@@ -1186,6 +1222,14 @@ export type CampaignDetail = {
 };
 
 export const CAMPAIGN_DETAILS: Record<string, CampaignDetail> = {
+  "summer-launch-draft": {
+    summary: "Add at least one Polst before publishing.",
+    nextStep: "Create a new Polst or select one from the library.",
+    journey: { started: 0, completed: 0 },
+    chain: [],
+    findings: [],
+    caveats: [],
+  },
   "packaging-direction": {
     summary:
       "Option B leads by 18 points and performs consistently across website and QR traffic. Instagram traffic is closer and should stay on the watchlist until volume catches up.",

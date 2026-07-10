@@ -4,6 +4,7 @@ import { Modal } from "@/components/Modal";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
+import { QrCodeModal, SocialShareModal } from "@/components/DistributionActions";
 import { Checkbox, Field, TextInput } from "@/components/Field";
 import {
   DashboardCard,
@@ -23,6 +24,8 @@ import {
 } from "@/components/dashboard";
 import {
   CHANNELS,
+  CAMPAIGNS,
+  CAMPAIGN_SHARE_URL,
   CHANNEL_TRENDS,
   CREATORS,
   DISTRIBUTION_SOURCES,
@@ -33,6 +36,7 @@ import {
   LINK_ASSETS,
   LIST_GROWTH,
   QR_CODES,
+  SINGLE_POLSTS,
   TIER_BENCHMARKS,
   formatNumber,
   type Channel,
@@ -243,7 +247,7 @@ const tierColumns: Array<DataColumn<TierBenchmark>> = [
   },
 ];
 
-const TABS = ["Sources", "Channels", "QR codes", "Links & embeds", "Influencers"] as const;
+const TABS = ["Polsts", "Campaigns", "Embed code"] as const;
 
 /** Health before inventory: the four questions a marketer actually asks of
  *  distribution — is everything covered, what's eroding, what's collecting
@@ -285,60 +289,35 @@ const SUMMARY: Array<{
 ];
 
 export function DistributionPage() {
-  const [assignOpen, setAssignOpen] = useState(false);
   const { active, setActive } = useTabs(TABS);
+  const [sharePolst, setSharePolst] = useState<(typeof SINGLE_POLSTS)[number] | null>(null);
+  const [qrTarget, setQrTarget] = useState<{ name: string; id: string; kind: "p" | "campaign" } | null>(null);
+  const [embedOpen, setEmbedOpen] = useState(false);
+  const polstColumns: Array<DataColumn<(typeof SINGLE_POLSTS)[number]>> = [
+    { header: "Polst", cell: (row) => <div><p className="font-display font-semibold text-text-primary">{row.question}</p><p className="mt-0.5 text-xs text-text-secondary">{row.optionA} vs {row.optionB}</p></div> },
+    { header: "Status", cell: (row) => <StatusBadge status={row.status === "Completed" ? "Ended" : row.status} /> },
+    { header: "Votes", align: "right", cell: (row) => formatNumber(row.responses) },
+    { header: "", align: "right", cell: (row) => <div className="flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setSharePolst(row)}>Distribute</Button><Button variant="secondary" size="sm" onClick={() => setQrTarget({ name: row.question, id: row.id, kind: "p" })}>QR code</Button></div> },
+  ];
+  const campaignColumns: Array<DataColumn<(typeof CAMPAIGNS)[number]>> = [
+    { header: "Campaign", cell: (row) => <div><p className="font-display font-semibold text-text-primary">{row.name}</p><p className="mt-0.5 text-xs text-text-secondary">{row.polsts} Polsts</p></div> },
+    { header: "Status", cell: (row) => <StatusBadge status={row.status === "Completed" ? "Ended" : row.status} /> },
+    { header: "Voters", align: "right", cell: (row) => formatNumber(row.responses) },
+    { header: "", align: "right", cell: (row) => <div className="flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setEmbedOpen(true)}>Share / embed</Button><Button variant="secondary" size="sm" onClick={() => setQrTarget({ name: row.name, id: row.id, kind: "campaign" })}>QR code</Button></div> },
+  ];
 
   return (
-    <DashboardPage
-      actions={
-        <>
-          <Button variant="secondary" onClick={() => setAssignOpen(true)}>
-            Assign to campaign
-          </Button>
-          <Button>Create source</Button>
-        </>
-      }
-    >
-      <SectionGrid>
-        {SUMMARY.map((item) => (
-          <StatTile
-            key={item.label}
-            className="lg:col-span-3"
-            label={item.label}
-            value={item.value}
-            detail={item.detail}
-            trend={item.trend}
-            info={item.info}
-          />
-        ))}
-      </SectionGrid>
-
+    <DashboardPage>
       <PageTabs tabs={TABS} active={active} onChange={setActive} />
-
-      {active === "Sources" ? (
-        <DashboardCard
-          title="Source performance"
-          padded={false}
-        >
-          <DataTable rows={DISTRIBUTION_SOURCES} columns={sourceColumns} />
-        </DashboardCard>
-      ) : null}
-
-      {active === "Channels" ? (
-        <DashboardCard
-          title="Channels"
-          padded={false}
-        >
-          <DataTable rows={CHANNELS} columns={channelColumns} />
-        </DashboardCard>
-      ) : null}
-
-      {active === "QR codes" ? <QrCodesSection /> : null}
-
-      {active === "Links & embeds" ? (
+      {active === "Polsts" ? <DashboardCard padded={false}><DataTable rows={SINGLE_POLSTS.filter((polst) => polst.status !== "Draft" && polst.status !== "Archived")} columns={polstColumns} /></DashboardCard> : null}
+      {active === "Campaigns" ? <DashboardCard padded={false}><DataTable rows={CAMPAIGNS} columns={campaignColumns} /></DashboardCard> : null}
+      {active === "Embed code" ? (
         <>
-          <DashboardCard title="Links & embeds" padded={false}>
-            <DataTable rows={LINK_ASSETS} columns={linkColumns} />
+          <DashboardCard title="Public campaign link">
+            <div className="flex items-center gap-2 rounded-md bg-surface-subtle p-2 pl-3">
+              <p className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary">{CAMPAIGN_SHARE_URL}</p>
+              <Button variant="secondary" size="sm">Copy link</Button>
+            </div>
           </DashboardCard>
           <SectionGrid>
             <div className="lg:col-span-6">
@@ -358,38 +337,11 @@ export function DistributionPage() {
           </SectionGrid>
         </>
       ) : null}
-
-      {active === "Influencers" ? (
-        <>
-          <DashboardCard
-            title="Creators"
-            padded={false}
-            action={<Button variant="secondary" size="sm">Add creator link</Button>}
-          >
-            <DataTable rows={CREATORS} columns={creatorColumns} />
-          </DashboardCard>
-          <SectionGrid>
-            <DashboardCard
-              title="Tier benchmarking"
-              padded={false}
-              className="lg:col-span-7"
-            >
-              <DataTable rows={TIER_BENCHMARKS} columns={tierColumns} />
-            </DashboardCard>
-            <DashboardCard title="Click-through by tier" className="lg:col-span-5">
-              <MixBars
-                slices={TIER_BENCHMARKS.map((tier) => ({
-                  label: tier.tier,
-                  value: tier.ctrValue,
-                  detail: tier.avgCtr,
-                }))}
-              />
-            </DashboardCard>
-          </SectionGrid>
-        </>
-      ) : null}
-
-      <AssignSourcesModal open={assignOpen} onClose={() => setAssignOpen(false)} />
+      <SocialShareModal open={Boolean(sharePolst)} onClose={() => setSharePolst(null)} objectName={sharePolst?.question ?? "this Polst"} />
+      <QrCodeModal open={Boolean(qrTarget)} onClose={() => setQrTarget(null)} objectName={qrTarget?.name ?? "this item"} url={`https://polst.app/${qrTarget?.kind ?? "p"}/${qrTarget?.id ?? "item"}?utm_source=qr`} />
+      <Modal open={embedOpen} onClose={() => setEmbedOpen(false)} label="Share and embed campaign" title="Share / embed campaign">
+        <div className="space-y-4 p-4"><SnippetCard title="iframe embed" code={EMBED_IFRAME} /><SnippetCard title="JavaScript embed" code={EMBED_SCRIPT} /></div>
+      </Modal>
     </DashboardPage>
   );
 }

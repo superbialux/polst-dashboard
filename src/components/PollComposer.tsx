@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { curatedImage } from "@/lib/workspace";
-import { CONTROL, SelectMenu } from "./Field";
+import { CONTROL } from "./Field";
 import { Icon } from "./Icon";
+import { Menu, MenuItem } from "./Menu";
+import { Button } from "./ui/button";
 
 /** The consumer composer's anatomy (ported from the Polst app's "Ask the
  *  world" dialog) as an inline block, so creating a Polst in the dashboard
@@ -12,8 +14,8 @@ import { Icon } from "./Icon";
 const seedImg = (seed: string) => curatedImage(seed, 600, 450);
 
 /** Twitter-style budgets: tight enough that polls stay scannable. */
-const QUESTION_LIMIT = 40;
-const CHOICE_LIMIT = 20;
+const QUESTION_LIMIT = 70;
+const CHOICE_LIMIT = 30;
 
 type Choice = { label: string; image: string | null };
 
@@ -194,7 +196,7 @@ export function PollComposer({
   onChange?: (state: ComposerState) => void;
   className?: string;
 }) {
-  const [category, setCategory] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [question, setQuestion] = useState("");
   const [choices, setChoices] = useState<[Choice, Choice]>(EMPTY_CHOICES);
   const [tags, setTags] = useState<string[]>([]);
@@ -218,7 +220,7 @@ export function PollComposer({
 
   const addTag = () => {
     const tag = tagDraft.trim().replace(/^#/, "").toLowerCase();
-    if (tag && !tags.includes(tag) && tags.length < 5) {
+    if (tag && !tags.includes(tag) && tags.length < 10 && tag.length <= 40) {
       setTags((cur) => [...cur, tag]);
     }
     setTagDraft("");
@@ -271,13 +273,41 @@ export function PollComposer({
         </div>
       </div>
 
-      <SelectMenu
-        label="Category"
-        value={category}
-        onValueChange={setCategory}
-        placeholder="Select category"
-        options={categories.map((name) => ({ value: name, label: name }))}
-      />
+      <Menu
+        label="Categories"
+        rootClassName="w-full"
+        className="w-full min-w-full"
+        trigger={({ open, toggle }) => (
+          <Button
+            type="button"
+            variant="secondary"
+            size="lg"
+            onClick={toggle}
+            aria-expanded={open}
+            className="h-10 w-full justify-between px-3 font-sans text-sm font-normal"
+          >
+            <span className={selectedCategories.length ? "truncate" : "truncate text-text-tertiary"}>
+              {selectedCategories.length ? selectedCategories.join(", ") : "Select categories"}
+            </span>
+            <Icon name="arrow_drop_down" size={18} />
+          </Button>
+        )}
+      >
+        {categories.map((name) => (
+          <MenuItem
+            key={name}
+            label={name}
+            selected={selectedCategories.includes(name)}
+            onClick={() =>
+              setSelectedCategories((current) =>
+                current.includes(name)
+                  ? current.filter((category) => category !== name)
+                  : [...current, name],
+              )
+            }
+          />
+        ))}
+      </Menu>
 
       {/* Tags — typed then committed on Enter/comma, up to five. */}
       <div
@@ -316,6 +346,7 @@ export function PollComposer({
           className="min-w-24 flex-1 bg-transparent font-sans text-base text-text-primary outline-none placeholder:text-text-tertiary lg:text-sm"
         />
       </div>
+      <p className="text-xs text-text-tertiary">Up to 10 tags, 40 characters each.</p>
     </div>
   );
 }

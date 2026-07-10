@@ -14,11 +14,7 @@ import {
   PolstDetailPage,
   PolstsPage,
 } from "@/pages/Polsts";
-import {
-  ChannelDetailPage,
-  CreatorDetailPage,
-  DistributionPage,
-} from "@/pages/Distribution";
+import { DistributionPage } from "@/pages/Distribution";
 import { AudiencePage } from "@/pages/Audience";
 import {
   AnalyticsAcquisitionPage,
@@ -27,7 +23,7 @@ import {
   AnalyticsReportsPage,
   AnalyticsRetentionPage,
 } from "@/pages/Analytics";
-import { NotFoundPage, SettingsPage } from "@/pages/Settings";
+import { NotFoundPage, SettingsPage, TeamPage } from "@/pages/Settings";
 
 export function App() {
   return (
@@ -47,8 +43,6 @@ export function App() {
             <Route path="/polsts/:id" element={<PolstDetailPage />} />
 
             <Route path="/distribution" element={<DistributionPage />} />
-            <Route path="/distribution/channels/:id" element={<ChannelDetailPage />} />
-            <Route path="/distribution/creators/:id" element={<CreatorDetailPage />} />
             <Route path="/audience" element={<AudiencePage />} />
 
             <Route path="/analytics" element={<AnalyticsOverviewPage />} />
@@ -58,6 +52,7 @@ export function App() {
             <Route path="/analytics/reports" element={<AnalyticsReportsPage />} />
 
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/team" element={<TeamPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
             </Routes>

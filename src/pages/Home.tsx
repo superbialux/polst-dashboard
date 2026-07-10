@@ -40,7 +40,7 @@ const ATTENTION_TONE: Record<string, string> = {
 
 function AttentionRow({ item }: { item: ListItem }) {
   return (
-    <li className="flex min-h-12 items-center gap-3 px-4 py-2.5">
+    <li className="flex min-h-12 items-center gap-3 py-2.5">
       <span
         aria-hidden
         className={cn("h-2 w-2 shrink-0 rounded-pill", ATTENTION_TONE[item.id] ?? "bg-icon-secondary")}
@@ -228,8 +228,7 @@ export function HomePage() {
           <DashboardCard
             title={`${ATTENTION_ITEMS.length} need attention`}
             className="lg:col-span-8"
-            padded={false}
-            bodyClassName="pb-1"
+            bodyClassName="pt-2"
           >
             <ul className="divide-y divide-border-default">
               {ATTENTION_ITEMS.map((item) => (
