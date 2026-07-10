@@ -131,24 +131,24 @@ function Sidebar() {
     ),
   }));
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-sidenav px-2 pb-2 lg:flex">
+    <aside className="scroll-subtle fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto bg-sidenav pb-2 lg:flex">
       {/* Brand block — a 48px strip mirroring the header across the seam:
           the wordmark left-aligned, the surface named beside it */}
-      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center gap-2 px-3">
+      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center gap-2 px-5">
         <PolstWordmark className="h-6 brightness-0 invert" />
         <span className="mt-0.5 truncate text-sm text-sidenav-muted">Brand Dashboard</span>
       </Link>
 
       {/* The workspace switcher lives right under the brand */}
-      <div className="pb-4 pt-2">
+      <div className="px-2 pb-4 pt-2">
         <AccountMenu />
       </div>
 
-      <nav aria-label="Primary" className="scroll-subtle flex flex-1 flex-col overflow-y-auto">
+      <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
         {groups.map((group, gi) => (
           <div key={gi}>
             {gi > 0 ? (
-              <div aria-hidden className="mx-3 my-3 h-px bg-sidenav-active" />
+              <div aria-hidden className="-mx-2 my-3 h-px bg-sidenav-active" />
             ) : null}
             <ul className="space-y-1">
               {group.items.map((item) => {
