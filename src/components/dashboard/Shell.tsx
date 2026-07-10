@@ -131,14 +131,15 @@ function Sidebar() {
     ),
   }));
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-sidenav px-3 py-5 lg:flex">
-      {/* Brand block — the wordmark alone, generously sized on the rail */}
-      <Link to="/" aria-label="Home" className="flex items-center px-3 pb-4">
-        <PolstWordmark className="h-8 brightness-0 invert" />
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-sidenav px-3 pb-5 lg:flex">
+      {/* Brand block — a 48px strip mirroring the header across the seam,
+          the wordmark centered inside it */}
+      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center justify-center">
+        <PolstWordmark className="h-6 brightness-0 invert" />
       </Link>
 
       {/* The workspace switcher lives right under the brand */}
-      <div className="pb-4">
+      <div className="pb-4 pt-2">
         <AccountMenu />
       </div>
 

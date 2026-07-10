@@ -381,9 +381,10 @@ at 16px gutters; the shell's `main` carries the page padding
 - **Account switcher** — even parent padding (`p-1.5`) so every row (workspaces,
   the signed-in person, Log out) shares the same inset — nothing sits flush to
   the edge. Workspaces are `menuitem`s so focus opens on the current one.
-- **Sidebar** — the dark rail: fixed `inset-y-0`, `w-64`, no collapse. Top:
-  the **wordmark alone**, inverted and generously sized (`h-8`) — no logo
-  tile — with the **workspace switcher** directly beneath it (a dark chip:
+- **Sidebar** — the dark rail: fixed `inset-y-0`, `w-64`, no collapse, no
+  top padding. Top: a **48px brand strip mirroring the header across the
+  seam** — the inverted wordmark (`h-6`) centered inside it, no logo tile —
+  with the **workspace switcher** directly beneath it (a dark chip:
   monogram, brand name, unfold glyph; the panel opens as the usual light
   menu with workspaces, the signed-in person, and Log out). Nav rides in
   **groups**: the daily work (Home, Campaigns, Polsts,
