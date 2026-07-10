@@ -52,38 +52,36 @@ export function DashboardPage({
   children,
 }: PageProps) {
   return (
-    <div className="px-4 py-5 sm:px-5 lg:px-6">
-      <div className="mx-auto max-w-dashboard space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            {eyebrow ? (
-              <div className="mb-1.5 text-sm font-medium text-text-secondary">
-                {eyebrow}
-              </div>
-            ) : null}
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="text-balance font-display text-2xl font-semibold leading-8 text-text-primary">
-                {title}
-              </h1>
-              {updated ? (
-                <span className="flex items-center gap-1 text-xs text-text-tertiary">
-                  <Icon name="sync" size={14} />
-                  Updated {updated}
-                </span>
-              ) : null}
+    <div className="mx-auto max-w-dashboard space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          {eyebrow ? (
+            <div className="mb-1.5 text-sm font-medium text-text-secondary">
+              {eyebrow}
             </div>
-            {description ? (
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">
-                {description}
-              </p>
+          ) : null}
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 className="text-balance font-display text-2xl font-semibold leading-8 tracking-tight text-text-primary lg:text-3xl lg:leading-9">
+              {title}
+            </h1>
+            {updated ? (
+              <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                <Icon name="sync" size={14} />
+                Updated {updated}
+              </span>
             ) : null}
           </div>
-          {actions ? (
-            <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+          {description ? (
+            <p className="mt-2 max-w-2xl text-base leading-6 text-text-secondary">
+              {description}
+            </p>
           ) : null}
         </div>
-        {children}
+        {actions ? (
+          <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
+        ) : null}
       </div>
+      {children}
     </div>
   );
 }
@@ -121,10 +119,10 @@ export function DashboardCard({
       )}
     >
       {hasHeader ? (
-        <div className="flex items-start justify-between gap-4 px-4 pb-0 pt-4">
+        <div className="flex items-start justify-between gap-4 px-5 pb-0 pt-5">
           <div className="min-w-0">
             {title ? (
-              <h2 className="font-display text-sm font-semibold leading-6 text-text-primary">
+              <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
                 {title}
               </h2>
             ) : null}
@@ -137,7 +135,7 @@ export function DashboardCard({
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       ) : null}
-      <div className={cn(padded && (hasHeader ? "px-4 pb-4 pt-4" : "p-4"), bodyClassName)}>
+      <div className={cn(padded && (hasHeader ? "px-5 pb-5 pt-4" : "p-5"), bodyClassName)}>
         {children}
       </div>
     </section>
@@ -933,7 +931,7 @@ export function StatsStrip({
                 <p className="truncate text-xs font-semibold text-text-secondary">{stat.label}</p>
                 <div className="mt-1.5 flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-baseline gap-1">
-                    <span className="font-display text-2xl font-semibold leading-7 tabular-nums text-text-primary">
+                    <span className="font-display text-2xl font-semibold leading-8 tracking-tight tabular-nums text-text-primary">
                       {stat.value}
                     </span>
                     {stat.trend && stat.trend !== "flat" ? (
@@ -1587,9 +1585,9 @@ export function StatTile({
       </p>
       <p
         className={cn(
-          "mt-2 font-display font-semibold text-text-primary",
+          "mt-3 font-display font-semibold tracking-tight text-text-primary",
           /^[0-9]/.test(value)
-            ? "text-3xl leading-9 tabular-nums"
+            ? "text-2xl leading-8 tabular-nums"
             : "text-xl leading-7",
         )}
       >

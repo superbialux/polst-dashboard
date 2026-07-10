@@ -43,10 +43,10 @@ colors:
   accent-hover: "#5252a9"
   status-success: "{colors.green}"
   status-danger: "{colors.red}"
-  # Top bar (dashboard) — the one dark surface, from the same neutral ramp
-  topbar-bg: "{colors.neutral-900}"
-  topbar-field: "{colors.neutral-800}"
-  topbar-muted: "{colors.neutral-500}"
+  # Sidebar rail (dashboard) — the one dark surface, from the same neutral ramp
+  sidenav-bg: "{colors.neutral-900}"
+  sidenav-active: "{colors.neutral-800}"
+  sidenav-muted: "{colors.neutral-500}"
 typography:
   question:
     fontFamily: Inter
@@ -165,7 +165,7 @@ Three rules govern everything:
    surface, text, border, accent) → component (per-widget slots). Components
    consume semantics; primitives are an escape hatch, never a habit.
    (There is no dark theme — the app is light-only, with one dark surface:
-   the dashboard's top bar, built from the same neutral ramp.)
+   the dashboard's sidebar rail, built from the same neutral ramp.)
 2. **The 4pt grid is law.** Sizes, insets, gaps, icons, radii — all multiples
    of 4 (10px card insets on mobile are the lone, documented exception).
 3. **Reuse over invention.** Every screen is composed from the same
@@ -179,7 +179,7 @@ Surfaces step *upward* in tone (page < raised < subtle < strong) while
 borders hold at neutral-300/400 so separation never depends on shadows.
 
 - **Brand black is the text ink.** Primary buttons use `neutral-800`
-  (`#21262f`), not `#000`; the dashboard top bar sits on `neutral-900` —
+  (`#21262f`), not `#000`; the dashboard sidebar rail sits on `neutral-900` —
   the same cool near-black, never a foreign gray.
 - **Violet (`#6161c7`) is the only interaction color**: active states,
   selection, focus rings, links, the chosen option, unread marks. It is
@@ -191,8 +191,8 @@ borders hold at neutral-300/400 so separation never depends on shadows.
   destructive menu items and spent character budgets. *Minority is neutral,
   not danger* — losing a poll isn't an error.
 - **Contrast is documented at the token.** Body text ≥ AA everywhere
-  (secondary 4.83:1, tertiary 4.6:1 on white; topbar muted 6.6:1 on the
-  bar); `text-tertiary` is for placeholders and decorative icons only.
+  (secondary 4.83:1, tertiary 4.6:1 on white; sidenav muted 6.6:1 on the
+  rail); `text-tertiary` is for placeholders and decorative icons only.
 
 ## Typography
 
@@ -352,23 +352,25 @@ analytics warehouse — every screen answers *what is next?* before *how much?*.
 
 ## The shell
 
-Three layers, no frames-inside-frames: the **48px black top bar** (`topbar-*`
-tokens, our `neutral-900`) is global and **sticky**; the **sidebar rail**
-(`app-header`, a step darker, split off by a hairline `border-r`) is
-persistent and sticky below it; and the **page itself is the working canvas**
-(`app-content`) — it owns the **document scroll**, with no surrounding card
-border and no nested scrollbar. The ladder reads: **black bar ▸ light rail ▸
-canvas ▸ white cards on it**. Every page shares the one `max-w-dashboard`
-(1200px) container — no per-page widths — and lays out on the 12-column
-`SectionGrid` at 16px gutters.
+Two columns, no frames-inside-frames: the **one dark surface is the
+full-height sidebar rail** (`sidenav-*` tokens, our `neutral-900` — fixed,
+`w-64`, collapsible to an 80px icon rail), and beside it a light column
+stacks a **sticky 64px header** over the **working canvas** (`app-content`).
+The page owns the **document scroll** — no surrounding card border, no
+nested scrollbar. The ladder reads: **dark rail ▸ light header ▸ canvas ▸
+white cards on it**. Every page shares the one `max-w-dashboard` (1152px)
+container — no per-page widths — and lays out on the 12-column `SectionGrid`
+at 16px gutters; the shell's `main` carries the page padding
+(`px-8 pt-6 pb-10` at desktop).
 
-- **Top row** — `h-12` (48px), transparent on the frame. The flanks are
-  **equal-width** (`flex-1` each) so the centered search stays optically
-  centered no matter how wide the account name runs: wordmark at the left, a
-  wide search in the middle (a raised field, ⌘K), and the actions at the right.
-  Controls are sized to the bar — **36×36 icon buttons** (`+` / bell, no
-  labels), a `h-9` search, a `h-9` account chip (monogram + brand name, no
-  chevron). Everything reads in page ink on the light frame.
+- **Header** — `h-16` (64px), sticky, a hairline `border-b` on a translucent
+  canvas wash (`bg-app-content/85` + `backdrop-blur`, the one allowed blur —
+  it's a sticky surface). Left: a compact **search field** (`h-9`,
+  `max-w-xs`, raised + bordered, ⌘K hint) that opens the command palette.
+  Right, `ml-auto`: the **primary Create button** (labeled, with menu), a
+  quiet 36×36 bell, and the **account chip** (bordered, monogram + brand
+  name + chevron). Below `lg` the wordmark rides the header since the rail
+  is hidden.
 - **Notifications** — a Shopify-style panel (see `alerts.png`): a titled header
   with filter / mark-all-read actions, then rows of **unread dot ·
   `source · time` · bold title · body** (no icon discs), and a "No more
@@ -376,16 +378,18 @@ canvas ▸ white cards on it**. Every page shares the one `max-w-dashboard`
 - **Account switcher** — even parent padding (`p-1.5`) so every row (workspaces,
   the signed-in person, Log out) shares the same inset — nothing sits flush to
   the edge. Workspaces are `menuitem`s so focus opens on the current one.
-- **Sidebar** — `w-60` (240px), sticky under the bar, on the rail in **full
-  page ink** (inactive rows are not dimmed — the active cue is the pill +
-  filled glyph, never a colour change). Nav rides in **groups**: the daily
-  work (Home, Campaigns, Polsts, Distribution), a labeled **Learn** band
-  (Analytics, Audience), and Settings pinned at the bottom — work, learning,
-  administration. The active item is a **raised pill** (`app-header-field` +
-  `shadow-sm`); hover is a one-step-lighter wash (`app-content`). Analytics'
-  children indent under the active parent. Icons stay **brand ink at all
-  times**; the active row alone **fills its glyph** (Material Symbols
-  `FILL 1`). Statuses are **never** nav.
+- **Sidebar** — the dark rail: fixed `inset-y-0`, `w-64`, **collapsible to an
+  80px icon rail** (labels drop, `title` tooltips carry the names). Top: the
+  brand block (violet logo tile + inverted wordmark), then a quiet Collapse
+  control. Nav rides in **groups**: the daily work (Home, Campaigns, Polsts,
+  Distribution), a labeled **LEARN** band (Analytics, Audience), and — pinned
+  at the foot — Settings plus the **signed-in user card** (violet initials
+  disc, name, role, on a `sidenav-hover` panel). Rows are **14px medium**,
+  `h-9`, `rounded-md`: inactive `sidenav-muted`, hover a soft
+  `sidenav-hover` wash, active a **`sidenav-active` panel in white ink**
+  with the glyph filled (Material Symbols `FILL 1`). Analytics' children
+  indent under the active parent (hidden while collapsed). Statuses are
+  **never** nav.
 - **Canvas** — the page scrolls as a page (document scroll, no inner
   scroller, no rounded border frame). White cards lift straight off the
   `app-content` canvas. `body` matches the canvas so overscroll never
@@ -394,25 +398,40 @@ canvas ▸ white cards on it**. Every page shares the one `max-w-dashboard`
 ## Control type
 
 - **One size for controls — `text-ui` (13px / 16px).** Every button, tab,
-  selector, nav row, menu item, and search field runs at `text-ui`, so the
-  chrome reads as one compact system. (Body copy, headings, and data keep the
-  regular type scale.) `cn()` registers `text-ui` with tailwind-merge so it
+  selector, menu item, and search field runs at `text-ui`, so the chrome
+  reads as one compact system. (Body copy, headings, and data keep the
+  regular type scale.) The **rail nav is the one exception**: its rows run
+  `text-sm font-medium` (14px), matching the reference shell's calmer,
+  roomier navigation. `cn()` registers `text-ui` with tailwind-merge so it
   survives alongside a `text-{color}` class.
-- **One height — 32px (`h-8`).** Buttons (`md`/`sm` differ only in horizontal
-  padding), tabs, selectors, the nav rows, header icon buttons, the account
-  chip, and the search field are all 32px tall. Icons inside controls are
-  **20px**.
+- **One height — 32px (`h-8`) in-page; 36px (`h-9`) in the chrome.**
+  Buttons, tabs, and selectors inside the page are 32px; the shell's
+  header controls (search, bell, account chip) and rail rows are 36px to
+  match the 64px header's scale. Icons inside controls are **20px**.
+
+## Type scale (dashboard)
+
+Borrowed from the reference shell — larger, calmer headings; weight stays
+at 500–650, never bold-black:
+
+- **Page title** — `text-2xl lg:text-3xl font-semibold tracking-tight`
+  (24 → 30px). **Page subtitle** — `text-base` (16px) secondary.
+- **Card / section title** — `text-base font-semibold` (16px).
+- **Metric value** — `text-2xl font-semibold tracking-tight tabular-nums`
+  (24px) on tiles and the stat strip alike.
+- **Body 14px, metadata 12px** as before; rail nav 14px medium.
+- **Card inset** — `p-5` (20px), still on the 4pt grid.
 
 ## Dashboard grid
 
 - **12 columns.** Multi-panel layouts use the 12-col `SectionGrid` at **16px**
   gutters (`gap-4`) — a card spans `col-span-{n}` (7/5, 8/4, 3×4, 6×2…). Never
   hand-size a track with an arbitrary value; spend columns.
-- **Two rhythms.** Major sections **stack at 24px** (`space-y-6`); everything
-  *inside* a card holds the consumer app's **16px** inset and 8–12px nested
-  gaps. Page padding is 24px desktop (`lg:px-6 py-5`), 16px below `lg`.
+- **Two rhythms.** Major sections **stack at 24px** (`space-y-6`); cards hold
+  a **20px** inset (`p-5`) with 8–12px nested gaps. Page padding lives on the
+  shell's `main` — 32px desktop (`lg:px-8 pt-6 pb-10`), 16px below `sm`.
 - **One container.** Every page — Home, tables, editors, analytics — caps at
-  the same `max-w-dashboard` (1200px) centered column via `DashboardPage`.
+  the same `max-w-dashboard` (1152px) centered column via `DashboardPage`.
   Any view on a second width is a bug to normalize.
 
 ## Surfaces & depth (dashboard)
@@ -464,7 +483,8 @@ Every screen is composed from this fixed set — extend by **prop**, never by
 fork. New surface area should feel assembled, not authored:
 
 - **`DashboardShell`** — the frame above. **`DashboardPage`** — the page header
-  (eyebrow, title, description, actions) + the one centered 1200px column.
+  (eyebrow, title, description, actions) + the one centered 1152px column
+  (the shell supplies the outer padding).
   Pass `updated` ("2 min ago") and every page states its data recency next to
   the title — numbers without a freshness stamp are rumors.
 - **`DecisionBrief`** — the **Decision Narrative** as one reusable object:

@@ -3,7 +3,8 @@ import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
-import { PolstWordmark } from "@/components/PolstLogo";
+import { Button } from "@/components/ui/button";
+import { PolstSymbol, PolstWordmark } from "@/components/PolstLogo";
 import { Menu, MenuItem } from "@/components/Menu";
 import { useModules } from "@/lib/modules";
 import {
@@ -50,31 +51,37 @@ const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   },
 ];
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  cn(
-    "flex h-8 items-center gap-3 rounded-md px-3 font-display text-ui font-semibold text-app-header-fg transition-colors hover:bg-app-content",
-    isActive && "bg-app-header-field text-app-header-fg shadow-sm",
-  );
+const navLinkClass = (collapsed: boolean) =>
+  ({ isActive }: { isActive: boolean }) =>
+    cn(
+      "flex h-9 items-center rounded-md text-sm font-medium transition-colors",
+      collapsed ? "justify-center px-0" : "gap-3 px-3",
+      isActive
+        ? "bg-sidenav-active text-sidenav-fg"
+        : "text-sidenav-muted hover:bg-sidenav-hover hover:text-sidenav-fg",
+    );
 
-/** Sidebar icons are always brand ink; the active row alone fills the glyph. */
+/** Rail icons inherit the row's ink; the active row alone fills its glyph. */
 function NavIcon({ name, active }: { name: string; active: boolean }) {
-  return (
-    <Icon name={name} size={20} weight={500} filled={active} className="text-app-header-fg" />
-  );
+  return <Icon name={name} size={20} weight={500} filled={active} className="shrink-0" />;
 }
 
-/** Three shell layers, no frames-inside-frames: the black bar is global and
- *  sticky, the sidebar rail is persistent, and the page itself is the working
- *  canvas — it owns the document scroll, with no surrounding card border. */
+/** The shell: one dark surface — the full-height sidebar rail — beside a
+ *  light column that stacks a sticky 64px header over the working canvas.
+ *  The page owns the document scroll; nothing nests a second scroller. */
 export function DashboardShell({ children }: { children: ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false);
   return (
     <div className="min-h-dvh bg-app-content text-text-primary">
-      <div className="sticky top-0 z-40">
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
+      <div
+        className={cn(
+          "transition-[padding] duration-200",
+          collapsed ? "lg:pl-20" : "lg:pl-64",
+        )}
+      >
         <Header />
-      </div>
-      <div className="flex items-start">
-        <Sidebar />
-        <main id="main-content" className="min-w-0 flex-1">
+        <main id="main-content" className="px-4 pb-10 pt-6 sm:px-6 lg:px-8">
           {children}
         </main>
       </div>
@@ -82,7 +89,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   );
 }
 
-function Sidebar() {
+function Sidebar({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   const location = useLocation();
   const { modules } = useModules();
   const groups = NAV_GROUPS.map((group) => ({
@@ -107,14 +120,55 @@ function Sidebar() {
     ),
   }));
   return (
-    <aside className="sticky top-12 hidden h-[calc(100dvh-3rem)] w-60 shrink-0 flex-col border-r border-border-default bg-app-header p-3 lg:flex">
+    <aside
+      className={cn(
+        "fixed inset-y-0 left-0 z-30 hidden flex-col bg-sidenav py-5 transition-[width] duration-200 lg:flex",
+        collapsed ? "w-20 px-3" : "w-64 px-3",
+      )}
+    >
+      {/* Brand block — the logo lives on the rail, not in the header */}
+      <Link
+        to="/"
+        aria-label="Home"
+        className={cn(
+          "flex items-center pb-5",
+          collapsed ? "justify-center" : "gap-2.5 px-3",
+        )}
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-default">
+          <PolstSymbol className="h-5 w-5 brightness-0 invert" />
+        </span>
+        {!collapsed ? <PolstWordmark className="h-6 brightness-0 invert" /> : null}
+      </Link>
+
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? "Expand" : "Collapse"}
+        className={cn(
+          "mb-3 flex h-9 items-center rounded-md text-sm font-medium text-sidenav-muted transition-colors hover:bg-sidenav-hover hover:text-sidenav-fg",
+          collapsed ? "justify-center px-0" : "gap-3 px-3",
+        )}
+      >
+        <Icon
+          name="chevron_left"
+          size={20}
+          className={cn("shrink-0 transition-transform", collapsed && "rotate-180")}
+        />
+        {!collapsed ? <span>Collapse</span> : null}
+      </button>
+
       <nav aria-label="Primary" className="scroll-subtle flex flex-1 flex-col overflow-y-auto">
         {groups.map((group, gi) => (
           <div key={group.label ?? gi} className={cn(gi > 0 && "mt-5")}>
-            {group.label ? (
-              <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-app-header-muted">
+            {group.label && !collapsed ? (
+              <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-sidenav-muted">
                 {group.label}
               </p>
+            ) : null}
+            {group.label && collapsed ? (
+              <div className="mx-3 mb-2 h-px bg-sidenav-active" aria-hidden />
             ) : null}
             <ul className="space-y-1">
               {group.items.map((item) => {
@@ -125,16 +179,21 @@ function Sidebar() {
                       location.pathname.startsWith(`${item.to}/`);
                 return (
                   <li key={item.to}>
-                    <NavLink to={item.to} end={item.to === "/"} className={navLinkClass}>
+                    <NavLink
+                      to={item.to}
+                      end={item.to === "/"}
+                      title={collapsed ? item.label : undefined}
+                      className={navLinkClass(collapsed)}
+                    >
                       {({ isActive }) => (
                         <>
                           <NavIcon name={item.icon} active={isActive} />
-                          <span>{item.label}</span>
+                          {!collapsed ? <span className="truncate">{item.label}</span> : null}
                         </>
                       )}
                     </NavLink>
 
-                    {item.children && parentActive ? (
+                    {item.children && parentActive && !collapsed ? (
                       <ul className="mt-1 space-y-0.5 pl-11">
                         {item.children.map((child) => (
                           <li key={child.to}>
@@ -143,8 +202,8 @@ function Sidebar() {
                               end={child.to === item.to}
                               className={({ isActive }) =>
                                 cn(
-                                  "block rounded-sm px-3 py-1.5 text-ui font-medium text-app-header-muted transition-colors hover:text-app-header-fg",
-                                  isActive && "font-semibold text-app-header-fg",
+                                  "block rounded-sm px-3 py-1.5 text-sm font-medium text-sidenav-muted transition-colors hover:text-sidenav-fg",
+                                  isActive && "text-sidenav-fg",
                                 )
                               }
                             >
@@ -161,15 +220,40 @@ function Sidebar() {
           </div>
         ))}
 
-        <div className="mt-auto pt-4">
-          <NavLink to="/settings" className={navLinkClass}>
+        <div className="mt-auto space-y-3 pt-4">
+          <NavLink
+            to="/settings"
+            title={collapsed ? "Settings" : undefined}
+            className={navLinkClass(collapsed)}
+          >
             {({ isActive }) => (
               <>
                 <NavIcon name="settings" active={isActive} />
-                <span>Settings</span>
+                {!collapsed ? <span>Settings</span> : null}
               </>
             )}
           </NavLink>
+
+          {/* The signed-in person, pinned to the rail's foot */}
+          <div
+            className={cn(
+              "flex items-center rounded-md bg-sidenav-hover",
+              collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5",
+            )}
+            title={collapsed ? WORKSPACE.owner : undefined}
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-xs font-semibold text-text-on-accent">
+              {initialsOf(WORKSPACE.owner)}
+            </span>
+            {!collapsed ? (
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-sidenav-fg">
+                  {WORKSPACE.owner}
+                </span>
+                <span className="block truncate text-xs text-sidenav-muted">Owner</span>
+              </span>
+            ) : null}
+          </div>
         </div>
       </nav>
     </aside>
@@ -192,35 +276,31 @@ function Header() {
   }, []);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 bg-topbar px-3 text-topbar-fg lg:px-4">
-      {/* Left — mirrors the right side's width so the search stays centered */}
-      <div className="flex flex-1 items-center">
-        <Link to="/" aria-label="Home" className="px-1">
-          <PolstWordmark className="h-[1.625rem] brightness-0 invert" />
-        </Link>
-      </div>
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border-default bg-app-content/85 px-4 backdrop-blur sm:px-6 lg:px-8">
+      {/* Below lg the rail is hidden, so the wordmark rides the header */}
+      <Link to="/" aria-label="Home" className="lg:hidden">
+        <PolstWordmark className="h-6" />
+      </Link>
 
-      {/* Center — search (a button styled as a field; the real input lives in the dialog) */}
-      <div className="hidden w-full max-w-xl md:block">
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          className="relative block h-8 w-full rounded-md bg-topbar-field pl-10 pr-14 text-left text-ui text-topbar-muted outline-none transition-colors hover:bg-topbar-field-hover"
-        >
-          <Icon
-            name="search"
-            size={20}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-topbar-muted"
-          />
-          Search campaigns, Polsts, and sources
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 font-sans text-xs font-semibold text-topbar-muted">
-            ⌘K
-          </kbd>
-        </button>
-      </div>
+      {/* Search — a button styled as a field; the real input lives in the dialog */}
+      <button
+        type="button"
+        onClick={() => setSearchOpen(true)}
+        className="relative hidden h-9 w-full max-w-xs rounded-md border border-border-default bg-surface-raised pl-9 pr-12 text-left text-ui text-text-tertiary outline-none transition-colors hover:bg-surface-subtle md:block"
+      >
+        <Icon
+          name="search"
+          size={18}
+          className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-icon-secondary"
+        />
+        Search
+        <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-sm border border-border-default px-1 font-sans text-xs font-medium text-text-tertiary">
+          ⌘K
+        </kbd>
+      </button>
 
-      {/* Right — actions */}
-      <div className="flex flex-1 items-center justify-end gap-1.5">
+      {/* Right — the primary create action, then quiet utilities */}
+      <div className="ml-auto flex items-center gap-2">
         <CreateMenu />
         <NotificationsMenu />
         <AccountMenu />
@@ -467,9 +547,9 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-/** A 32×32 header control, sized to sit within the 48px black bar. */
+/** A 36×36 quiet icon control for the light 64px header. */
 const headerButton =
-  "grid h-8 w-8 place-items-center rounded-md text-topbar-fg transition-colors hover:bg-topbar-field";
+  "grid h-9 w-9 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary";
 
 function CreateMenu() {
   const navigate = useNavigate();
@@ -477,9 +557,10 @@ function CreateMenu() {
     <Menu
       label="Create"
       trigger={({ toggle }) => (
-        <button onClick={toggle} className={headerButton} aria-label="Create">
-          <Icon name="add" size={20} />
-        </button>
+        <Button onClick={toggle}>
+          <Icon name="add" size={18} />
+          Create
+        </Button>
       )}
     >
       <MenuItem
@@ -538,7 +619,7 @@ function NotificationsMenu() {
       trigger={({ toggle }) => (
         <button onClick={toggle} aria-label="Notifications" className={cn(headerButton, "relative")}>
           <Icon name="notifications" size={20} />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-pill bg-status-danger ring-2 ring-topbar" />
+          <span className="absolute right-2 top-2 h-2 w-2 rounded-pill bg-status-danger ring-2 ring-app-content" />
         </button>
       )}
     >
@@ -607,12 +688,11 @@ function AccountMenu() {
       trigger={({ toggle }) => (
         <button
           onClick={toggle}
-          className="flex h-8 items-center gap-2 rounded-md pl-1 pr-2.5 text-topbar-fg transition-colors hover:bg-topbar-field"
+          className="flex h-9 items-center gap-2 rounded-md border border-border-default bg-surface-raised pl-1.5 pr-2 text-text-primary transition-colors hover:bg-surface-subtle"
         >
           <WorkspaceMark initials={WORKSPACE.initials} size="sm" />
-          <span className="hidden font-display text-ui font-semibold sm:inline">
-            {WORKSPACE.brand}
-          </span>
+          <span className="hidden text-sm font-medium sm:inline">{WORKSPACE.brand}</span>
+          <Icon name="arrow_drop_down" size={18} className="hidden text-icon-secondary sm:block" />
         </button>
       )}
     >

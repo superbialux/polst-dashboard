@@ -185,14 +185,13 @@ export function HomePage() {
   const polsts = SINGLE_POLSTS.filter((p) => matchesFilter(p.status, polstFilter)).slice(0, 20);
 
   return (
-    <div className="px-4 py-5 sm:px-5 lg:px-6">
-      {/* One narrow reading column for the whole page */}
-      <div className="mx-auto max-w-dashboard space-y-6">
+    // One narrow reading column for the whole page (the shell owns padding)
+    <div className="mx-auto max-w-dashboard space-y-6">
         {/* Compact header — a small salutation, the data contract beside it.
             The strongest position on the page belongs to the briefing below. */}
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 className="font-display text-2xl font-semibold leading-8 text-text-primary">
+            <h1 className="font-display text-2xl font-semibold leading-8 tracking-tight text-text-primary lg:text-3xl lg:leading-9">
               Good afternoon, {firstName}
             </h1>
             <span className="flex items-center gap-1 text-xs text-text-tertiary">
@@ -329,7 +328,6 @@ export function HomePage() {
             );
           })}
         </SectionGrid>
-      </div>
     </div>
   );
 }
