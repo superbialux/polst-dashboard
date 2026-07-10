@@ -134,9 +134,8 @@ function Sidebar() {
     <aside className="scroll-subtle fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto bg-sidenav pb-2 lg:flex">
       {/* Brand block — a 48px strip mirroring the header across the seam:
           the wordmark left-aligned, the surface named beside it */}
-      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center gap-2 px-4">
+      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center px-4">
         <PolstWordmark className="h-6 brightness-0 invert" />
-        <span className="mt-0.5 truncate text-sm text-sidenav-muted">Brand Dashboard</span>
       </Link>
 
       {/* The workspace switcher lives right under the brand */}
@@ -148,7 +147,7 @@ function Sidebar() {
         {groups.map((group, gi) => (
           <div key={gi}>
             {gi > 0 ? (
-              <div aria-hidden className="-mx-2 my-3 h-px bg-sidenav-active" />
+              <div aria-hidden className="my-3 h-px bg-sidenav-active" />
             ) : null}
             <ul className="space-y-1">
               {group.items.map((item) => {
@@ -710,7 +709,7 @@ function AccountMenu() {
       trigger={({ toggle }) => (
         <button
           onClick={toggle}
-          className="flex w-full items-center gap-3 rounded-md bg-sidenav-hover p-2 text-left transition-colors hover:bg-sidenav-active"
+          className="flex w-full items-center gap-3 rounded-md border border-sidenav-active p-2 text-left transition-colors hover:bg-sidenav-hover"
         >
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-default font-display text-xs font-semibold text-text-on-accent">
             {WORKSPACE.initials}
