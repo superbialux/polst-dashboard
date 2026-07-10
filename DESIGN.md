@@ -384,7 +384,8 @@ at 16px gutters; the shell's `main` carries the page padding
 - **Sidebar** — the dark rail: fixed `inset-y-0`, `w-64`, no collapse,
   **8px outer insets** (`px-2 pb-2`, no top padding). Top: a **48px brand
   strip mirroring the header across the seam** — the inverted wordmark
-  (`h-6`) centered inside it, no logo tile — with the **workspace switcher**
+  (`h-6`) left-aligned with a quiet "Brand Dashboard" beside it (sentence
+  case, never uppercase), no logo tile — with the **workspace switcher**
   directly beneath it, wearing the same card anatomy as the user card at the
   foot (soft `sidenav-hover` panel, 32px violet mark, name over domain,
   unfold glyph; the panel opens as the usual light menu with workspaces,

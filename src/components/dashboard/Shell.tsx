@@ -31,9 +31,10 @@ type NavItem = {
   children?: Array<{ label: string; to: string }>;
 };
 
-/** Nav rides in three bands: the daily work (campaign-first), the learning
- *  surfaces, and — pinned at the bottom — administration. */
-const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
+/** Nav rides in three bands split by hairline dividers — never labeled
+ *  sections: the daily work (campaign-first), then the learning surfaces,
+ *  and — pinned at the bottom — administration. */
+const NAV_GROUPS: Array<{ items: NavItem[] }> = [
   {
     items: [
       { label: "Home", icon: "home", to: "/" },
@@ -43,7 +44,6 @@ const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
     ],
   },
   {
-    label: "Learn",
     items: [
       {
         label: "Analytics",
@@ -132,10 +132,11 @@ function Sidebar() {
   }));
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-sidenav px-2 pb-2 lg:flex">
-      {/* Brand block — a 48px strip mirroring the header across the seam,
-          the wordmark centered inside it */}
-      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center justify-center">
+      {/* Brand block — a 48px strip mirroring the header across the seam:
+          the wordmark left-aligned, the surface named beside it */}
+      <Link to="/" aria-label="Home" className="flex h-12 shrink-0 items-center gap-2 px-3">
         <PolstWordmark className="h-6 brightness-0 invert" />
+        <span className="mt-0.5 truncate text-sm text-sidenav-muted">Brand Dashboard</span>
       </Link>
 
       {/* The workspace switcher lives right under the brand */}
@@ -145,11 +146,9 @@ function Sidebar() {
 
       <nav aria-label="Primary" className="scroll-subtle flex flex-1 flex-col overflow-y-auto">
         {groups.map((group, gi) => (
-          <div key={group.label ?? gi} className={cn(gi > 0 && "mt-5")}>
-            {group.label ? (
-              <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-sidenav-muted">
-                {group.label}
-              </p>
+          <div key={gi}>
+            {gi > 0 ? (
+              <div aria-hidden className="mx-3 my-3 h-px bg-sidenav-active" />
             ) : null}
             <ul className="space-y-1">
               {group.items.map((item) => {
