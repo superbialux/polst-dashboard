@@ -1,0 +1,52 @@
+Home
+Portfolio stats, recommendation feed, recent campaigns, team notes.
+
+Decision Campaigns
+ List level:
+
+Status filters: Active, Draft, Completed, Archived
+
+
+Inside a campaign (tabs):
+
+Overview (headline metrics, winning direction, the visual Polsts, vote split, geo, demographic split)
+Insights (the AI recommendation, confidence, chain analyzed, key findings)
+Distribution (assets and channels for that campaign)
+Influencers (per-creator tracked-link performance)
+
+
+Drill-downs:
+
+Polst Detail (single question, by channel, by referrer/source)
+Full Campaign Report (client-ready export view)
+
+
+Create wizard (4 steps):
+
+Decision, Build, Distribution, Review
+
+
+Distribution (top-level)
+• Channel list with scope and response counts (Website embed, Email, Instagram, QR, Influencer links)
+• Share link and embed code
+• Add Channel
+ This mirrors the per-campaign Distribution tab but spans all active campaigns. No new subs across phases.
+
+Insights (top-level, cross-campaign)
+• Recommendation summary by campaign
+• Link into each campaign’s full Insights view
+
+Audience (demographic-gated)
+
+Headline: Followers, Previous Respondents, Response Reach
+Top Interests
+Engagement trend
+Demographics toggle: Age, Gender, Income (gated, ship only Age until collection is real)
+Geography (Phase 2, regional first, city-level Phase 3)
+Full audience report and full geography report (deeper export views)
+
+
+Team
+• Member list with roles (Owner, Editor, Viewer, plus labels like Agency, Marketing Director)
+• Invite User
+• Pending invitations

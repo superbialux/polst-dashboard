@@ -55,27 +55,27 @@ colors:
   dark-text-on-accent: "#14171e"
 typography:
   question:
-    fontFamily: Inter Tight
+    fontFamily: Inter
     fontSize: 1.125rem    # 1.5rem desktop
     fontWeight: 700
     lineHeight: 26px      # 32px desktop
   title:
-    fontFamily: Inter Tight
+    fontFamily: Inter
     fontSize: 1.25rem     # 1.5rem desktop
     fontWeight: 700
     lineHeight: 1.75rem
   answer-label:
-    fontFamily: Inter Tight
+    fontFamily: Inter
     fontSize: 0.875rem    # 1.125rem desktop
     fontWeight: 600
     lineHeight: 1.25rem
   author:
-    fontFamily: Inter Tight
+    fontFamily: Inter
     fontSize: 0.875rem    # 1rem desktop
     fontWeight: 700
     lineHeight: 18px
   label:
-    fontFamily: Inter Tight
+    fontFamily: Inter
     fontSize: 0.875rem
     fontWeight: 700
     lineHeight: 1.25rem
@@ -205,8 +205,9 @@ borders hold at neutral-300/400 so separation never depends on shadows.
 
 ## Typography
 
-Two families: **Inter Tight** (display — questions, names, labels, buttons,
-counts) and **Inter** (body and meta), with `cv11`/`ss01` features enabled.
+**Inter** for everything, with `cv11`/`ss01` features enabled. `font-display`
+stays as a semantic alias (questions, names, labels, buttons, counts) but now
+resolves to Inter too — one family across the app, no Inter Tight.
 
 The desktop ladder is **24 / 18 / 16 / 14** (question / answer labels /
 author / meta-actions); mobile runs 18 / 14 / 14 / 12. The title step is a
@@ -341,3 +342,274 @@ never changes.
   spacing value — if it isn't on the grid, it isn't in the design.
 - Let the window scroll, a modal lose focus, or a toast claim success
   that didn't happen.
+
+---
+
+# Dashboard (Brand Workspace)
+
+The dashboard is the same product, wearing work clothes. It is a **derivative**
+of the consumer app: the exact same token architecture, the same 4pt grid, the
+same calm blue-gray neutrals and single violet accent — re-composed for a brand
+operator instead of a voter. Its structural DNA (sidebar sections, a compact
+stat strip, action-first cards, a main-plus-rail editor, assign modals) is
+borrowed from Shopify's *hierarchy*, never its *skin*: we keep our light,
+border-led surfaces and reserve violet for interaction. Read
+`task/polst_v1_dashboard_ux_structure.md` for the information architecture; this
+section governs how it looks and how it is built.
+
+The dashboard is **desktop-first**. It is a guided decision workspace, not an
+analytics warehouse — every screen answers *what is next?* before *how much?*.
+
+## The shell
+
+The whole app is **one soft frame** (`app-header`) — the same background family
+as the content card but **one step darker** — on the same viewport-lock rule as
+the consumer app (`html { overflow: clip }`). The top row and the sidebar sit
+**directly on the frame** — no separate header bar, no seams — and each page
+renders as a **single rounded card floating inside** it, which is the only
+thing that scrolls (like Google Calendar / Klaviyo). The frame's foreground,
+field, and border tokens **track the semantic tokens** (`--text-primary`,
+`--surface-raised`, `--border-default`) so both themes just work; only the two
+backgrounds are set per theme. So the ladder reads: **frame (a step darker) ▸
+content card ▸ white cards inside it**.
+
+- **Top row** — `h-12` (48px), transparent on the frame. The flanks are
+  **equal-width** (`flex-1` each) so the centered search stays optically
+  centered no matter how wide the account name runs: wordmark at the left, a
+  wide search in the middle (a raised field, ⌘K), and the actions at the right.
+  Controls are sized to the bar — **36×36 icon buttons** (`+` / bell, no
+  labels), a `h-9` search, a `h-9` account chip (monogram + brand name, no
+  chevron). Everything reads in page ink on the light frame.
+- **Notifications** — a Shopify-style panel (see `alerts.png`): a titled header
+  with filter / mark-all-read actions, then rows of **unread dot ·
+  `source · time` · bold title · body** (no icon discs), and a "No more
+  notifications" footer. All on page tokens, not chrome.
+- **Account switcher** — even parent padding (`p-1.5`) so every row (workspaces,
+  the signed-in person, Log out) shares the same inset — nothing sits flush to
+  the edge. Workspaces are `menuitem`s so focus opens on the current one.
+- **Sidebar** — `w-60` (240px), on the frame in **full page ink** (inactive
+  rows are not dimmed — the active cue is the pill + filled glyph, never a
+  colour change). Its nav is padded down by the card radius
+  (`pt-[var(--radius-card)]`) so the first row lines up with the card's straight
+  edge. The active item is a **raised pill** (`app-header-field` + `shadow-sm`)
+  that lifts off the frame; hover is a one-step-lighter wash (`app-content`).
+  Analytics' children indent
+  under the active parent. Statuses are **never** nav.
+  under the active parent. Icons stay **brand ink at all times** (never dimmed);
+  the active row alone **fills its glyph** (Material Symbols `FILL 1`) — so the
+  cue is fill + raised pill, not a colour change. Statuses are **never** nav.
+- **Content card** — `app-content`, `rounded-card`, a **1px `border-default`**,
+  an **even gap** from the frame (equal right/bottom inset), `overflow-y-auto`:
+  the only scroll container, so the frame stays put. Its scrollbar uses
+  `.scroll-subtle` — a thin pill thumb a step darker than the card
+  (`--scrollbar-thumb`, themed), no stepper arrows, inset by a transparent
+  border so it never crowds the content. Cards inside lift off it in white.
+
+## Control type
+
+- **One size for controls — `text-ui` (13px / 16px).** Every button, tab,
+  selector, nav row, menu item, and search field runs at `text-ui`, so the
+  chrome reads as one compact system. (Body copy, headings, and data keep the
+  regular type scale.) `cn()` registers `text-ui` with tailwind-merge so it
+  survives alongside a `text-{color}` class.
+- **One height — 32px (`h-8`).** Buttons (`md`/`sm` differ only in horizontal
+  padding), tabs, selectors, the nav rows, header icon buttons, the account
+  chip, and the search field are all 32px tall. Icons inside controls are
+  **20px**.
+
+## Dashboard grid
+
+- **12 columns.** Multi-panel layouts use the 12-col `SectionGrid` at **16px**
+  gutters (`gap-4`) — a card spans `col-span-{n}` (7/5, 8/4, 3×4, 6×2…). Never
+  hand-size a track with an arbitrary value; spend columns.
+- **Two rhythms.** Major sections **stack at 24px** (`space-y-6`); everything
+  *inside* a card holds the consumer app's **16px** inset and 8–12px nested
+  gaps. Page padding is 24px desktop (`lg:px-6 py-5`), 16px below `lg`.
+- **Two containers, and only two.** A section is either **narrow**
+  (`max-w-content`, 1024px, centered — the reading width for cards and forms)
+  or **full width** (`max-w-full` — orientation bars, tables, the calendar).
+  Pages pick one via `DashboardPage`'s `wide` flag — Home and forms read in the
+  narrow column; list, analytics, and distribution pages go full width for their
+  tables. Any view on a third width is a bug to normalize.
+
+## Surfaces & depth (dashboard)
+
+Same four-tier elevation, same "borders carry separation, shadows whisper":
+
+- **Page** = `page-feed` (neutral-150 in light) — the quiet backdrop.
+- **Card** = `surface-raised` + 1px `border-default` + `shadow-sm`. The
+  universal container; radius `card` (12px). Hover-liftable rows step to
+  `shadow-md`.
+- **Nested fill** = `surface-subtle` — stat cells, field wells, calendar
+  markers, the AI prompt tray. Radius `md` (8px), or `sm` (6px) for rows.
+- **Overlay** = Modal/Drawer on `shadow-lg` over the `black/50` + blur scrim,
+  exactly as the consumer app.
+
+## Status is a tone, never a decoration
+
+Object state maps onto the existing status + accent slots — and inherits the
+consumer rule that **a neutral outcome is neutral, not danger**:
+
+- **Success ink** (`status-success` on `-soft`) — *Active, Ready, Completed,
+  Assigned*: healthy, live, or a call that can be made.
+- **Accent** (`accent-default` on `-soft`) — *Scheduled*: planned, in motion.
+  Violet because it is the interactive, "you can act on this" state.
+- **Danger ink** (`status-danger` on `-soft`) — *Needs attention*: a real gap
+  that blocks a launch or a decision. Never for "losing" or "low".
+- **Neutral** (`surface-subtle`/`text-secondary`) — *Draft, Archived,
+  Unassigned, All*: parked, not wrong.
+
+`StatusBadge` owns this mapping in one place; pages pass a status string and get
+the right tone for free.
+
+## The dashboard component kit
+
+Every screen is composed from this fixed set — extend by **prop**, never by
+fork. New surface area should feel assembled, not authored:
+
+- **`DashboardShell`** — the frame above. **`DashboardPage`** — the page header
+  (eyebrow, title, description, actions) + centered column; `wide` opts into
+  1240px.
+- **`DashboardCard`** — section container (optional header row with title,
+  description, action). The atom every panel sits in. **No header rule** — the
+  title sits flush above the body; cards read flat.
+- **`StatsStrip`** — the mini-stats bar (Shopify `mini-stats`): a **padded
+  parent** holding **borderless, rounded, hoverable** stat cards (inner radius =
+  parent radius − padding), each with an eyebrow-weight label, a large value, a
+  **filled-triangle** trend indicator (`arrow_drop_up/down`, up/down coloured) +
+  delta, and a wide, smooth **accent (purple) `Sparkline`** — the mini charts
+  echo the expanded chart rather than the trend colour. Click a card (or the
+  chevron) to **expand a full `LineChart`** below with a **smooth grid-rows
+  reveal**: a smooth accent line + soft area fill over a **faded dashed
+  previous-period line**, a light y-axis and date ticks (no redundant title).
+  The range is driven by a **`PageTabs` filter (7D / 30D / 90D / All)** above the
+  strip — `DASHBOARD_STATS[range]` and `STAT_XTICKS[range]` swap the values,
+  deltas, sparks, and axis labels together.
+- **`DataTable<T>`** — the one list primitive: typed columns, status pills,
+  right-aligned row actions, an honest empty label. Products/Campaigns/Sources
+  /Reports all render through it.
+- **`SegmentedControl`** — the **one** segmented select used everywhere (time
+  ranges, status filters, page tabs). **32px tall** to match buttons, **white**
+  (raised + bordered) so it reads against the page background, with a light
+  active pill. `FilterTabs` and `PageTabs` are thin aliases so every select is
+  identical. `SearchAndFilters` pairs it with search atop a list card.
+- **`ActionCard`** — the **one** actionable-card shape (Home, bento, Insights):
+  optional eyebrow / status / right-hand meta, a title, one 14/20 line of
+  `reason`, and a CTA pinned **bottom-left**. No header rule, no item borders,
+  consistent type — every actionable surface is this component. Pass `progress`
+  for a `ProgressRing`. Give it **`media`** (`CardMedia`) for a **full-bleed
+  image**: `placement: "side"` runs it full card-height down the right (authored
+  **3:4**), `"bottom"` runs it full-width under the copy on tall/column cards
+  (authored **16:9**) with the **CTA overlaid bottom-left over the image**.
+  Until real art lands, `media` with no `src` renders a **tone-wash placeholder**
+  (soft fill + glyph) via `MediaFill`. The image bleeds the edges it touches —
+  no padding there. `visual` (`CardArt` icon tile) remains for the padded-glyph
+  fallback. Height comes from the **grid** (`SectionGrid` stretches rows equal;
+  add `items-start` for a natural-height bento so a hero card doesn't stretch its
+  neighbours). Home's key-date bento: **World Cup is the main event** (col-8,
+  bottom image); the rest are side-image tiles.
+- **`NextStepsCard`** — the setup checklist (Shopify "Get your first N"): a
+  header with a progress ring and a **collapse chevron** (the whole card folds
+  to its header). Steps are a **click-to-expand accordion** — the open step
+  shows its copy, CTA and a full-bleed 3:4 image; the rest are one line each.
+  Every **bullet keeps the same x-position** open or closed, so expanding never
+  shifts the checkboxes. Full width. Steps are `SetupStep[]`.
+- **`CampaignRow` / `PolstMiniRow`** — the Home "Campaigns" and "Polsts" list
+  rows. `CampaignRow`: name, status, **run dates**, completion rate, and the
+  **active · started · completed** Polst breakdown (no progress bar).
+  `PolstMiniRow`: the **mini-poll anatomy** (split image thumb + OR disc,
+  question, status, and the current split). Both cards filter by **Active /
+  Queued** (`SegmentedControl`) and **scroll** (capped at 20 rows).
+- **`ProgressRing`** — a small completion ring on setup cards; **hover reveals
+  the remaining steps** (checked/unchecked list, "N steps left").
+- **`WorkspaceCalendar`** — Home's month grid, **always six weeks (42 cells)**:
+  the spill into adjacent months shows dimmed, and the month is **navigable**
+  (prev / next / Today). Items carry ISO dates. Cells are seamless (hairline
+  gridlines, no radius, edge-to-edge). Items are **colour-coded by type**, not
+  status: campaigns (`cal-campaign`, violet) and single Polsts (`cal-polst`,
+  green) render as **bars spanning their run** (lane-packed); completed items
+  **fade**. **Key dates** sit at the *top* of each day as a hoverable dot +
+  label, never a bar. Any cell opens a **floating day popover**
+  (fixed-positioned, never clipped) with quick create actions.
+- **`DetailList`** — the label→value pair list for summaries and settings.
+  **`ProgressBar`** — completion/vote-split tracks on the pill radius.
+- **`StatTile`** — the one KPI tile (Distribution summary, Analytics portfolio,
+  Audience headline): quiet label, display number, toned detail line with an
+  optional `trending_up/down` glyph.
+- **`PollResults`** — the product's face: the REAL consumer `PollOptionsBlock`
+  in its results state (leader selected, bars animating from the seam). Renders
+  the Polst grid cards, campaign chain cards, and the Settings branding
+  preview; the Polst detail page embeds the full consumer **`PollCard`** as a
+  live, votable preview. One card anatomy across both apps.
+- **`Funnel`** — the voter journey (Started → each question → Completed):
+  pill bars scaled to the first step, per-step drop percentages, the largest
+  loss tagged **"biggest drop"** in danger ink, the final step in success ink.
+- **`MixBars`** — the one ranked-share list (source mix, devices, platforms,
+  interests, age bands): label · bar · share, optional detail count.
+- **`SnippetCard`** — a labeled code block (iframe/JS embeds) with a Copy
+  button that raises a toast. **`LockedCard`** — the honest gated state (lock
+  glyph, one promise line, a plan chip) for demographics we don't collect yet
+  and the Pro-tier developer platform.
+- **`PollComposer`** — the consumer "Ask the world" composer as an inline
+  block (question with a character-budget ring, choice tiles split by the OR
+  disc that mock-attach photos, category select, tag chips). Both create flows
+  build the Polst inside the exact card voters will see.
+- **Copy rule: show, don't tell.** Page and card headers carry no narrating
+  descriptions — content, counts, and states do the explaining. Helper text
+  survives only inside forms where it states a consequence.
+- **`PollThumb`** — the split A/B mini-thumb with the OR disc, shared by Home's
+  Polst rows and the select-from-library picker. All A/B imagery resolves
+  through `polstImage()` so the placeholder source swaps in one place.
+- **`Rail` / rail cards** — the operational right column on editors (Status,
+  Schedule, Shareable assets, Launch readiness).
+- **Overlays** — reuse the consumer **Modal**, **Drawer**, **Menu**; the
+  Assign-Sources dialog and select-from-library picker are lists inside a
+  `Modal`; the **⌘K workspace search** is a `Modal` with entity filter chips
+  over one static index of campaigns, Polsts, and sources.
+- **`TrendChart`** — the one line chart (extracted from the stat strip):
+  smooth accent line, soft area fill, dashed previous period, left y-axis,
+  hover crosshair with a pinned value chip. Takes a `format` for units
+  (thousands, %). Every trend everywhere rides this, never a second style.
+- **`SplitBar`** — the Polst signature for exactly two-part shares (paid vs
+  organic, US vs international): one bar, two segments meeting at a seam —
+  the echo of a vote result. Three or more slices → `MixBars`.
+- **`CohortGrid`** — the retention triangle: weekly cohorts down, Day 1/7/14/30
+  across, cells shaded by `color-mix(accent, value)`; cells a cohort hasn't
+  reached yet render as quiet dashes (maturing, not missing).
+- **`TimeHeatmap`** — day × 2-hour buckets in one hue (accent strength is the
+  scale) with a Fewer→More legend; answers "when does our audience answer?"
+  All heat surfaces stay single-hue — status colors never enter charts.
+- **`FilterBar`** — the shared analytics filter row (date preset menu ·
+  channel · vertical selects). Pass a controlled `vertical` to actually filter
+  a table; the demo rule is filters must visibly do something.
+- **`Switch` + module flags** — `lib/modules.tsx` holds feature-flagged
+  modules (Acquisition, Retention) in context + localStorage; Settings ›
+  Modules toggles them and the sidebar reacts instantly. Off means gone —
+  no ghost nav items (`LockedCard` is only for teaser-tier content).
+- **`ConnectCard`** — one integration (icon disc, name, what it feeds,
+  Connected state or Connect button). Marketers see *integrations*; the word
+  "API" stays inside the gated developer section.
+
+## Do's and Don'ts (dashboard)
+
+**Do**
+
+- Compose pages from the kit and pay the 12-col / 24px-16px rhythm everywhere;
+  a new page should reuse `DashboardPage` + `DashboardCard` + `DataTable`
+  before it invents anything.
+- Route status through `StatusBadge` and dates/counts through the shared
+  `formatNumber`; keep both themes correct by staying on semantic tokens.
+- Lead with the next action. Stats orient, the calendar plans, cards tell the
+  user what to do — analytics lives under Analytics, never on Home.
+
+**Don't**
+
+- Borrow Shopify's *palette* (its greens/blues) or its exact chrome — the
+  structure is theirs to inform, the skin stays ours (our ink header, our cool
+  neutrals, one violet accent).
+- Hand-size a layout track (`[18rem]`, `min-h-[92px]`) when columns or the 4pt
+  scale will do; no magic values reach a className.
+- Turn a status into a sidebar item, put raw analytics on Home, or let a "low"
+  / "losing" / "draft" state borrow danger ink.
+- Build a backend. This is a mockup: buttons route, modals open, toasts can
+  fake success — nothing persists.

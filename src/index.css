@@ -71,7 +71,7 @@
     /* Text  (contrast ratios on white) */
     --text-primary:    var(--color-neutral-800); /* 15.9:1 ✓ AAA */
     --text-secondary:  var(--color-neutral-600); /* 4.83:1 ✓ AA  */
-    --text-tertiary:   var(--color-neutral-500); /* 2.99:1 — fails AA as body text; non-text / large only */
+    --text-tertiary:   #6d7585;                  /* 4.6:1 ✓ AA — quiet but always legible */
     --text-inverse:    var(--color-white);
     --text-accent:     var(--color-brand-purple);
     --text-on-accent:  var(--color-white);
@@ -152,6 +152,30 @@
 
     /* Page chrome */
     --page-bg-feed: var(--color-neutral-150);
+
+    /* Dashboard app chrome — a light frame (top row + sidebar) one step darker
+       than the content card, so the card reads as floating on it. Foreground,
+       field, and border track the semantic tokens so both themes just work;
+       only the frame + card backgrounds are set per theme. */
+    --app-header-bg:             var(--color-neutral-200); /* frame, a step darker */
+    --app-header-fg:             var(--text-primary);
+    --app-header-muted:          var(--text-secondary);
+    --app-header-field-bg:       var(--surface-raised);    /* search / active pill */
+    --app-header-field-bg-hover: var(--surface-subtle);
+    --app-header-border:         var(--border-default);
+    --app-content-bg:            var(--color-neutral-100); /* content card         */
+
+    /* Calendar item fills — colour-coded by object type, opaque (not the
+       washy soft tints), so campaigns read apart from single Polsts. */
+    --cal-campaign-bg:  var(--color-purple-tint);  /* #e6e6f6 */
+    --cal-campaign-fg:  var(--color-ink-purple);   /* #332e78 */
+    --cal-polst-bg:     #dcefe9;                    /* light teal-green */
+    --cal-polst-fg:     #0d6553;
+    --cal-event-dot:    var(--color-red);           /* company-set key date */
+
+    /* Scrollbar — subtle, a tad off the content-card background */
+    --scrollbar-thumb:       var(--color-neutral-400);
+    --scrollbar-thumb-hover: var(--color-neutral-500);
 
     /* Category tab chip */
     --tabchip-bg:           var(--color-neutral-300);
@@ -270,6 +294,23 @@
 
     --page-bg-feed:      #14171e;
 
+    /* App chrome — fg/field/border inherit the semantic tokens from :root and
+       flip here automatically; only the frame + card backgrounds are set. The
+       frame stays a step darker than the content card. */
+    --app-header-bg:    #0f1319;                  /* frame, a step darker than card */
+    --app-content-bg:   var(--surface-page);      /* content card, #14171e          */
+
+    /* Calendar item fills (dark) */
+    --cal-campaign-bg:  #2a2a4d;
+    --cal-campaign-fg:  #c3c3ec;
+    --cal-polst-bg:     #123a33;
+    --cal-polst-fg:     #4fcfb5;
+    --cal-event-dot:    #f07a4e;
+
+    /* Scrollbar (dark) — a step off #14171e, never harsh */
+    --scrollbar-thumb:       #363f4e;
+    --scrollbar-thumb-hover: #485267;
+
     /* Elevation — shadows deepen; borders carry most of the separation */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -376,6 +417,28 @@
 }
 
 @layer utilities {
+  /* A restrained scrollbar that reads as part of the surface, not chrome:
+     a thin, pill thumb one step off the card background, inset by a
+     transparent border so it never crowds the content. */
+  .scroll-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+  .scroll-subtle::-webkit-scrollbar { width: 12px; height: 12px; }
+  .scroll-subtle::-webkit-scrollbar-track { background: transparent; }
+  /* No stepper arrows at the ends of the track. */
+  .scroll-subtle::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  .scroll-subtle::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  .scroll-subtle::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+    background-clip: padding-box;
+  }
+
   .radio-ping   { animation: radio-ping 2.64s ease-out infinite; }
   .radio-pop    { animation: radio-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }
   .radio-select { animation: radio-select 320ms ease-out; }

@@ -86,6 +86,18 @@ export default {
         "avatar-bg-success":     "var(--avatar-bg-success)",
         "avatar-bg-alert":       "var(--avatar-bg-alert)",
         "page-feed":             "var(--page-bg-feed)",
+        "app-header":            "var(--app-header-bg)",
+        "app-header-fg":         "var(--app-header-fg)",
+        "app-header-muted":      "var(--app-header-muted)",
+        "app-header-field":      "var(--app-header-field-bg)",
+        "app-header-field-hover":"var(--app-header-field-bg-hover)",
+        "app-header-border":     "var(--app-header-border)",
+        "app-content":           "var(--app-content-bg)",
+        "cal-campaign":          "var(--cal-campaign-bg)",
+        "cal-campaign-fg":       "var(--cal-campaign-fg)",
+        "cal-polst":             "var(--cal-polst-bg)",
+        "cal-polst-fg":          "var(--cal-polst-fg)",
+        "cal-event-dot":         "var(--cal-event-dot)",
         "tabchip-bg":            "var(--tabchip-bg)",
         "tabchip-bg-active":     "var(--tabchip-bg-active)",
         "tabchip-fg":            "var(--tabchip-fg)",
@@ -113,10 +125,18 @@ export default {
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
-        display: ['"Inter Tight"', "Inter", "system-ui", "sans-serif"],
+        // Inter everywhere — `font-display` kept as a semantic alias, no Inter Tight.
+        display: ["Inter", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        // Unified control type — buttons, tabs, selectors, nav, menu rows.
+        ui: ["13px", "16px"],
       },
       maxWidth: {
-        content: "1240px",
+        // The named content containers: `content` for reading/forms,
+        // `dashboard` for Home's mixed board, `max-w-full` for data pages.
+        content: "1024px",
+        dashboard: "1240px",
       },
       borderRadius: {
         sm: "var(--radius-sm)",

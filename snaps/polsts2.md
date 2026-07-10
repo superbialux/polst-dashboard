@@ -1,0 +1,543 @@
+- generic [active] [ref=f49e1]:
+  - generic [ref=f49e5]:
+    - complementary [ref=f49e6]:
+      - button "New Brand names New Brand names Free plan" [ref=f49e8] [cursor=pointer]:
+        - img "New Brand names" [ref=f49e9]
+        - generic [ref=f49e10]:
+          - generic [ref=f49e11]: New Brand names
+          - generic [ref=f49e12]: Free plan
+        - img [ref=f49e13]
+      - navigation [ref=f49e16]:
+        - generic [ref=f49e17]: Workspace
+        - link "Dashboard" [ref=f49e18] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=f49e19]
+          - generic [ref=f49e24]: Dashboard
+        - link "Polsts" [ref=f49e25] [cursor=pointer]:
+          - /url: /polsts
+          - img [ref=f49e26]
+          - generic [ref=f49e29]: Polsts
+        - link "Campaigns" [ref=f49e30] [cursor=pointer]:
+          - /url: /campaigns
+          - img [ref=f49e31]
+          - generic [ref=f49e34]: Campaigns
+        - link "Settings" [ref=f49e35] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=f49e36]
+          - generic [ref=f49e39]: Settings
+      - generic [ref=f49e40]:
+        - generic [ref=f49e41]:
+          - generic [ref=f49e42]: M
+          - generic [ref=f49e43]:
+            - generic [ref=f49e44]: Maxwell
+            - generic [ref=f49e45]: max@polst.io
+          - button "Log out" [ref=f49e46] [cursor=pointer]:
+            - img [ref=f49e47]
+        - button "Collapse" [ref=f49e50] [cursor=pointer]:
+          - img [ref=f49e51]
+          - generic [ref=f49e53]: Collapse
+    - generic [ref=f49e55]:
+      - banner [ref=f49e56]:
+        - generic [ref=f49e57]:
+          - generic [ref=f49e58]:
+            - heading "Polsts" [level=1] [ref=f49e59]
+            - paragraph [ref=f49e60]: Every A/B poll you've created. Click a title to view analytics.
+          - link "Create polst" [ref=f49e62] [cursor=pointer]:
+            - /url: /polsts/create
+            - img
+            - text: Create polst
+      - generic [ref=f49e63]:
+        - generic [ref=f49e64]:
+          - generic [ref=f49e65]:
+            - button "All polsts" [ref=f49e66] [cursor=pointer]
+            - button "Active" [ref=f49e67] [cursor=pointer]
+            - button "Drafts" [ref=f49e68] [cursor=pointer]
+          - group "View mode" [ref=f49e69]:
+            - button "List view" [pressed] [ref=f49e70] [cursor=pointer]:
+              - img [ref=f49e71]
+            - button "Grid view" [ref=f49e72] [cursor=pointer]:
+              - img [ref=f49e73]
+        - generic [ref=f49e78]:
+          - img
+          - searchbox "Search polsts..." [ref=f49e79]
+      - table [ref=f49e82]:
+        - rowgroup [ref=f49e83]:
+          - row "Title Status Views Votes Engagement Created Actions" [ref=f49e84]:
+            - columnheader "Title" [ref=f49e85]
+            - columnheader "Status" [ref=f49e86]
+            - columnheader "Views" [ref=f49e87]
+            - columnheader "Votes" [ref=f49e88]
+            - columnheader "Engagement" [ref=f49e89]
+            - columnheader "Created" [ref=f49e90]
+            - columnheader "Actions" [ref=f49e91]:
+              - generic [ref=f49e92]: Actions
+        - rowgroup [ref=f49e93]:
+          - row "coffee vs tea Claude test polst — coffee or tea? active 0 0 — 7/9/2026" [ref=f49e94]:
+            - cell "coffee vs tea Claude test polst — coffee or tea?" [ref=f49e95]:
+              - generic [ref=f49e96]:
+                - generic [ref=f49e98]:
+                  - img "coffee vs tea"
+                - link "Claude test polst — coffee or tea?" [ref=f49e99] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/claude-test-polst-coffee-or-tea-FK106n
+            - cell "active" [ref=f49e100]:
+              - generic [ref=f49e101]: active
+            - cell "0" [ref=f49e103]
+            - cell "0" [ref=f49e104]
+            - cell "—" [ref=f49e105]
+            - cell "7/9/2026" [ref=f49e106]
+            - cell [ref=f49e107]:
+              - generic [ref=f49e108]:
+                - link "Analytics" [ref=f49e109] [cursor=pointer]:
+                  - /url: /polsts/claude-test-polst-coffee-or-tea-FK106n/analytics
+                  - img [ref=f49e110]
+                - button "Distribute" [ref=f49e112] [cursor=pointer]:
+                  - img [ref=f49e113]
+                - button "QR Code" [ref=f49e116] [cursor=pointer]:
+                  - img [ref=f49e117]
+          - row "Telefon vs Patifon Kakoy nado telefon active 0 6 — 7/9/2026" [ref=f49e123]:
+            - cell "Telefon vs Patifon Kakoy nado telefon" [ref=f49e124]:
+              - generic [ref=f49e125]:
+                - generic [ref=f49e127]:
+                  - img "Telefon vs Patifon"
+                - link "Kakoy nado telefon" [ref=f49e128] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/kakoy-nado-telefon-tWxiHi
+            - cell "active" [ref=f49e129]:
+              - generic [ref=f49e130]: active
+            - cell "0" [ref=f49e132]
+            - cell "6" [ref=f49e133]
+            - cell "—" [ref=f49e134]
+            - cell "7/9/2026" [ref=f49e135]
+            - cell [ref=f49e136]:
+              - generic [ref=f49e137]:
+                - link "Analytics" [ref=f49e138] [cursor=pointer]:
+                  - /url: /polsts/kakoy-nado-telefon-tWxiHi/analytics
+                  - img [ref=f49e139]
+                - button "Distribute" [ref=f49e141] [cursor=pointer]:
+                  - img [ref=f49e142]
+                - button "QR Code" [ref=f49e145] [cursor=pointer]:
+                  - img [ref=f49e146]
+          - row "I vs Me Hto I active 0 6 — 7/9/2026" [ref=f49e152]:
+            - cell "I vs Me Hto I" [ref=f49e153]:
+              - generic [ref=f49e154]:
+                - generic [ref=f49e156]:
+                  - img "I vs Me"
+                - link "Hto I" [ref=f49e157] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/hto-i-IXfL1f
+            - cell "active" [ref=f49e158]:
+              - generic [ref=f49e159]: active
+            - cell "0" [ref=f49e161]
+            - cell "6" [ref=f49e162]
+            - cell "—" [ref=f49e163]
+            - cell "7/9/2026" [ref=f49e164]
+            - cell [ref=f49e165]:
+              - generic [ref=f49e166]:
+                - link "Analytics" [ref=f49e167] [cursor=pointer]:
+                  - /url: /polsts/hto-i-IXfL1f/analytics
+                  - img [ref=f49e168]
+                - button "Distribute" [ref=f49e170] [cursor=pointer]:
+                  - img [ref=f49e171]
+                - button "QR Code" [ref=f49e174] [cursor=pointer]:
+                  - img [ref=f49e175]
+          - row "test 1 vs test 2 New test Polst active 0 7 — 7/9/2026" [ref=f49e181]:
+            - cell "test 1 vs test 2 New test Polst" [ref=f49e182]:
+              - generic [ref=f49e183]:
+                - generic [ref=f49e185]:
+                  - img "test 1 vs test 2"
+                - link "New test Polst" [ref=f49e186] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/new-test-polst-6_f53p
+            - cell "active" [ref=f49e187]:
+              - generic [ref=f49e188]: active
+            - cell "0" [ref=f49e190]
+            - cell "7" [ref=f49e191]
+            - cell "—" [ref=f49e192]
+            - cell "7/9/2026" [ref=f49e193]
+            - cell [ref=f49e194]:
+              - generic [ref=f49e195]:
+                - link "Analytics" [ref=f49e196] [cursor=pointer]:
+                  - /url: /polsts/new-test-polst-6_f53p/analytics
+                  - img [ref=f49e197]
+                - button "Distribute" [ref=f49e199] [cursor=pointer]:
+                  - img [ref=f49e200]
+                - button "QR Code" [ref=f49e203] [cursor=pointer]:
+                  - img [ref=f49e204]
+          - row "hot vs cold what's worse to be? active 3 11 — 7/1/2026" [ref=f49e210]:
+            - cell "hot vs cold what's worse to be?" [ref=f49e211]:
+              - generic [ref=f49e212]:
+                - generic [ref=f49e214]:
+                  - img "hot vs cold"
+                - link "what's worse to be?" [ref=f49e215] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/what-s-worse-to-be-SdUDN0
+            - cell "active" [ref=f49e216]:
+              - generic [ref=f49e217]: active
+            - cell "3" [ref=f49e219]
+            - cell "11" [ref=f49e220]
+            - cell "—" [ref=f49e221]
+            - cell "7/1/2026" [ref=f49e222]
+            - cell [ref=f49e223]:
+              - generic [ref=f49e224]:
+                - link "Analytics" [ref=f49e225] [cursor=pointer]:
+                  - /url: /polsts/what-s-worse-to-be-SdUDN0/analytics
+                  - img [ref=f49e226]
+                - button "Distribute" [ref=f49e228] [cursor=pointer]:
+                  - img [ref=f49e229]
+                - button "QR Code" [ref=f49e232] [cursor=pointer]:
+                  - img [ref=f49e233]
+          - row "this vs that can you picture ended 5 1 — 6/24/2026" [ref=f49e239]:
+            - cell "this vs that can you picture" [ref=f49e240]:
+              - generic [ref=f49e241]:
+                - generic [ref=f49e243]:
+                  - img "this vs that"
+                - link "can you picture" [ref=f49e244] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/can-you-picture-9f6U4B
+            - cell "ended" [ref=f49e245]:
+              - generic [ref=f49e246]: ended
+            - cell "5" [ref=f49e247]
+            - cell "1" [ref=f49e248]
+            - cell "—" [ref=f49e249]
+            - cell "6/24/2026" [ref=f49e250]
+            - cell [ref=f49e251]:
+              - generic [ref=f49e252]:
+                - link "Analytics" [ref=f49e253] [cursor=pointer]:
+                  - /url: /polsts/can-you-picture-9f6U4B/analytics
+                  - img [ref=f49e254]
+                - button "Distribute" [ref=f49e256] [cursor=pointer]:
+                  - img [ref=f49e257]
+                - button "QR Code" [ref=f49e260] [cursor=pointer]:
+                  - img [ref=f49e261]
+          - row "sunset vs sunrise this month ill find time to meet ended 21 5 — 6/3/2026" [ref=f49e267]:
+            - cell "sunset vs sunrise this month ill find time to meet" [ref=f49e268]:
+              - generic [ref=f49e269]:
+                - generic [ref=f49e271]:
+                  - img "sunset vs sunrise"
+                - link "this month ill find time to meet" [ref=f49e272] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/this-month-ill-find-time-to-meet-Hjtqfc
+            - cell "ended" [ref=f49e273]:
+              - generic [ref=f49e274]: ended
+            - cell "21" [ref=f49e275]
+            - cell "5" [ref=f49e276]
+            - cell "—" [ref=f49e277]
+            - cell "6/3/2026" [ref=f49e278]
+            - cell [ref=f49e279]:
+              - generic [ref=f49e280]:
+                - link "Analytics" [ref=f49e281] [cursor=pointer]:
+                  - /url: /polsts/this-month-ill-find-time-to-meet-Hjtqfc/analytics
+                  - img [ref=f49e282]
+                - button "Distribute" [ref=f49e284] [cursor=pointer]:
+                  - img [ref=f49e285]
+                - button "QR Code" [ref=f49e288] [cursor=pointer]:
+                  - img [ref=f49e289]
+          - row "long days vs short nights late sunset is ended 8 5 — 6/3/2026" [ref=f49e295]:
+            - cell "long days vs short nights late sunset is" [ref=f49e296]:
+              - generic [ref=f49e297]:
+                - generic [ref=f49e299]:
+                  - img "long days vs short nights"
+                - link "late sunset is" [ref=f49e300] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/late-sunset-is-4xIGeo
+            - cell "ended" [ref=f49e301]:
+              - generic [ref=f49e302]: ended
+            - cell "8" [ref=f49e303]
+            - cell "5" [ref=f49e304]
+            - cell "—" [ref=f49e305]
+            - cell "6/3/2026" [ref=f49e306]
+            - cell [ref=f49e307]:
+              - generic [ref=f49e308]:
+                - link "Analytics" [ref=f49e309] [cursor=pointer]:
+                  - /url: /polsts/late-sunset-is-4xIGeo/analytics
+                  - img [ref=f49e310]
+                - button "Distribute" [ref=f49e312] [cursor=pointer]:
+                  - img [ref=f49e313]
+                - button "QR Code" [ref=f49e316] [cursor=pointer]:
+                  - img [ref=f49e317]
+          - row "warm vs cold this june is rather ended 83 8 — 6/3/2026" [ref=f49e323]:
+            - cell "warm vs cold this june is rather" [ref=f49e324]:
+              - generic [ref=f49e325]:
+                - generic [ref=f49e327]:
+                  - img "warm vs cold"
+                - link "this june is rather" [ref=f49e328] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/this-june-is-rather-kQKTV0
+            - cell "ended" [ref=f49e329]:
+              - generic [ref=f49e330]: ended
+            - cell "83" [ref=f49e331]
+            - cell "8" [ref=f49e332]
+            - cell "—" [ref=f49e333]
+            - cell "6/3/2026" [ref=f49e334]
+            - cell [ref=f49e335]:
+              - generic [ref=f49e336]:
+                - link "Analytics" [ref=f49e337] [cursor=pointer]:
+                  - /url: /polsts/this-june-is-rather-kQKTV0/analytics
+                  - img [ref=f49e338]
+                - button "Distribute" [ref=f49e340] [cursor=pointer]:
+                  - img [ref=f49e341]
+                - button "QR Code" [ref=f49e344] [cursor=pointer]:
+                  - img [ref=f49e345]
+          - row "chicken vs egg first one were ended 55 3 1 5/29/2026" [ref=f49e351]:
+            - cell "chicken vs egg first one were" [ref=f49e352]:
+              - generic [ref=f49e353]:
+                - generic [ref=f49e355]:
+                  - img "chicken vs egg"
+                - link "first one were" [ref=f49e356] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/first-one-were-k7UQrN
+            - cell "ended" [ref=f49e357]:
+              - generic [ref=f49e358]: ended
+            - cell "55" [ref=f49e359]
+            - cell "3" [ref=f49e360]
+            - cell "1" [ref=f49e361]:
+              - generic [ref=f49e363]:
+                - img [ref=f49e364]
+                - generic [ref=f49e366]: "1"
+            - cell "5/29/2026" [ref=f49e367]
+            - cell [ref=f49e368]:
+              - generic [ref=f49e369]:
+                - link "Analytics" [ref=f49e370] [cursor=pointer]:
+                  - /url: /polsts/first-one-were-k7UQrN/analytics
+                  - img [ref=f49e371]
+                - button "Distribute" [ref=f49e373] [cursor=pointer]:
+                  - img [ref=f49e374]
+                - button "QR Code" [ref=f49e377] [cursor=pointer]:
+                  - img [ref=f49e378]
+          - row "cloudy vs sunny 2 pics choice active 33 9 — 5/29/2026" [ref=f49e384]:
+            - cell "cloudy vs sunny 2 pics choice" [ref=f49e385]:
+              - generic [ref=f49e386]:
+                - generic [ref=f49e388]:
+                  - img "cloudy vs sunny"
+                - link "2 pics choice" [ref=f49e389] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/2-pics-choice-2X6oCs
+            - cell "active" [ref=f49e390]:
+              - generic [ref=f49e391]: active
+            - cell "33" [ref=f49e393]
+            - cell "9" [ref=f49e394]
+            - cell "—" [ref=f49e395]
+            - cell "5/29/2026" [ref=f49e396]
+            - cell [ref=f49e397]:
+              - generic [ref=f49e398]:
+                - link "Analytics" [ref=f49e399] [cursor=pointer]:
+                  - /url: /polsts/2-pics-choice-2X6oCs/analytics
+                  - img [ref=f49e400]
+                - button "Distribute" [ref=f49e402] [cursor=pointer]:
+                  - img [ref=f49e403]
+                - button "QR Code" [ref=f49e406] [cursor=pointer]:
+                  - img [ref=f49e407]
+          - row "hehee vs test test draft here ended 79 1 — 5/18/2026" [ref=f49e413]:
+            - cell "hehee vs test test draft here" [ref=f49e414]:
+              - generic [ref=f49e415]:
+                - generic [ref=f49e417]:
+                  - img "hehee vs test"
+                - link "test draft here" [ref=f49e418] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/test-draft-here-1-hv-6
+            - cell "ended" [ref=f49e419]:
+              - generic [ref=f49e420]: ended
+            - cell "79" [ref=f49e421]
+            - cell "1" [ref=f49e422]
+            - cell "—" [ref=f49e423]
+            - cell "5/18/2026" [ref=f49e424]
+            - cell [ref=f49e425]:
+              - generic [ref=f49e426]:
+                - link "Analytics" [ref=f49e427] [cursor=pointer]:
+                  - /url: /polsts/test-draft-here-1-hv-6/analytics
+                  - img [ref=f49e428]
+                - button "Distribute" [ref=f49e430] [cursor=pointer]:
+                  - img [ref=f49e431]
+                - button "QR Code" [ref=f49e434] [cursor=pointer]:
+                  - img [ref=f49e435]
+          - row "orange vs egg vote on something already active 9 4 1 5/5/2026" [ref=f49e441]:
+            - cell "orange vs egg vote on something already" [ref=f49e442]:
+              - generic [ref=f49e443]:
+                - generic [ref=f49e445]:
+                  - img "orange vs egg"
+                - link "vote on something already" [ref=f49e446] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/vote-on-something-already-VxxErj
+            - cell "active" [ref=f49e447]:
+              - generic [ref=f49e448]: active
+            - cell "9" [ref=f49e450]
+            - cell "4" [ref=f49e451]
+            - cell "1" [ref=f49e452]:
+              - generic [ref=f49e454]:
+                - img [ref=f49e455]
+                - generic [ref=f49e457]: "1"
+            - cell "5/5/2026" [ref=f49e458]
+            - cell [ref=f49e459]:
+              - generic [ref=f49e460]:
+                - link "Analytics" [ref=f49e461] [cursor=pointer]:
+                  - /url: /polsts/vote-on-something-already-VxxErj/analytics
+                  - img [ref=f49e462]
+                - button "Distribute" [ref=f49e464] [cursor=pointer]:
+                  - img [ref=f49e465]
+                - button "QR Code" [ref=f49e468] [cursor=pointer]:
+                  - img [ref=f49e469]
+          - row "test vs done okay tittle active 30 7 3 1 5/2/2026" [ref=f49e475]:
+            - cell "test vs done okay tittle" [ref=f49e476]:
+              - generic [ref=f49e477]:
+                - generic [ref=f49e479]:
+                  - img "test vs done"
+                - link "okay tittle" [ref=f49e480] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/okay-tittle-SUjisG
+            - cell "active" [ref=f49e481]:
+              - generic [ref=f49e482]: active
+            - cell "30" [ref=f49e484]
+            - cell "7" [ref=f49e485]
+            - cell "3 1" [ref=f49e486]:
+              - generic [ref=f49e487]:
+                - generic [ref=f49e488]:
+                  - img [ref=f49e489]
+                  - generic [ref=f49e491]: "3"
+                - generic [ref=f49e492]:
+                  - img [ref=f49e493]
+                  - generic [ref=f49e498]: "1"
+            - cell "5/2/2026" [ref=f49e499]
+            - cell [ref=f49e500]:
+              - generic [ref=f49e501]:
+                - link "Analytics" [ref=f49e502] [cursor=pointer]:
+                  - /url: /polsts/okay-tittle-SUjisG/analytics
+                  - img [ref=f49e503]
+                - button "Distribute" [ref=f49e505] [cursor=pointer]:
+                  - img [ref=f49e506]
+                - button "QR Code" [ref=f49e509] [cursor=pointer]:
+                  - img [ref=f49e510]
+          - row "Test tittle here no image active 51 7 2 5/2/2026" [ref=f49e516]:
+            - cell "Test tittle here no image" [ref=f49e517]:
+              - link "Test tittle here no image" [ref=f49e522] [cursor=pointer]:
+                - /url: https://staging.polst.app/p/test-tittle-here-no-image-VxLmik
+            - cell "active" [ref=f49e523]:
+              - generic [ref=f49e524]: active
+            - cell "51" [ref=f49e526]
+            - cell "7" [ref=f49e527]
+            - cell "2" [ref=f49e528]:
+              - generic [ref=f49e530]:
+                - img [ref=f49e531]
+                - generic [ref=f49e533]: "2"
+            - cell "5/2/2026" [ref=f49e534]
+            - cell [ref=f49e535]:
+              - generic [ref=f49e536]:
+                - link "Analytics" [ref=f49e537] [cursor=pointer]:
+                  - /url: /polsts/test-tittle-here-no-image-VxLmik/analytics
+                  - img [ref=f49e538]
+                - button "Distribute" [ref=f49e540] [cursor=pointer]:
+                  - img [ref=f49e541]
+                - button "QR Code" [ref=f49e544] [cursor=pointer]:
+                  - img [ref=f49e545]
+          - row "Test here active 11 3 3 5/2/2026" [ref=f49e551]:
+            - cell "Test here" [ref=f49e552]:
+              - link "Test here" [ref=f49e557] [cursor=pointer]:
+                - /url: https://staging.polst.app/p/test-here-ojhbvD
+            - cell "active" [ref=f49e558]:
+              - generic [ref=f49e559]: active
+            - cell "11" [ref=f49e561]
+            - cell "3" [ref=f49e562]
+            - cell "3" [ref=f49e563]:
+              - generic [ref=f49e565]:
+                - img [ref=f49e566]
+                - generic [ref=f49e568]: "3"
+            - cell "5/2/2026" [ref=f49e569]
+            - cell [ref=f49e570]:
+              - generic [ref=f49e571]:
+                - link "Analytics" [ref=f49e572] [cursor=pointer]:
+                  - /url: /polsts/test-here-ojhbvD/analytics
+                  - img [ref=f49e573]
+                - button "Distribute" [ref=f49e575] [cursor=pointer]:
+                  - img [ref=f49e576]
+                - button "QR Code" [ref=f49e579] [cursor=pointer]:
+                  - img [ref=f49e580]
+          - row "Prefer homemade or takeaway food for lunch? active 178 7 2 1 4/22/2026" [ref=f49e586]:
+            - cell "Prefer homemade or takeaway food for lunch?" [ref=f49e587]:
+              - link "Prefer homemade or takeaway food for lunch?" [ref=f49e592] [cursor=pointer]:
+                - /url: https://staging.polst.app/p/prefer-homemade-or-takeaway-food-for-lunch-d7d-DG
+            - cell "active" [ref=f49e593]:
+              - generic [ref=f49e594]: active
+            - cell "178" [ref=f49e596]
+            - cell "7" [ref=f49e597]
+            - cell "2 1" [ref=f49e598]:
+              - generic [ref=f49e599]:
+                - generic [ref=f49e600]:
+                  - img [ref=f49e601]
+                  - generic [ref=f49e603]: "2"
+                - generic [ref=f49e604]:
+                  - img [ref=f49e605]
+                  - generic [ref=f49e610]: "1"
+            - cell "4/22/2026" [ref=f49e611]
+            - cell [ref=f49e612]:
+              - generic [ref=f49e613]:
+                - link "Analytics" [ref=f49e614] [cursor=pointer]:
+                  - /url: /polsts/prefer-homemade-or-takeaway-food-for-lunch-d7d-DG/analytics
+                  - img [ref=f49e615]
+                - button "Distribute" [ref=f49e617] [cursor=pointer]:
+                  - img [ref=f49e618]
+                - button "QR Code" [ref=f49e621] [cursor=pointer]:
+                  - img [ref=f49e622]
+          - row "test title here active 43 5 3 1 4/22/2026" [ref=f49e628]:
+            - cell "test title here" [ref=f49e629]:
+              - link "test title here" [ref=f49e634] [cursor=pointer]:
+                - /url: https://staging.polst.app/p/test-title-here-0fjrlI
+            - cell "active" [ref=f49e635]:
+              - generic [ref=f49e636]: active
+            - cell "43" [ref=f49e638]
+            - cell "5" [ref=f49e639]
+            - cell "3 1" [ref=f49e640]:
+              - generic [ref=f49e641]:
+                - generic [ref=f49e642]:
+                  - img [ref=f49e643]
+                  - generic [ref=f49e645]: "3"
+                - generic [ref=f49e646]:
+                  - img [ref=f49e647]
+                  - generic [ref=f49e652]: "1"
+            - cell "4/22/2026" [ref=f49e653]
+            - cell [ref=f49e654]:
+              - generic [ref=f49e655]:
+                - link "Analytics" [ref=f49e656] [cursor=pointer]:
+                  - /url: /polsts/test-title-here-0fjrlI/analytics
+                  - img [ref=f49e657]
+                - button "Distribute" [ref=f49e659] [cursor=pointer]:
+                  - img [ref=f49e660]
+                - button "QR Code" [ref=f49e663] [cursor=pointer]:
+                  - img [ref=f49e664]
+          - row "to be vs not to be to be or not to be active 228 9 3 4/22/2026" [ref=f49e670]:
+            - cell "to be vs not to be to be or not to be" [ref=f49e671]:
+              - generic [ref=f49e672]:
+                - generic [ref=f49e674]:
+                  - img "to be vs not to be"
+                - link "to be or not to be" [ref=f49e675] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/to-be-or-not-to-be-K4zA5R
+            - cell "active" [ref=f49e676]:
+              - generic [ref=f49e677]: active
+            - cell "228" [ref=f49e679]
+            - cell "9" [ref=f49e680]
+            - cell "3" [ref=f49e681]:
+              - generic [ref=f49e683]:
+                - img [ref=f49e684]
+                - generic [ref=f49e686]: "3"
+            - cell "4/22/2026" [ref=f49e687]
+            - cell [ref=f49e688]:
+              - generic [ref=f49e689]:
+                - link "Analytics" [ref=f49e690] [cursor=pointer]:
+                  - /url: /polsts/to-be-or-not-to-be-K4zA5R/analytics
+                  - img [ref=f49e691]
+                - button "Distribute" [ref=f49e693] [cursor=pointer]:
+                  - img [ref=f49e694]
+                - button "QR Code" [ref=f49e697] [cursor=pointer]:
+                  - img [ref=f49e698]
+          - row "Left vs Right this is the same picture active 148 9 2 4/22/2026" [ref=f49e704]:
+            - cell "Left vs Right this is the same picture" [ref=f49e705]:
+              - generic [ref=f49e706]:
+                - generic [ref=f49e708]:
+                  - img "Left vs Right"
+                - link "this is the same picture" [ref=f49e709] [cursor=pointer]:
+                  - /url: https://staging.polst.app/p/this-is-the-same-picture-RIbwWl
+            - cell "active" [ref=f49e710]:
+              - generic [ref=f49e711]: active
+            - cell "148" [ref=f49e713]
+            - cell "9" [ref=f49e714]
+            - cell "2" [ref=f49e715]:
+              - generic [ref=f49e717]:
+                - img [ref=f49e718]
+                - generic [ref=f49e720]: "2"
+            - cell "4/22/2026" [ref=f49e721]
+            - cell [ref=f49e722]:
+              - generic [ref=f49e723]:
+                - link "Analytics" [ref=f49e724] [cursor=pointer]:
+                  - /url: /polsts/this-is-the-same-picture-RIbwWl/analytics
+                  - img [ref=f49e725]
+                - button "Distribute" [ref=f49e727] [cursor=pointer]:
+                  - img [ref=f49e728]
+                - button "QR Code" [ref=f49e731] [cursor=pointer]:
+                  - img [ref=f49e732]
+  - region "Notifications alt+T"
+  - alert [ref=f49e4]

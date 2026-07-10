@@ -1,386 +1,449 @@
 import { useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
-import { AuthGate } from "@/components/AuthGate";
-import { Avatar } from "@/components/Avatar";
-import { Icon } from "@/components/Icon";
-import { PageShell } from "@/components/PageShell";
-import { SegmentedControl } from "@/components/SegmentedControl";
-import { useToast } from "@/components/Toast";
-import { DEVICES } from "@/lib/data";
-import { ACCOUNT, useSession } from "@/lib/session";
-import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/components/Icon";
+import { Modal } from "@/components/Modal";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/Toast";
+import { Field, TextInput, Select } from "@/components/Field";
+import {
+  ConnectCard,
+  DashboardCard,
+  DashboardPage,
+  DataTable,
+  LockedCard,
+  PollResults,
+  SectionGrid,
+  Switch,
+  type DataColumn,
+} from "@/components/dashboard";
+import { useTheme, type ThemePreference } from "@/lib/theme";
+import { MODULE_INFO, useModules } from "@/lib/modules";
+import {
+  INTEGRATIONS,
+  PENDING_INVITES,
+  SINGLE_POLSTS,
+  TEAM,
+  WORKSPACE,
+  polstOptions,
+  type PendingInvite,
+  type TeamMember,
+  type TeamRole,
+} from "@/lib/workspace";
 
-const SECTIONS = [
-  { id: "profile", label: "Profile", icon: "person" },
-  { id: "appearance", label: "Appearance", icon: "routine" },
-  { id: "devices", label: "Devices", icon: "devices" },
-  { id: "security", label: "Security", icon: "shield" },
-] as const;
+/* ── Team ────────────────────────────────────────────────────────── */
 
-type SectionId = (typeof SECTIONS)[number]["id"];
+const ROLES: TeamRole[] = ["Owner", "Editor", "Viewer"];
 
-/** Account settings: profile facts, appearance (System/Light/Dark), signed
- *  in devices, and security. Sidebar on desktop, chip row on mobile. */
-export function Settings() {
-  const [section, setSection] = useState<SectionId>("profile");
+const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
+  Owner: "Full control, including billing and team",
+  Editor: "Creates and manages campaigns and Polsts",
+  Viewer: "Read-only access to results and reports",
+};
 
-  return (
-    <PageShell>
-      <h1 className="px-0.5 pb-4 font-display text-xl font-bold leading-7 text-text-primary lg:pb-6 lg:text-2xl lg:leading-8">
-        Settings
-      </h1>
-
-      <AuthGate
-        title="Sign in to manage your account"
-        body="Profile, appearance, devices, and security settings live here."
-      >
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[224px_minmax(0,1fr)] lg:items-start lg:gap-6">
-        {/* Desktop: stacked sidebar. Mobile: scrollable chip row with an
-            edge fade so offscreen sections read as scrollable. */}
-        <nav aria-label="Settings sections">
-          <ul className="flex gap-1.5 overflow-x-auto pr-6 [scrollbar-width:none] [mask-image:linear-gradient(to_right,#000_calc(100%-2rem),transparent)] lg:flex-col lg:pr-0 lg:[mask-image:none] [&::-webkit-scrollbar]:hidden">
-            {SECTIONS.map(({ id, label, icon }) => (
-              <li key={id} className="shrink-0">
-                <button
-                  onClick={() => setSection(id)}
-                  aria-current={id === section ? "true" : undefined}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 rounded-md px-3 py-2 font-display text-sm font-bold leading-5 transition-colors",
-                    id === section
-                      ? "bg-surface-strong text-text-primary"
-                      : "text-text-secondary hover:bg-surface-subtle hover:text-text-primary",
-                  )}
-                >
-                  <Icon name={icon} size={20} />
-                  {label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        {/* max-w keeps label→value scan distances sane on wide screens. */}
-        <div className="flex min-w-0 max-w-2xl flex-col gap-6">
-          {section === "profile" && <ProfileSection />}
-          {section === "appearance" && <AppearanceSection />}
-          {section === "devices" && <DevicesSection />}
-          {section === "security" && <SecuritySection />}
+const teamColumns: Array<DataColumn<TeamMember>> = [
+  {
+    header: "Member",
+    cell: (row) => (
+      <div className="flex items-center gap-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-avatar-bg font-display text-xs font-bold text-text-inverse">
+          {row.name.split(" ").map((w) => w[0]).join("")}
+        </span>
+        <div className="min-w-0">
+          <p className="font-display font-semibold text-text-primary">{row.name}</p>
+          <p className="truncate text-xs text-text-secondary">{row.email}</p>
         </div>
       </div>
-      </AuthGate>
-    </PageShell>
-  );
-}
-
-/* ── Shared section building blocks ──────────────────────────── */
-
-function SettingsGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-label={title}>
-      <h2 className="px-0.5 pb-2 font-display text-base font-bold leading-6 text-text-primary">
-        {title}
-      </h2>
-      <div className="flex flex-col divide-y divide-border-default rounded-card border border-border-default bg-card-bg shadow-sm">
-        {children}
+    ),
+  },
+  {
+    header: "Role",
+    cell: (row) => (
+      <div className="flex items-center gap-2">
+        <span className="font-semibold text-text-primary">{row.role}</span>
+        {row.label ? (
+          <span className="rounded-pill bg-surface-subtle px-2 py-0.5 font-display text-xs font-semibold text-text-secondary">
+            {row.label}
+          </span>
+        ) : null}
       </div>
-    </section>
+    ),
+  },
+  {
+    header: "Last active",
+    cell: (row) => <span className="text-text-secondary">{row.lastActive}</span>,
+  },
+  {
+    header: "",
+    align: "right",
+    cell: () => (
+      <Button variant="secondary" size="sm">
+        Manage
+      </Button>
+    ),
+  },
+];
+
+const inviteColumns: Array<DataColumn<PendingInvite>> = [
+  {
+    header: "Invitation",
+    cell: (row) => (
+      <p className="font-display font-semibold text-text-primary">{row.email}</p>
+    ),
+  },
+  {
+    header: "Role",
+    cell: (row) => <span className="text-text-secondary">{row.role}</span>,
+  },
+  {
+    header: "Sent",
+    cell: (row) => <span className="text-text-secondary">{row.sent}</span>,
+  },
+  {
+    header: "",
+    align: "right",
+    cell: () => (
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm">
+          Resend
+        </Button>
+        <Button variant="secondary" size="sm" className="text-status-danger">
+          Revoke
+        </Button>
+      </div>
+    ),
+  },
+];
+
+function InviteUserModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const toast = useToast();
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      label="Invite user"
+      title="Invite user"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              toast("Invitation sent");
+              onClose();
+            }}
+          >
+            Send invite
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 p-4">
+        <Field label="Email">
+          {(fieldId) => (
+            <TextInput
+              id={fieldId}
+              type="email"
+              icon="mail"
+              placeholder="teammate@northstarpantry.co"
+            />
+          )}
+        </Field>
+        <Field label="Role">
+          {(fieldId) => (
+            <Select id={fieldId} defaultValue="Editor">
+              {ROLES.map((role) => (
+                <option key={role}>{role}</option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <ul className="space-y-1.5 rounded-md bg-surface-subtle p-3">
+          {ROLES.map((role) => (
+            <li key={role} className="text-xs leading-5 text-text-secondary">
+              <span className="font-semibold text-text-primary">{role}</span> —{" "}
+              {ROLE_DESCRIPTIONS[role]}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Modal>
   );
 }
 
-/** Label on the left, value/control on the right — every settings row. */
-function SettingsRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+/* ── Branding (embed appearance) ─────────────────────────────────── */
+
+/** Brand-palette accents for the embed — each swatch rides a primitive
+ *  token, so the choices stay inside the design system. */
+const ACCENT_SWATCHES = [
+  { id: "violet", label: "Brand violet", cssVar: "--color-brand-purple" },
+  { id: "green", label: "Teal green", cssVar: "--color-green" },
+  { id: "red", label: "Orange red", cssVar: "--color-red" },
+  { id: "yellow", label: "Yellow", cssVar: "--color-yellow" },
+] as const;
+
+function BrandingCard() {
+  const toast = useToast();
+  const [accent, setAccent] = useState<(typeof ACCENT_SWATCHES)[number]["id"]>("violet");
   return (
-    <div className="flex min-h-14 items-center justify-between gap-4 px-4 py-2.5">
-      <span className="shrink-0 font-display text-sm font-bold leading-5 text-text-primary">
-        {label}
-      </span>
-      <div className="flex min-w-0 items-center justify-end gap-2 font-sans text-sm leading-5 text-text-secondary">
-        {children}
+    <DashboardCard
+      title="Embed appearance"
+      action={
+        <Button size="sm" onClick={() => toast("Branding saved")}>
+          Save
+        </Button>
+      }
+    >
+      <SectionGrid>
+        <div className="space-y-5 lg:col-span-6">
+          <div>
+            <p className="mb-2 text-sm font-semibold text-text-primary">Accent</p>
+            <div className="flex gap-2">
+              {ACCENT_SWATCHES.map((swatch) => (
+                <button
+                  key={swatch.id}
+                  type="button"
+                  title={swatch.label}
+                  aria-pressed={accent === swatch.id}
+                  onClick={() => setAccent(swatch.id)}
+                  className={cn(
+                    "h-8 w-8 rounded-pill border-2 transition-transform hover:scale-105",
+                    accent === swatch.id ? "border-border-accent" : "border-border-default",
+                  )}
+                  style={{ backgroundColor: `var(${swatch.cssVar})` }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Typeface">
+              {(fieldId) => (
+                <Select id={fieldId} defaultValue="System UI">
+                  <option>System UI</option>
+                  <option>Serif</option>
+                  <option>Brand font</option>
+                </Select>
+              )}
+            </Field>
+            <Field label="Corner radius">
+              {(fieldId) => (
+                <Select id={fieldId} defaultValue="Medium">
+                  <option>None</option>
+                  <option>Small</option>
+                  <option>Medium</option>
+                  <option>Large</option>
+                </Select>
+              )}
+            </Field>
+          </div>
+        </div>
+        <div className="lg:col-span-6">
+          <p className="mb-2 text-sm font-semibold text-text-primary">Live preview</p>
+          <div className="rounded-md bg-surface-subtle p-4">
+            <p className="mb-3 font-display text-sm font-semibold text-text-primary">
+              {SINGLE_POLSTS[0].question}
+            </p>
+            <PollResults options={polstOptions(SINGLE_POLSTS[0])} dense />
+          </div>
+        </div>
+      </SectionGrid>
+    </DashboardCard>
+  );
+}
+
+/* ── Page ────────────────────────────────────────────────────────── */
+
+export function SettingsPage() {
+  const [inviteOpen, setInviteOpen] = useState(false);
+  return (
+    <DashboardPage
+      title="Settings"
+    >
+      <SectionGrid>
+        <DashboardCard title="Brand profile" className="lg:col-span-7">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <LabeledField label="Brand name" value={WORKSPACE.brand} />
+            <LabeledField label="Website" value={WORKSPACE.domain} />
+            <LabeledField label="Industry" value={WORKSPACE.industry} />
+            <LabeledField label="Timezone" value={WORKSPACE.timezone} />
+            <LabeledField label="Default campaign duration" value="10 days" />
+            <div>
+              <p className="mb-1.5 text-sm font-semibold text-text-primary">Logo</p>
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-md bg-accent-default font-display text-sm font-bold text-text-on-accent">
+                  {WORKSPACE.initials}
+                </span>
+                <Button variant="secondary" size="sm">
+                  Upload logo
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end">
+            <Button size="sm">Save changes</Button>
+          </div>
+        </DashboardCard>
+
+        <DashboardCard title="Workspace preferences" className="lg:col-span-5">
+          <div className="space-y-5">
+            <AppearanceToggle />
+            <LabeledField label="Default date range" value="Last 30 days" />
+            <LabeledField label="Report format" value="Executive summary" />
+            <LabeledField label="Visibility" value="Private workspace" />
+          </div>
+        </DashboardCard>
+      </SectionGrid>
+
+      <BrandingCard />
+
+      <DashboardCard
+        title="Team"
+        padded={false}
+        action={
+          <Button size="sm" onClick={() => setInviteOpen(true)}>
+            Invite user
+          </Button>
+        }
+      >
+        <DataTable rows={TEAM} columns={teamColumns} />
+      </DashboardCard>
+
+      <DashboardCard title="Pending invitations" padded={false}>
+        <DataTable
+          rows={PENDING_INVITES}
+          columns={inviteColumns}
+          emptyLabel="No pending invitations"
+        />
+      </DashboardCard>
+
+      <SectionGrid>
+        <ModulesCard />
+        <DashboardCard title="Integrations" className="lg:col-span-7">
+          <div className="grid gap-3">
+            {INTEGRATIONS.map((integration) => (
+              <ConnectCard key={integration.id} integration={integration} />
+            ))}
+          </div>
+        </DashboardCard>
+      </SectionGrid>
+
+      <SectionGrid>
+        <div className="lg:col-span-6">
+          <LockedCard
+            title="Developer platform"
+            description="API keys, webhooks, and BI connectors — everything programmatic lives behind the Pro plan so the marketing workspace stays clean."
+            chip="Pro"
+            className="h-full"
+          />
+        </div>
+        <DashboardCard title="Billing" className="lg:col-span-6">
+          <div className="flex items-start gap-3 rounded-md border border-border-default bg-surface-subtle p-4">
+            <Icon name="credit_card" size={20} className="mt-0.5 shrink-0 text-icon-secondary" />
+            <div>
+              <p className="font-display text-sm font-bold text-text-primary">
+                Mock billing state
+              </p>
+              <p className="mt-1 text-sm leading-6 text-text-secondary">
+                Billing exists as a visual placeholder only — no payment logic,
+                invoices, or plan changes are connected in this mockup.
+              </p>
+            </div>
+          </div>
+        </DashboardCard>
+      </SectionGrid>
+
+      <InviteUserModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
+    </DashboardPage>
+  );
+}
+
+/** Analytics modules with live on/off switches. Turning one off removes
+ *  its pages from the sidebar immediately — flags are product truth. */
+function ModulesCard() {
+  const { modules, setModule } = useModules();
+  return (
+    <DashboardCard title="Modules" className="lg:col-span-5">
+      <ul className="divide-y divide-border-default">
+        {MODULE_INFO.map((module) => (
+          <li
+            key={module.key}
+            className="flex items-start justify-between gap-4 py-4 first:pt-0 last:pb-0"
+          >
+            <div className="min-w-0">
+              <p className="font-display text-sm font-semibold text-text-primary">
+                {module.name}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-text-secondary">
+                {module.description}
+              </p>
+            </div>
+            <Switch
+              checked={modules[module.key]}
+              onChange={(on) => setModule(module.key, on)}
+              label={module.name}
+            />
+          </li>
+        ))}
+      </ul>
+    </DashboardCard>
+  );
+}
+
+/** A read-only labeled field styled like an editable input well. */
+function LabeledField({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <p className="mb-1.5 text-sm font-semibold text-text-primary">{label}</p>
+      <div className="flex h-10 items-center rounded-md border border-border-default bg-surface-raised px-3 text-sm text-text-primary">
+        {value}
       </div>
     </div>
   );
 }
 
-/* ── Profile ─────────────────────────────────────────────────── */
+const APPEARANCE: ThemePreference[] = ["system", "light", "dark"];
 
-function ProfileSection() {
-  const toast = useToast();
-  const [username, setUsername] = useState<string>(ACCOUNT.name);
-  const [draft, setDraft] = useState<string | null>(null);
-
-  const copyLink = () => {
-    navigator.clipboard?.writeText(`polst.com/${username}`).catch(() => {});
-    toast("Profile link copied");
-  };
-
-  return (
-    <>
-      <SettingsGroup title="Account">
-        <SettingsRow label="Profile Picture">
-          <button
-            aria-label="Change profile picture"
-            className="rounded-pill transition-opacity hover:opacity-80"
-          >
-            <Avatar
-              color="var(--color-purple-tint)"
-              textColor="var(--color-brand-purple)"
-              label={ACCOUNT.initials}
-              size={40}
-            />
-          </button>
-        </SettingsRow>
-
-        <SettingsRow label="Username">
-          {draft === null ? (
-            <>
-              <span className="truncate text-text-primary">{username}</span>
-              <button
-                aria-label="Edit username"
-                onClick={() => setDraft(username)}
-                className="grid h-8 w-8 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary"
-              >
-                <Icon name="edit" size={18} />
-              </button>
-            </>
-          ) : (
-            <>
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                aria-label="Username"
-                autoFocus
-                className="h-9 w-44 rounded-md border border-border-accent bg-surface-raised px-2.5 font-sans text-sm text-text-primary outline-none"
-              />
-              <button
-                aria-label="Cancel"
-                onClick={() => setDraft(null)}
-                className="grid h-8 w-8 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle"
-              >
-                <Icon name="close" size={18} />
-              </button>
-              <button
-                aria-label="Save username"
-                onClick={() => {
-                  if (draft.trim()) {
-                    setUsername(draft.trim());
-                    toast("Username updated");
-                  }
-                  setDraft(null);
-                }}
-                className="grid h-8 w-8 place-items-center rounded-pill bg-accent-default text-text-on-accent transition-colors hover:bg-accent-hover"
-              >
-                <Icon name="check" size={18} weight={600} />
-              </button>
-            </>
-          )}
-        </SettingsRow>
-
-        <SettingsRow label="Profile Link">
-          <span className="truncate">polst.com/{username}</span>
-          <button
-            aria-label="Copy profile link"
-            onClick={copyLink}
-            className="grid h-8 w-8 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary"
-          >
-            <Icon name="content_copy" size={18} />
-          </button>
-        </SettingsRow>
-
-        <SettingsRow label="Email">
-          <span className="truncate">{ACCOUNT.email}</span>
-          {/* Read-only on purpose — the badge says why there's no pencil. */}
-          <span className="flex shrink-0 items-center gap-1 rounded-pill bg-status-success-soft px-2 py-0.5 font-sans text-xs font-semibold leading-4 text-status-success">
-            <Icon name="check_circle" size={14} filled />
-            Verified
-          </span>
-        </SettingsRow>
-      </SettingsGroup>
-
-      <SettingsGroup title="Information">
-        {(
-          [
-            ["Gender", ACCOUNT.gender],
-            ["Date of Birth", ACCOUNT.dateOfBirth],
-          ] as const
-        ).map(([label, value]) => (
-          <SettingsRow key={label} label={label}>
-            <span className="truncate">{value}</span>
-            <button
-              aria-label={`Edit ${label.toLowerCase()}`}
-              className="grid h-8 w-8 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary"
-            >
-              <Icon name="edit" size={18} />
-            </button>
-          </SettingsRow>
-        ))}
-      </SettingsGroup>
-
-      <SettingsGroup title="Location">
-        {(
-          [
-            ["City", ACCOUNT.city],
-            ["State", ACCOUNT.state],
-            ["Country", ACCOUNT.country],
-          ] as const
-        ).map(([label, value]) => (
-          <SettingsRow key={label} label={label}>
-            <span className="truncate">{value}</span>
-            <button
-              aria-label={`Edit ${label.toLowerCase()}`}
-              className="grid h-8 w-8 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary"
-            >
-              <Icon name="edit" size={18} />
-            </button>
-          </SettingsRow>
-        ))}
-      </SettingsGroup>
-    </>
-  );
-}
-
-/* ── Appearance ──────────────────────────────────────────────── */
-
-function AppearanceSection() {
+function AppearanceToggle() {
   const { preference, setPreference } = useTheme();
-
   return (
-    <SettingsGroup title="Appearance">
-      <div className="flex flex-col gap-3 px-4 py-4">
-        <p className="font-sans text-sm leading-5 text-text-secondary">
-          Choose how Polst looks. System follows your device setting.
-        </p>
-        <SegmentedControl
-          label="Theme"
-          value={preference}
-          onChange={setPreference}
-          className="max-w-96"
-          options={[
-            { value: "system", label: "System", icon: "routine" },
-            { value: "light", label: "Light", icon: "light_mode" },
-            { value: "dark", label: "Dark", icon: "dark_mode" },
-          ]}
-        />
-      </div>
-    </SettingsGroup>
-  );
-}
-
-/* ── Devices ─────────────────────────────────────────────────── */
-
-function DevicesSection() {
-  const toast = useToast();
-  return (
-    <SettingsGroup title="Devices">
-      {DEVICES.map((device) => (
-        <div
-          key={device.name}
-          className="flex items-center gap-3 px-4 py-3"
-        >
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-surface-subtle">
-            <Icon name={device.icon} size={22} className="text-icon-secondary" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 font-display text-sm font-bold leading-5 text-text-primary">
-              {device.name}
-              {device.current && (
-                <span className="rounded-pill bg-accent-soft px-2 py-0.5 font-sans text-xs font-semibold leading-4 text-text-accent">
-                  This device
-                </span>
-              )}
-            </p>
-            <p className="truncate font-sans text-xs leading-4 text-text-secondary">
-              {device.meta}
-            </p>
-          </div>
-          {!device.current && (
-            <button
-              onClick={() => toast(`Signed out of ${device.name}`)}
-              className="shrink-0 rounded-md px-2.5 py-1 font-display text-sm font-bold leading-5 text-status-danger transition-colors hover:bg-status-danger-soft"
-            >
-              Log out
-            </button>
-          )}
-        </div>
-      ))}
-    </SettingsGroup>
-  );
-}
-
-/* ── Security ────────────────────────────────────────────────── */
-
-function SecuritySection() {
-  const toast = useToast();
-  const navigate = useNavigate();
-  const { signOut } = useSession();
-  const [twoFactor, setTwoFactor] = useState(true);
-
-  return (
-    <>
-      <SettingsGroup title="Security">
-        <SettingsRow label="Password">
+    <div>
+      <p className="mb-1.5 text-sm font-semibold text-text-primary">Appearance</p>
+      <div className="flex rounded-md bg-surface-subtle p-1">
+        {APPEARANCE.map((option) => (
           <button
-            onClick={() => toast("Password reset email sent")}
-            className="rounded-md px-2.5 py-1 font-display text-sm font-bold leading-5 text-text-accent transition-colors hover:bg-accent-soft"
-          >
-            Change password
-          </button>
-        </SettingsRow>
-        <SettingsRow label="Two-factor authentication">
-          <button
-            role="switch"
-            aria-checked={twoFactor}
-            onClick={() => setTwoFactor((v) => !v)}
+            key={option}
+            onClick={() => setPreference(option)}
+            aria-pressed={preference === option}
             className={cn(
-              "relative h-6 w-11 rounded-pill transition-colors",
-              twoFactor ? "bg-accent-default" : "bg-border-strong",
+              "h-8 flex-1 rounded-sm px-3 font-display text-sm font-semibold capitalize text-text-secondary transition-colors hover:text-text-primary",
+              preference === option && "bg-surface-raised text-text-primary shadow-sm",
             )}
           >
-            <span
-              className={cn(
-                "absolute top-0.5 h-5 w-5 rounded-pill bg-white shadow-sm transition-[left]",
-                twoFactor ? "left-[22px]" : "left-0.5",
-              )}
-            />
+            {option}
           </button>
-        </SettingsRow>
-        {/* The only mobile-reachable way out of the account. */}
-        <SettingsRow label="Session">
-          <button
-            onClick={() => {
-              signOut();
-              navigate("/");
-            }}
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 font-display text-sm font-bold leading-5 text-text-primary transition-colors hover:bg-surface-subtle"
-          >
-            <Icon name="logout" size={18} />
-            Log out
-          </button>
-        </SettingsRow>
-      </SettingsGroup>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      <SettingsGroup title="Danger zone">
-        <SettingsRow label="Delete account">
-          <button
-            onClick={() => toast("Account deletion requires email confirmation")}
-            className="rounded-md px-2.5 py-1 font-display text-sm font-bold leading-5 text-status-danger transition-colors hover:bg-status-danger-soft"
-          >
-            Delete…
-          </button>
-        </SettingsRow>
-      </SettingsGroup>
-    </>
+export function NotFoundPage() {
+  return (
+    <DashboardPage
+      title="Page not found"
+      description="This route is not part of the V1 dashboard map."
+      actions={
+        <Button asChild>
+          <a href="/">Back to Home</a>
+        </Button>
+      }
+    >
+      <DashboardCard>
+        <p className="text-sm leading-6 text-text-secondary">
+          Use the sidebar to return to Home, Campaigns, Polsts, Distribution,
+          Analytics, Audience, or Settings.
+        </p>
+      </DashboardCard>
+    </DashboardPage>
   );
 }

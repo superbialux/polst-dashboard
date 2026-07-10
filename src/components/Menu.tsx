@@ -122,7 +122,7 @@ export function MenuItem({
       role="menuitem"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left font-display text-sm font-semibold leading-5 transition-colors",
+        "flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left font-display text-ui font-semibold transition-colors",
         danger
           ? "text-status-danger hover:bg-status-danger-soft"
           : "text-text-primary hover:bg-surface-subtle",

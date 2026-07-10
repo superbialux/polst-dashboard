@@ -411,15 +411,21 @@ export function PollCard({
 
 /** The voting block itself — the A/B option pair with the OR disc, the
  *  vote interaction, and the result bars. Controlled, so the feed card and
- *  the series flow share one mechanic. */
+ *  the series flow share one mechanic. `dense` renders the admin-grid cut:
+ *  smaller disc, shorter result bars, no desktop upscale. */
 export function PollOptionsBlock({
   options,
   selected,
   onSelect,
+  dense = false,
+  readOnly = false,
 }: {
   options: [PollOption, PollOption];
   selected: number | null;
   onSelect: (index: number) => void;
+  dense?: boolean;
+  /** Presentation-only rendering — no vote affordance at all. */
+  readOnly?: boolean;
 }) {
   const hasVoted = selected !== null;
   const shares = voteShares(options);
@@ -432,6 +438,8 @@ export function PollOptionsBlock({
         pct={shares[0]}
         selected={selected === 0}
         hasVoted={hasVoted}
+        dense={dense}
+        readOnly={readOnly}
         onSelect={() => onSelect(0)}
       />
       <PollOptionCard
@@ -440,14 +448,26 @@ export function PollOptionsBlock({
         pct={shares[1]}
         selected={selected === 1}
         hasVoted={hasVoted}
+        dense={dense}
+        readOnly={readOnly}
         onSelect={() => onSelect(1)}
       />
 
       {/* OR badge — a raised disc floating in the gap; a hairline keeps it
           legible over dark photos in dark mode. */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 size-12 -translate-x-1/2 -translate-y-1/2 lg:size-16">
+      <div
+        className={cn(
+          "pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2",
+          dense ? "size-9" : "size-12 lg:size-16",
+        )}
+      >
         <span className="absolute inset-0 rounded-pill bg-surface-raised shadow-sm" />
-        <span className="absolute inset-0 grid place-items-center font-display text-lg font-bold leading-none text-text-primary lg:text-2xl">
+        <span
+          className={cn(
+            "absolute inset-0 grid place-items-center font-display font-bold leading-none text-text-primary",
+            dense ? "text-sm" : "text-lg lg:text-2xl",
+          )}
+        >
           OR
         </span>
       </div>
@@ -463,6 +483,10 @@ type PollOptionCardProps = PollOption & {
   side: "left" | "right";
   /** This option's vote share (0–100), shown in the results state. */
   pct: number;
+  /** Admin-grid cut: tighter label row, shorter result bars, no upscale. */
+  dense?: boolean;
+  /** Presentation-only: never focusable, never votable. */
+  readOnly?: boolean;
 };
 
 function PollOptionCard({
@@ -474,6 +498,8 @@ function PollOptionCard({
   onSelect,
   side,
   pct,
+  dense = false,
+  readOnly = false,
 }: PollOptionCardProps) {
   const eased = easeOutCubic(useProgress(hasVoted));
   const count = Math.round(pct * eased);
@@ -482,23 +508,29 @@ function PollOptionCard({
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      // After the vote the button is a no-op; the label says so instead of
-      // still promising a vote (results are announced by the card's live
-      // region).
       aria-label={
         hasVoted ? `${label}: ${pct}% of votes` : `Vote for ${label}`
       }
-      aria-disabled={hasVoted && !selected ? true : undefined}
+      // After the vote the other option is genuinely inert, so it leaves the
+      // tab order too (results are announced by the card's live region).
+      disabled={readOnly || (hasVoted && !selected)}
+      tabIndex={readOnly ? -1 : undefined}
       className={cn(
         "group relative flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-md text-left transition-colors",
         selected ? "bg-accent-default" : "bg-option-bg",
       )}
     >
-      <div className="flex items-center gap-2 px-2 py-2.5 lg:px-3 lg:py-3">
+      <div
+        className={cn(
+          "flex items-center gap-2",
+          dense ? "px-2 py-2" : "px-2 py-2.5 lg:px-3 lg:py-3",
+        )}
+      >
         <RadioMark selected={selected} hasVoted={hasVoted} />
         <span
           className={cn(
-            "truncate font-display text-sm font-semibold leading-5 lg:text-lg lg:leading-6",
+            "truncate font-display text-sm font-semibold leading-5",
+            !dense && "lg:text-lg lg:leading-6",
             selected ? "text-text-on-accent" : "text-text-primary",
           )}
         >
@@ -510,7 +542,7 @@ function PollOptionCard({
       <div className="relative min-h-0 flex-1 overflow-hidden bg-accent-default">
         <img
           src={image}
-          alt=""
+          alt={label}
           className={cn(
             "h-full w-full object-cover",
             !hasVoted &&
@@ -525,8 +557,7 @@ function PollOptionCard({
         )}
       </div>
 
-      {/* Results — bars at ~90% of the OR disc on the 4px grid (44px of the
-          48px disc on mobile, 56px of the 64px disc on desktop) grow from the
+      {/* Results — bars at ~90% of the OR disc on the 4px grid grow from the
           centre seam outward. The settled width equals the option's vote
           share; min-w-max keeps the bar from ever being shorter than the
           numbers inside it. */}
@@ -539,17 +570,30 @@ function PollOptionCard({
         >
           <div
             className={cn(
-              "flex h-11 items-center gap-2 shadow-md lg:h-14 lg:gap-2.5",
+              "flex items-center",
+              dense ? "h-8 gap-1.5 shadow-sm" : "h-11 gap-2 shadow-md lg:h-14 lg:gap-2.5",
               selected
                 ? "bg-accent-default text-text-on-accent"
                 : "bg-option-bg text-text-primary",
               side === "left"
-                ? "ml-auto min-w-max justify-start rounded-l-full rounded-r-none pl-4 pr-8 lg:pl-5 lg:pr-10"
-                : "mr-auto min-w-max flex-row-reverse justify-start rounded-l-none rounded-r-full pl-8 pr-4 lg:pl-10 lg:pr-5",
+                ? "ml-auto min-w-max justify-start rounded-l-full rounded-r-none"
+                : "mr-auto min-w-max flex-row-reverse justify-start rounded-l-none rounded-r-full",
+              dense
+                ? side === "left"
+                  ? "pl-3 pr-6"
+                  : "pl-6 pr-3"
+                : side === "left"
+                  ? "pl-4 pr-8 lg:pl-5 lg:pr-10"
+                  : "pl-8 pr-4 lg:pl-10 lg:pr-5",
             )}
             style={{ width: `${pct * eased}%` }}
           >
-            <span className="font-display text-2xl font-bold leading-none lg:text-3xl">
+            <span
+              className={cn(
+                "font-display font-bold leading-none",
+                dense ? "text-base" : "text-2xl lg:text-3xl",
+              )}
+            >
               {count}%
             </span>
             {/* The tally takes up space from the start (no width pop) but only
@@ -557,7 +601,8 @@ function PollOptionCard({
             {pct >= VOTES_PCT_MIN && (
               <span
                 className={cn(
-                  "font-sans text-sm font-medium leading-none opacity-70 transition-opacity duration-300 lg:text-base",
+                  "font-sans font-medium leading-none opacity-70 transition-opacity duration-300",
+                  dense ? "text-xs" : "text-sm lg:text-base",
                   count < VOTES_PCT_MIN && "opacity-0",
                 )}
               >

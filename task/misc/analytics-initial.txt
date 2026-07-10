@@ -1,0 +1,46 @@
+Brand-Facing Dashboard (what each customer sees)
+
+B2B sales lives or dies on whether brands can prove ROI here.
+
+Engagement metrics (per Polst):
+
+Total responses
+Response velocity (responses/hour, peak detection)
+Completion rate (started vs. submitted)
+Drop-off point (which question lost them)
+Geographic distribution of responses
+Device/channel breakdown (web, embed, widget, social)
+Time-to-first-response and time-to-statistical-significance
+
+
+Audience composition (per Polst and aggregated):
+
+Demographic split — age, gender, location to city level
+Returning vs. new respondents
+Cross-Polst behavior — did this respondent answer your other Polsts?
+Audience overlap with category (e.g., “your respondents also voted on these top 5 Polsts”)
+
+
+Decision intelligence (the layer that justifies the price):
+
+Confidence interval / statistical significance flag
+Sentiment shift over time (if Polst is rerun)
+Geographic heatmap with click-through to city-level results
+Comparative benchmarks — your result vs. category average
+“What changed” alerts — sudden shifts in sentiment
+
+
+Campaign-level (across multiple Polsts):
+
+Total reach, total responses, cost per response
+Top-performing Polst by engagement
+Audience growth over time
+Question library / template performance
+
+
+Export and integration:
+
+CSV/JSON export of raw response data
+API access tier (enterprise)
+Webhook for real-time response events
+BI tool connectors (Looker, Tableau, PowerBI) — this matters for enterprise
