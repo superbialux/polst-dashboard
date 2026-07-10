@@ -62,15 +62,21 @@ const NAV_GROUPS: Array<{ items: NavItem[] }> = [
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "flex h-9 items-center gap-3 rounded-md px-2 text-sm font-medium transition-colors",
+    "flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium transition-colors",
     isActive
       ? "bg-sidenav-active text-sidenav-fg"
       : "text-sidenav-muted hover:bg-sidenav-hover hover:text-sidenav-fg",
   );
 
-/** Rail icons inherit the row's ink; the active row alone fills its glyph. */
+/** Rail icons inherit the row's ink; the active row alone fills its glyph.
+ *  18px glyphs at regular (400) weight, centered in a fixed 20px box so
+ *  every label starts on the same axis. */
 function NavIcon({ name, active }: { name: string; active: boolean }) {
-  return <Icon name={name} size={20} weight={500} filled={active} className="shrink-0" />;
+  return (
+    <span className="grid h-5 w-5 shrink-0 place-items-center">
+      <Icon name={name} size={18} weight={400} filled={active} />
+    </span>
+  );
 }
 
 /* ── Header actions slot ─────────────────────────────────────────── */
@@ -168,7 +174,7 @@ function Sidebar() {
                     </NavLink>
 
                     {item.children && parentActive ? (
-                      <ul className="mt-1 space-y-0.5 pl-8">
+                      <ul className="mt-1 space-y-0.5 pl-7">
                         {item.children.map((child) => (
                           <li key={child.to}>
                             <NavLink
