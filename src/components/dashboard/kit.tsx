@@ -8,6 +8,7 @@ import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
 import { Menu, MenuItem } from "@/components/Menu";
 import { Select } from "@/components/Field";
+import { HeaderActions } from "./Shell";
 import {
   formatNumber,
   polstOptions,
@@ -39,26 +40,19 @@ type PageProps = {
 
 /** The standard page: a centered, vertically-rhythmic column. Pages carry
  *  no title or description — the header breadcrumbs name where you are;
- *  content does the explaining. An optional slim top row holds the data
- *  freshness (left) and the page's actions (right). Every page shares the
- *  one `max-w-dashboard` container — no per-page widths. */
+ *  content does the explaining. `actions` teleport into the header's
+ *  right side (the page-contextual slot); `updated` renders as a quiet
+ *  freshness line above the content. Every page shares the one
+ *  `max-w-dashboard` container — no per-page widths. */
 export function DashboardPage({ updated, actions, children }: PageProps) {
   return (
     <div className="mx-auto max-w-dashboard space-y-6">
-      {updated || actions ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {updated ? (
-            <span className="flex items-center gap-1 text-xs text-text-tertiary">
-              <Icon name="sync" size={14} />
-              Updated {updated}
-            </span>
-          ) : (
-            <span aria-hidden />
-          )}
-          {actions ? (
-            <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>
-          ) : null}
-        </div>
+      {actions ? <HeaderActions>{actions}</HeaderActions> : null}
+      {updated ? (
+        <span className="flex items-center gap-1 text-xs text-text-tertiary">
+          <Icon name="sync" size={14} />
+          Updated {updated}
+        </span>
       ) : null}
       {children}
     </div>
@@ -468,7 +462,7 @@ export function DataTable<T extends { id: string }>({
               <th
                 key={column.header}
                 className={cn(
-                  "whitespace-nowrap px-4 py-3 font-semibold",
+                  "whitespace-nowrap px-3 py-3 font-semibold first:pl-4 last:pr-4",
                   column.align === "right" && "text-right",
                   column.className,
                 )}
@@ -494,7 +488,7 @@ export function DataTable<T extends { id: string }>({
                   <td
                     key={column.header}
                     className={cn(
-                      "px-4 py-3 align-middle text-text-primary",
+                      "px-3 py-3 align-middle text-text-primary first:pl-4 last:pr-4",
                       column.align === "right" && "text-right",
                       column.className,
                     )}

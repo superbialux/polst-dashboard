@@ -7,6 +7,7 @@ import {
   type CardTone,
   CampaignRow,
   DashboardCard,
+  DashboardPage,
   DecisionBrief,
   FilterTabs,
   NextStepsCard,
@@ -184,22 +185,17 @@ export function HomePage() {
   const polsts = SINGLE_POLSTS.filter((p) => matchesFilter(p.status, polstFilter)).slice(0, 20);
 
   return (
-    // One narrow reading column for the whole page (the shell owns padding)
-    <div className="mx-auto max-w-dashboard space-y-6">
-        {/* No page title — breadcrumbs name the page; just the data
-            contract on the left and the one page-level action right. */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="flex items-center gap-1 text-xs text-text-tertiary">
-            <Icon name="sync" size={14} />
-            Updated 2 min ago
-          </span>
-          <Button variant="secondary" size="sm" asChild>
-            <Link to="/analytics">
-              View analytics
-              <Icon name="arrow_forward" size={20} />
-            </Link>
-          </Button>
-        </div>
+    <DashboardPage
+      updated="2 min ago"
+      actions={
+        <Button variant="secondary" size="sm" asChild>
+          <Link to="/analytics">
+            View analytics
+            <Icon name="arrow_forward" size={20} />
+          </Link>
+        </Button>
+      }
+    >
 
         {/* The one decision that's ready — status, change, why, caveat, action */}
         <DecisionBrief
@@ -322,7 +318,7 @@ export function HomePage() {
             );
           })}
         </SectionGrid>
-    </div>
+    </DashboardPage>
   );
 }
 

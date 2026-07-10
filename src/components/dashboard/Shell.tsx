@@ -1,4 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
@@ -66,18 +73,34 @@ function NavIcon({ name, active }: { name: string; active: boolean }) {
   return <Icon name={name} size={20} weight={500} filled={active} className="shrink-0" />;
 }
 
+/* ── Header actions slot ─────────────────────────────────────────── */
+
+/** The header's right side belongs to the current page. Pages teleport
+ *  their actions (Create campaign, Export, View analytics…) into this
+ *  slot; the bell stays put after it. */
+const HeaderActionsContext = createContext<HTMLElement | null>(null);
+
+export function HeaderActions({ children }: { children: ReactNode }) {
+  const slot = useContext(HeaderActionsContext);
+  if (!slot) return null;
+  return createPortal(children, slot);
+}
+
 /** The shell: one dark surface — the full-height sidebar rail — beside a
  *  light column that stacks a sticky 48px header over the working canvas.
  *  The page owns the document scroll; nothing nests a second scroller. */
 export function DashboardShell({ children }: { children: ReactNode }) {
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   return (
     <div className="min-h-dvh bg-app-content text-text-primary">
       <Sidebar />
       <div className="lg:pl-64">
-        <Header />
-        <main id="main-content" className="px-4 pb-10 pt-6 sm:px-6 lg:px-8">
-          {children}
-        </main>
+        <Header onActionsSlot={setActionsSlot} />
+        <HeaderActionsContext.Provider value={actionsSlot}>
+          <main id="main-content" className="px-4 pb-10 pt-6 sm:px-5">
+            {children}
+          </main>
+        </HeaderActionsContext.Provider>
       </div>
     </div>
   );
@@ -110,9 +133,14 @@ function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-sidenav px-3 py-5 lg:flex">
       {/* Brand block — the wordmark alone, generously sized on the rail */}
-      <Link to="/" aria-label="Home" className="flex items-center px-3 pb-6">
+      <Link to="/" aria-label="Home" className="flex items-center px-3 pb-4">
         <PolstWordmark className="h-8 brightness-0 invert" />
       </Link>
+
+      {/* The workspace switcher lives right under the brand */}
+      <div className="pb-4">
+        <AccountMenu />
+      </div>
 
       <nav aria-label="Primary" className="scroll-subtle flex flex-1 flex-col overflow-y-auto">
         {groups.map((group, gi) => (
@@ -195,7 +223,11 @@ function Sidebar() {
   );
 }
 
-function Header() {
+function Header({
+  onActionsSlot,
+}: {
+  onActionsSlot: (el: HTMLElement | null) => void;
+}) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   // ⌘K / Ctrl-K opens the workspace search from anywhere.
@@ -211,7 +243,7 @@ function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border-default bg-surface-raised px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border-default bg-surface-raised px-4 sm:px-5">
       {/* Below lg the rail is hidden, so the wordmark rides the header */}
       <Link to="/" aria-label="Home" className="lg:hidden">
         <PolstWordmark className="h-6" />
@@ -220,11 +252,10 @@ function Header() {
       {/* Where you are — search moved entirely behind ⌘K */}
       <Breadcrumbs />
 
-      {/* Right — the primary create action, then quiet utilities */}
+      {/* Right — the current page's actions teleport in, then the bell */}
       <div className="ml-auto flex items-center gap-2">
-        <CreateMenu />
+        <div ref={onActionsSlot} className="flex items-center gap-2" />
         <NotificationsMenu />
-        <AccountMenu />
       </div>
 
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
@@ -565,33 +596,6 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
 const headerButton =
   "grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary";
 
-function CreateMenu() {
-  const navigate = useNavigate();
-  return (
-    <Menu
-      label="Create"
-      trigger={({ toggle }) => (
-        <Button onClick={toggle}>
-          <Icon name="add" size={18} />
-          Create
-        </Button>
-      )}
-    >
-      <MenuItem
-        icon="campaign"
-        label="Create campaign"
-        onClick={() => navigate("/campaigns/new")}
-      />
-      <MenuItem
-        icon="ballot"
-        label="Create single Polst"
-        onClick={() => navigate("/polsts/new")}
-      />
-      <MenuItem icon="event" label="Add scheduled moment" onClick={() => navigate("/")} />
-    </Menu>
-  );
-}
-
 type Alert = {
   source: string;
   time: string;
@@ -694,19 +698,24 @@ function NotificationsMenu() {
   );
 }
 
+/** The workspace switcher — a dark chip on the rail, right under the brand.
+ *  The panel itself stays a light overlay, like every menu. */
 function AccountMenu() {
   return (
     <Menu
       label="Account"
+      align="start"
       className="w-72 p-1.5"
       trigger={({ toggle }) => (
         <button
           onClick={toggle}
-          className="flex h-8 items-center gap-2 rounded-md border border-border-default bg-surface-raised pl-1 pr-1.5 text-text-primary transition-colors hover:bg-surface-subtle"
+          className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-sidenav-fg transition-colors hover:bg-sidenav-hover"
         >
           <WorkspaceMark initials={WORKSPACE.initials} size="sm" />
-          <span className="hidden text-sm font-medium sm:inline">{WORKSPACE.brand}</span>
-          <Icon name="arrow_drop_down" size={18} className="hidden text-icon-secondary sm:block" />
+          <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">
+            {WORKSPACE.brand}
+          </span>
+          <Icon name="unfold_more" size={18} className="shrink-0 text-sidenav-muted" />
         </button>
       )}
     >
