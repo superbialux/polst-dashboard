@@ -12,8 +12,11 @@ import {
   DashboardPage,
   DataTable,
   DetailList,
+  FlowSteps,
   MixBars,
   PollResults,
+  PollThumb,
+  SavedChip,
   SearchAndFilters,
   SectionGrid,
   StatusBadge,
@@ -34,27 +37,34 @@ import {
 } from "@/lib/workspace";
 import { sourceColumns } from "./Distribution";
 
+/** The operational default: the object's identity is a small paired thumb,
+ *  the row is owned by status, scope, evidence, and recency. */
 const columns: Array<DataColumn<SinglePolst>> = [
   {
-    header: "Polst question",
+    header: "Polst",
     cell: (row) => (
-      <Link
-        to={`/polsts/${row.id}`}
-        className="font-display font-semibold text-text-primary hover:text-text-accent"
-      >
-        {row.question}
+      <Link to={`/polsts/${row.id}`} className="group flex min-w-0 items-center gap-3">
+        <PollThumb options={polstOptions(row)} />
+        <span className="min-w-0">
+          <span className="block truncate font-display font-semibold text-text-primary group-hover:text-text-accent">
+            {row.question}
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-text-secondary">
+            {row.optionA} vs {row.optionB}
+          </span>
+        </span>
       </Link>
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
   {
-    header: "Event",
-    cell: (row) => <span className="text-text-secondary">{row.event}</span>,
-  },
-  {
     header: "Responses",
     align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
+    cell: (row) => (
+      <span className="tabular-nums">
+        {row.responses > 0 ? formatNumber(row.responses) : "—"}
+      </span>
+    ),
   },
   {
     header: "Vote split",
@@ -64,6 +74,10 @@ const columns: Array<DataColumn<SinglePolst>> = [
   {
     header: "Top source",
     cell: (row) => <span className="text-text-secondary">{row.topSource}</span>,
+  },
+  {
+    header: "Schedule",
+    cell: (row) => <span className="whitespace-nowrap text-text-secondary">{row.dates}</span>,
   },
   {
     header: "",
@@ -78,9 +92,11 @@ const columns: Array<DataColumn<SinglePolst>> = [
 
 /* ── View toggle ─────────────────────────────────────────────────── */
 
+/** List is the operational default; the grid is a deliberate gallery mode
+ *  for reviewing creative, not for admin scanning. */
 const VIEWS = [
-  { key: "grid", icon: "grid_view", label: "Grid view" },
   { key: "list", icon: "table_rows", label: "List view" },
+  { key: "grid", icon: "grid_view", label: "Gallery view" },
 ] as const;
 type View = (typeof VIEWS)[number]["key"];
 
@@ -150,12 +166,14 @@ function PolstGridCard({ polst }: { polst: SinglePolst }) {
 
 export function PolstsPage() {
   const [active, setActive] = useState("All");
-  const [view, setView] = useState<View>("grid");
+  const [view, setView] = useState<View>("list");
   const rows = useMemo(() => filterByStatus(SINGLE_POLSTS, active), [active]);
 
   return (
     <DashboardPage
-      title="Polsts"
+      title="Standalone Polsts"
+      description="One-off Polsts that run outside a campaign. Campaign Polsts are managed inside their campaign."
+      updated="2 min ago"
       actions={
         <Button asChild>
           <Link to="/polsts/new">Create single Polst</Link>
@@ -212,6 +230,7 @@ export function PolstsPage() {
 
 export function PolstDetailPage() {
   const { id } = useParams();
+  const toast = useToast();
   const polst = SINGLE_POLSTS.find((p) => p.id === id) ?? SINGLE_POLSTS[0];
   const hasVotes = polst.responses > 0;
 
@@ -219,45 +238,32 @@ export function PolstDetailPage() {
     <DashboardPage
       eyebrow={
         <Link to="/polsts" className="hover:text-text-primary">
-          Polsts
+          Standalone Polsts
         </Link>
       }
       title={polst.question}
+      updated="2 min ago"
       actions={
         <>
-          <Button variant="secondary">Generate report</Button>
-          <Button asChild>
-            <Link to="/distribution">Add distribution</Link>
+          {/* Content-level actions only. Reporting and channel operations
+              belong to campaigns — a standalone Polst links out instead. */}
+          <Button variant="secondary" onClick={() => toast("Polst duplicated to drafts")}>
+            Duplicate
+          </Button>
+          <Button onClick={() => toast("Editing is disabled while a Polst is live")}>
+            Edit Polst
           </Button>
         </>
       }
     >
       <SectionGrid>
-        {/* The REAL consumer card, live — vote on it and the bars animate. */}
-        <DashboardCard title="Live preview" padded={false} className="lg:col-span-7">
-          <PollCard
-            author={WORKSPACE.brand}
-            authorBadge={WORKSPACE.initials}
-            authorColor="var(--color-purple-tint)"
-            isFollowing
-            postedAgo="2d"
-            categories={[TOP_INTERESTS[0].label]}
-            question={polst.question}
-            options={polstOptions(polst)}
-            tags={[]}
-            likes={Math.round(polst.responses * 0.16)}
-            reposts={Math.round(polst.responses * 0.04)}
-            votes={polst.responses}
-            timeLeft="2d"
-          />
-        </DashboardCard>
-
-        <div className="space-y-4 lg:col-span-5">
-          <DashboardCard title="Summary">
+        <div className="space-y-4 lg:col-span-7">
+          <DashboardCard title="Performance">
             <DetailList
               items={[
                 ["Status", <StatusBadge key="s" status={polst.status} />],
-                ["Responses", formatNumber(polst.responses)],
+                ["Responses", hasVotes ? formatNumber(polst.responses) : "—"],
+                ["Vote split", polst.split],
                 ["Completion", polst.completion],
                 ["Median time to vote", hasVotes ? "4.6s" : "—"],
                 ["Share rate", hasVotes ? "7.4%" : "—"],
@@ -266,6 +272,21 @@ export function PolstDetailPage() {
                 ["Event", polst.event],
               ]}
             />
+          </DashboardCard>
+          <DashboardCard title="Where it runs">
+            <p className="text-sm leading-6 text-text-secondary">
+              This Polst runs standalone — it isn't part of a campaign, so it
+              carries its own schedule and sources. Attribution, reporting, and
+              recommendations live with campaigns.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" asChild>
+                <Link to="/campaigns">Add to a campaign</Link>
+              </Button>
+              <Button variant="secondary" size="sm" asChild>
+                <Link to="/distribution">Manage its sources</Link>
+              </Button>
+            </div>
           </DashboardCard>
           <DashboardCard title="Audience snapshot">
             <DetailList
@@ -284,6 +305,32 @@ export function PolstDetailPage() {
             </div>
           </DashboardCard>
         </div>
+
+        {/* The exact consumer card, contained as a preview — what voters see,
+            clearly framed as a preview rather than a voting surface. */}
+        <DashboardCard
+          title="Voter preview"
+          description="Exactly what your audience sees. Votes here are preview-only."
+          padded={false}
+          className="self-start lg:col-span-5"
+          bodyClassName="p-4 pt-2"
+        >
+          <PollCard
+            author={WORKSPACE.brand}
+            authorBadge={WORKSPACE.initials}
+            authorColor="var(--color-purple-tint)"
+            isFollowing
+            postedAgo="2d"
+            categories={[TOP_INTERESTS[0].label]}
+            question={polst.question}
+            options={polstOptions(polst)}
+            tags={[]}
+            likes={Math.round(polst.responses * 0.16)}
+            reposts={Math.round(polst.responses * 0.04)}
+            votes={polst.responses}
+            timeLeft="2d"
+          />
+        </DashboardCard>
       </SectionGrid>
 
       <DashboardCard title="Source breakdown" padded={false}>
@@ -299,19 +346,32 @@ export function PolstDetailPage() {
 
 /* ── Create single Polst ─────────────────────────────────────────── */
 
+const POLST_STEPS = ["Content", "Schedule & sources", "Review"] as const;
+type PolstStep = (typeof POLST_STEPS)[number];
+
 export function CreatePolstPage() {
-  const toast = useToast();
+  const [step, setStep] = useState<PolstStep>("Content");
   const [composer, setComposer] = useState<ComposerState>({
     question: "",
     optionsSet: false,
     imagesSet: false,
   });
+  const stepIndex = POLST_STEPS.indexOf(step);
+  const nextStep = POLST_STEPS[stepIndex + 1];
+  const checks: [string, boolean][] = [
+    ["Question written", composer.question !== ""],
+    ["Both options set", composer.optionsSet],
+    ["Images added", composer.imagesSet],
+    ["Scheduled", false],
+  ];
+  const blockers = checks.filter(([, done]) => !done);
+
   return (
     <DashboardPage
       eyebrow={
         <span>
           <Link to="/polsts" className="hover:text-text-primary">
-            Polsts
+            Standalone Polsts
           </Link>{" "}
           / Create single Polst
         </span>
@@ -319,103 +379,136 @@ export function CreatePolstPage() {
       title="Create single Polst"
       actions={
         <>
+          <SavedChip />
           <Button variant="secondary" asChild>
             <Link to="/polsts">Discard</Link>
           </Button>
-          <Button onClick={() => toast("Draft saved")}>Save draft</Button>
         </>
       }
     >
+      <FlowSteps steps={POLST_STEPS} active={step} onChange={setStep} />
+
       <SectionGrid>
         <div className="space-y-4 lg:col-span-8">
-          <DashboardCard>
-            <PollComposer
-              categories={TOP_INTERESTS.map((t) => t.label)}
-              onChange={setComposer}
-            />
-          </DashboardCard>
+          {step === "Content" ? (
+            <DashboardCard>
+              <PollComposer
+                categories={TOP_INTERESTS.map((t) => t.label)}
+                onChange={setComposer}
+              />
+            </DashboardCard>
+          ) : null}
 
-          <DashboardCard
-            title="Schedule"
-            description="Optional — an unscheduled Polst stays in drafts."
-          >
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Start date">
-                {(fieldId) => <TextInput id={fieldId} type="date" icon="calendar_today" />}
-              </Field>
-              <Field label="End date">
-                {(fieldId) => <TextInput id={fieldId} type="date" icon="event" />}
-              </Field>
-              <Field label="Linked event">
-                {(fieldId) => (
-                  <Select id={fieldId} defaultValue="None">
-                    <option>None</option>
-                    {KEY_DATES.map((date) => (
-                      <option key={date.id}>{date.title}</option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-            </div>
-          </DashboardCard>
+          {step === "Schedule & sources" ? (
+            <>
+              <DashboardCard
+                title="Schedule"
+                description="Optional — an unscheduled Polst stays in drafts."
+              >
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field label="Start date">
+                    {(fieldId) => <TextInput id={fieldId} type="date" icon="calendar_today" />}
+                  </Field>
+                  <Field label="End date">
+                    {(fieldId) => <TextInput id={fieldId} type="date" icon="event" />}
+                  </Field>
+                  <Field label="Linked event">
+                    {(fieldId) => (
+                      <Select id={fieldId} defaultValue="None">
+                        <option>None</option>
+                        {KEY_DATES.map((date) => (
+                          <option key={date.id}>{date.title}</option>
+                        ))}
+                      </Select>
+                    )}
+                  </Field>
+                </div>
+              </DashboardCard>
 
-          <DashboardCard
-            title="Distribution"
-            description="Optional but recommended — attach a source so responses are attributed."
-          >
-            <div className="space-y-1">
-              {DISTRIBUTION_SOURCES.slice(0, 3).map((source) => (
-                <label
-                  key={source.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 shrink-0 rounded-sm border-border-strong accent-accent-default"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-sm font-bold text-text-primary">
-                      {source.name}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-text-secondary">
-                      {source.channel} · {source.type}
-                    </p>
-                  </div>
-                  <StatusBadge status={source.status} />
-                </label>
-              ))}
-            </div>
-          </DashboardCard>
+              <DashboardCard
+                title="Sources"
+                description="Optional but recommended — attach a source so responses are attributed."
+              >
+                <div className="space-y-1">
+                  {DISTRIBUTION_SOURCES.slice(0, 3).map((source) => (
+                    <label
+                      key={source.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 shrink-0 rounded-sm border-border-strong accent-accent-default"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-display text-sm font-semibold text-text-primary">
+                          {source.name}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-text-secondary">
+                          {source.channel} · {source.type}
+                        </p>
+                      </div>
+                      <StatusBadge status={source.status} />
+                    </label>
+                  ))}
+                </div>
+              </DashboardCard>
+            </>
+          ) : null}
+
+          {step === "Review" ? (
+            <DashboardCard
+              title="Review and publish"
+              description="Publish stays disabled until the content checks pass. An unscheduled Polst publishes to drafts."
+            >
+              <ul className="space-y-3">
+                {checks.map(([label, done]) => (
+                  <li key={label} className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-text-secondary">{label}</span>
+                    <Icon
+                      name={done ? "check_circle" : "radio_button_unchecked"}
+                      size={20}
+                      filled={done}
+                      className={done ? "text-status-success" : "text-text-tertiary"}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </DashboardCard>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            {stepIndex > 0 ? (
+              <Button variant="secondary" onClick={() => setStep(POLST_STEPS[stepIndex - 1])}>
+                Back
+              </Button>
+            ) : null}
+            {nextStep ? (
+              <Button onClick={() => setStep(nextStep)}>
+                Continue to {nextStep.toLowerCase()}
+                <Icon name="arrow_forward" size={18} />
+              </Button>
+            ) : (
+              <Button disabled={blockers.some(([label]) => label !== "Scheduled")}>
+                Publish Polst
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-4 self-start lg:sticky lg:top-5 lg:col-span-4">
-          <DashboardCard title="Status">
-            <DetailList
-              items={[
-                ["State", <StatusBadge key="s" status="Draft" />],
-                ["Schedule", "Not set"],
-                ["Event", "Optional"],
-              ]}
-            />
-          </DashboardCard>
-          <DashboardCard title="Launch readiness">
+        <div className="space-y-4 self-start lg:sticky lg:top-16 lg:col-span-4">
+          <DashboardCard title="Completeness">
             <ul className="space-y-3">
-              {(
-                [
-                  ["Question written", composer.question !== ""],
-                  ["Both options set", composer.optionsSet],
-                  ["Images added", composer.imagesSet],
-                  ["Scheduled", false],
-                ] as [string, boolean][]
-              ).map(([label, done]) => (
-                <li key={label} className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-text-secondary">{label}</span>
+              {checks.map(([label, done]) => (
+                <li key={label} className="flex items-center gap-2.5 text-sm">
                   <Icon
                     name={done ? "check_circle" : "radio_button_unchecked"}
                     size={20}
                     filled={done}
                     className={done ? "text-status-success" : "text-text-tertiary"}
                   />
+                  <span className={done ? "text-text-tertiary" : "text-text-primary"}>
+                    {label}
+                  </span>
                 </li>
               ))}
             </ul>

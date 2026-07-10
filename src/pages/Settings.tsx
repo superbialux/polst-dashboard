@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
+import { Menu, MenuItem } from "@/components/Menu";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import { Field, TextInput, Select } from "@/components/Field";
@@ -39,12 +40,54 @@ const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
   Viewer: "Read-only access to results and reports",
 };
 
+/** Access (what they can do) and title (what they are) are different
+ *  facts — they get separate columns and separate treatments. */
+function TeamRowActions({ member }: { member: TeamMember }) {
+  const toast = useToast();
+  return (
+    <Menu
+      label={`Actions for ${member.name}`}
+      trigger={({ toggle }) => (
+        <Button variant="secondary" size="sm" onClick={toggle}>
+          Actions
+          <Icon name="arrow_drop_down" size={18} />
+        </Button>
+      )}
+    >
+      <MenuItem
+        icon="manage_accounts"
+        label="Change access"
+        onClick={() => toast(`Access editing for ${member.name} isn't wired in this demo`)}
+      />
+      <MenuItem
+        icon="badge"
+        label="Edit title"
+        onClick={() => toast(`Title editing for ${member.name} isn't wired in this demo`)}
+      />
+      {member.role !== "Owner" ? (
+        <MenuItem
+          icon="person_remove"
+          label="Remove from workspace"
+          danger
+          onClick={() => toast("Removal needs a confirmation step — not wired in this demo")}
+        />
+      ) : (
+        <MenuItem
+          icon="swap_horiz"
+          label="Transfer ownership"
+          onClick={() => toast("Ownership transfer needs verification — not wired in this demo")}
+        />
+      )}
+    </Menu>
+  );
+}
+
 const teamColumns: Array<DataColumn<TeamMember>> = [
   {
     header: "Member",
     cell: (row) => (
       <div className="flex items-center gap-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-avatar-bg font-display text-xs font-bold text-text-inverse">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-avatar-bg font-display text-xs font-semibold text-text-inverse">
           {row.name.split(" ").map((w) => w[0]).join("")}
         </span>
         <div className="min-w-0">
@@ -55,16 +98,17 @@ const teamColumns: Array<DataColumn<TeamMember>> = [
     ),
   },
   {
-    header: "Role",
+    header: "Access",
     cell: (row) => (
-      <div className="flex items-center gap-2">
-        <span className="font-semibold text-text-primary">{row.role}</span>
-        {row.label ? (
-          <span className="rounded-pill bg-surface-subtle px-2 py-0.5 font-display text-xs font-semibold text-text-secondary">
-            {row.label}
-          </span>
-        ) : null}
-      </div>
+      <span className="font-semibold text-text-primary" title={ROLE_DESCRIPTIONS[row.role]}>
+        {row.role}
+      </span>
+    ),
+  },
+  {
+    header: "Title",
+    cell: (row) => (
+      <span className="text-text-secondary">{row.label ?? "—"}</span>
     ),
   },
   {
@@ -74,11 +118,7 @@ const teamColumns: Array<DataColumn<TeamMember>> = [
   {
     header: "",
     align: "right",
-    cell: () => (
-      <Button variant="secondary" size="sm">
-        Manage
-      </Button>
-    ),
+    cell: (row) => <TeamRowActions member={row} />,
   },
 ];
 
@@ -90,7 +130,7 @@ const inviteColumns: Array<DataColumn<PendingInvite>> = [
     ),
   },
   {
-    header: "Role",
+    header: "Access",
     cell: (row) => <span className="text-text-secondary">{row.role}</span>,
   },
   {
@@ -148,7 +188,7 @@ function InviteUserModal({ open, onClose }: { open: boolean; onClose: () => void
             />
           )}
         </Field>
-        <Field label="Role">
+        <Field label="Access">
           {(fieldId) => (
             <Select id={fieldId} defaultValue="Editor">
               {ROLES.map((role) => (
@@ -187,9 +227,10 @@ function BrandingCard() {
   return (
     <DashboardCard
       title="Embed appearance"
+      description="How your Polsts look when embedded on your own site."
       action={
-        <Button size="sm" onClick={() => toast("Branding saved")}>
-          Save
+        <Button size="sm" onClick={() => toast("Embed appearance saved")}>
+          Save changes
         </Button>
       }
     >
@@ -250,55 +291,114 @@ function BrandingCard() {
   );
 }
 
-/* ── Page ────────────────────────────────────────────────────────── */
+/* ── Sections ────────────────────────────────────────────────────── */
 
-export function SettingsPage() {
-  const [inviteOpen, setInviteOpen] = useState(false);
+const SETTINGS_SECTIONS = [
+  { key: "Workspace", icon: "storefront", blurb: "Brand profile and defaults" },
+  { key: "Embed appearance", icon: "palette", blurb: "How embedded Polsts look" },
+  { key: "Team & permissions", icon: "group", blurb: "Members, access, invitations" },
+  { key: "Modules & integrations", icon: "extension", blurb: "Optional analytics and connections" },
+  { key: "Plan & developer", icon: "credit_card", blurb: "Subscription and API access" },
+] as const;
+type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["key"];
+
+function WorkspaceSection() {
+  const toast = useToast();
   return (
-    <DashboardPage
-      title="Settings"
-    >
-      <SectionGrid>
-        <DashboardCard title="Brand profile" className="lg:col-span-7">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <LabeledField label="Brand name" value={WORKSPACE.brand} />
-            <LabeledField label="Website" value={WORKSPACE.domain} />
-            <LabeledField label="Industry" value={WORKSPACE.industry} />
-            <LabeledField label="Timezone" value={WORKSPACE.timezone} />
-            <LabeledField label="Default campaign duration" value="10 days" />
-            <div>
-              <p className="mb-1.5 text-sm font-semibold text-text-primary">Logo</p>
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-md bg-accent-default font-display text-sm font-bold text-text-on-accent">
-                  {WORKSPACE.initials}
-                </span>
-                <Button variant="secondary" size="sm">
-                  Upload logo
-                </Button>
-              </div>
+    <>
+      <DashboardCard
+        title="Brand profile"
+        action={
+          <Button size="sm" onClick={() => toast("Brand profile saved")}>
+            Save changes
+          </Button>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Brand name">
+            {(id) => <TextInput id={id} defaultValue={WORKSPACE.brand} />}
+          </Field>
+          <Field label="Website">
+            {(id) => <TextInput id={id} defaultValue={WORKSPACE.domain} />}
+          </Field>
+          <Field label="Industry">
+            {(id) => <TextInput id={id} defaultValue={WORKSPACE.industry} />}
+          </Field>
+          <Field label="Timezone">
+            {(id) => (
+              <Select id={id} defaultValue={WORKSPACE.timezone}>
+                <option>America/Chicago</option>
+                <option>America/New_York</option>
+                <option>America/Los_Angeles</option>
+                <option>Europe/London</option>
+              </Select>
+            )}
+          </Field>
+          <div>
+            <p className="mb-1.5 text-sm font-semibold text-text-primary">Logo</p>
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-md bg-accent-default font-display text-sm font-semibold text-text-on-accent">
+                {WORKSPACE.initials}
+              </span>
+              <Button variant="secondary" size="sm">
+                Upload logo
+              </Button>
             </div>
           </div>
-          <div className="mt-5 flex justify-end">
-            <Button size="sm">Save changes</Button>
-          </div>
-        </DashboardCard>
-
-        <DashboardCard title="Workspace preferences" className="lg:col-span-5">
-          <div className="space-y-5">
-            <LabeledField label="Default date range" value="Last 30 days" />
-            <LabeledField label="Report format" value="Executive summary" />
-            <LabeledField label="Visibility" value="Private workspace" />
-          </div>
-        </DashboardCard>
-      </SectionGrid>
-
-      <BrandingCard />
+        </div>
+      </DashboardCard>
 
       <DashboardCard
+        title="Workspace defaults"
+        action={
+          <Button size="sm" onClick={() => toast("Workspace defaults saved")}>
+            Save changes
+          </Button>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Default campaign duration">
+            {(id) => (
+              <Select id={id} defaultValue="10 days">
+                <option>7 days</option>
+                <option>10 days</option>
+                <option>14 days</option>
+                <option>30 days</option>
+              </Select>
+            )}
+          </Field>
+          <Field label="Default date range">
+            {(id) => (
+              <Select id={id} defaultValue="Last 30 days">
+                <option>Last 7 days</option>
+                <option>Last 30 days</option>
+                <option>Last 90 days</option>
+              </Select>
+            )}
+          </Field>
+          <Field label="Report format">
+            {(id) => (
+              <Select id={id} defaultValue="Executive summary">
+                <option>Executive summary</option>
+                <option>Full evidence</option>
+              </Select>
+            )}
+          </Field>
+        </div>
+      </DashboardCard>
+    </>
+  );
+}
+
+function TeamSection({ onInvite }: { onInvite: () => void }) {
+  return (
+    <>
+      <DashboardCard
         title="Team"
+        description="Access controls what a member can do; title is just who they are."
         padded={false}
         action={
-          <Button size="sm" onClick={() => setInviteOpen(true)}>
+          <Button size="sm" onClick={onInvite}>
             Invite user
           </Button>
         }
@@ -313,41 +413,115 @@ export function SettingsPage() {
           emptyLabel="No pending invitations"
         />
       </DashboardCard>
+    </>
+  );
+}
 
-      <SectionGrid>
-        <ModulesCard />
-        <DashboardCard title="Integrations" className="lg:col-span-7">
-          <div className="grid gap-3">
-            {INTEGRATIONS.map((integration) => (
-              <ConnectCard key={integration.id} integration={integration} />
-            ))}
-          </div>
-        </DashboardCard>
-      </SectionGrid>
-
-      <SectionGrid>
-        <div className="lg:col-span-6">
-          <LockedCard
-            title="Developer platform"
-            description="API keys, webhooks, and BI connectors — everything programmatic lives behind the Pro plan so the marketing workspace stays clean."
-            chip="Pro"
-            className="h-full"
-          />
+function ModulesSection() {
+  return (
+    <SectionGrid>
+      <ModulesCard />
+      <DashboardCard title="Integrations" className="lg:col-span-7">
+        <div className="grid gap-3">
+          {INTEGRATIONS.map((integration) => (
+            <ConnectCard key={integration.id} integration={integration} />
+          ))}
         </div>
-        <DashboardCard title="Billing" className="lg:col-span-6">
-          <div className="flex items-start gap-3 rounded-md border border-border-default bg-surface-subtle p-4">
-            <Icon name="credit_card" size={20} className="mt-0.5 shrink-0 text-icon-secondary" />
-            <div>
-              <p className="font-display text-sm font-bold text-text-primary">
-                Mock billing state
-              </p>
-              <p className="mt-1 text-sm leading-6 text-text-secondary">
-                Billing exists as a visual placeholder only — no payment logic,
-                invoices, or plan changes are connected in this mockup.
-              </p>
-            </div>
-          </div>
-        </DashboardCard>
+      </DashboardCard>
+    </SectionGrid>
+  );
+}
+
+function PlanSection() {
+  const toast = useToast();
+  return (
+    <SectionGrid>
+      <DashboardCard title="Plan" className="lg:col-span-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="font-display text-xl font-semibold text-text-primary">Growth</p>
+          <p className="text-sm text-text-secondary">
+            <span className="font-semibold tabular-nums text-text-primary">$79</span> / month
+          </p>
+        </div>
+        <ul className="mt-3 space-y-1.5 text-sm leading-5 text-text-secondary">
+          <li>Unlimited campaigns and Polsts</li>
+          <li>5 team seats — 3 in use</li>
+          <li>All distribution channels</li>
+        </ul>
+        <p className="mt-3 text-xs text-text-tertiary">Renews Jul 1, 2026 · Visa ending 4412</p>
+        <div className="mt-4 flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => toast("Plan management opens in the billing portal")}>
+            Manage plan
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => toast("Invoice history opens in the billing portal")}>
+            View invoices
+          </Button>
+        </div>
+      </DashboardCard>
+      <div className="lg:col-span-6">
+        <LockedCard
+          title="Developer platform"
+          description="API keys, webhooks, and BI connectors — everything programmatic lives behind the Pro plan so the marketing workspace stays clean."
+          chip="Pro"
+          className="h-full"
+        />
+      </div>
+    </SectionGrid>
+  );
+}
+
+/* ── Page ────────────────────────────────────────────────────────── */
+
+export function SettingsPage() {
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [section, setSection] = useState<SettingsSection>("Workspace");
+  return (
+    <DashboardPage title="Settings">
+      <SectionGrid>
+        {/* Local settings navigation — settings are a map, not one scroll. */}
+        <nav aria-label="Settings sections" className="self-start lg:sticky lg:top-16 lg:col-span-3">
+          <ul className="space-y-0.5">
+            {SETTINGS_SECTIONS.map((item) => (
+              <li key={item.key}>
+                <button
+                  type="button"
+                  onClick={() => setSection(item.key)}
+                  aria-current={section === item.key ? "page" : undefined}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors",
+                    section === item.key
+                      ? "bg-surface-raised shadow-sm ring-1 ring-border-default"
+                      : "hover:bg-surface-subtle",
+                  )}
+                >
+                  <Icon
+                    name={item.icon}
+                    size={20}
+                    className={section === item.key ? "text-icon-primary" : "text-icon-secondary"}
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-display text-sm font-semibold text-text-primary">
+                      {item.key}
+                    </span>
+                    <span className="block truncate text-xs text-text-secondary">
+                      {item.blurb}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="space-y-4 lg:col-span-9">
+          {section === "Workspace" ? <WorkspaceSection /> : null}
+          {section === "Embed appearance" ? <BrandingCard /> : null}
+          {section === "Team & permissions" ? (
+            <TeamSection onInvite={() => setInviteOpen(true)} />
+          ) : null}
+          {section === "Modules & integrations" ? <ModulesSection /> : null}
+          {section === "Plan & developer" ? <PlanSection /> : null}
+        </div>
       </SectionGrid>
 
       <InviteUserModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
@@ -384,18 +558,6 @@ function ModulesCard() {
         ))}
       </ul>
     </DashboardCard>
-  );
-}
-
-/** A read-only labeled field styled like an editable input well. */
-function LabeledField({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1.5 text-sm font-semibold text-text-primary">{label}</p>
-      <div className="flex h-10 items-center rounded-md border border-border-default bg-surface-raised px-3 text-sm text-text-primary">
-        {value}
-      </div>
-    </div>
   );
 }
 

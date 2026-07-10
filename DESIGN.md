@@ -352,16 +352,15 @@ analytics warehouse — every screen answers *what is next?* before *how much?*.
 
 ## The shell
 
-The app is a light frame with **one dark surface: the 48px top bar**
-(`topbar-*` tokens, our `neutral-900` — the Shopify-style black bar carrying
-the wordmark, search, and account controls in white). Below it, the sidebar
-sits on the **soft light frame** (`app-header`, a step darker than content)
-and each page renders as a **single rounded card floating inside** it — the
-only thing that scrolls (`html { overflow: clip }`, like Google Calendar /
-Klaviyo). The ladder reads: **black bar ▸ light frame ▸ content card ▸ white
-cards inside it**. Every page shares the one `max-w-dashboard` (1200px)
-container — no per-page widths — and lays out on the 12-column `SectionGrid`
-at 16px gutters.
+Three layers, no frames-inside-frames: the **48px black top bar** (`topbar-*`
+tokens, our `neutral-900`) is global and **sticky**; the **sidebar rail**
+(`app-header`, a step darker, split off by a hairline `border-r`) is
+persistent and sticky below it; and the **page itself is the working canvas**
+(`app-content`) — it owns the **document scroll**, with no surrounding card
+border and no nested scrollbar. The ladder reads: **black bar ▸ light rail ▸
+canvas ▸ white cards on it**. Every page shares the one `max-w-dashboard`
+(1200px) container — no per-page widths — and lays out on the 12-column
+`SectionGrid` at 16px gutters.
 
 - **Top row** — `h-12` (48px), transparent on the frame. The flanks are
   **equal-width** (`flex-1` each) so the centered search stays optically
@@ -377,23 +376,20 @@ at 16px gutters.
 - **Account switcher** — even parent padding (`p-1.5`) so every row (workspaces,
   the signed-in person, Log out) shares the same inset — nothing sits flush to
   the edge. Workspaces are `menuitem`s so focus opens on the current one.
-- **Sidebar** — `w-60` (240px), on the frame in **full page ink** (inactive
-  rows are not dimmed — the active cue is the pill + filled glyph, never a
-  colour change). Its nav is padded down by the card radius
-  (`pt-[var(--radius-card)]`) so the first row lines up with the card's straight
-  edge. The active item is a **raised pill** (`app-header-field` + `shadow-sm`)
-  that lifts off the frame; hover is a one-step-lighter wash (`app-content`).
-  Analytics' children indent
-  under the active parent. Statuses are **never** nav.
-  under the active parent. Icons stay **brand ink at all times** (never dimmed);
-  the active row alone **fills its glyph** (Material Symbols `FILL 1`) — so the
-  cue is fill + raised pill, not a colour change. Statuses are **never** nav.
-- **Content card** — `app-content`, `rounded-card`, a **1px `border-default`**,
-  an **even gap** from the frame (equal right/bottom inset), `overflow-y-auto`:
-  the only scroll container, so the frame stays put. Its scrollbar uses
-  `.scroll-subtle` — a thin pill thumb a step darker than the card
-  (`--scrollbar-thumb`, themed), no stepper arrows, inset by a transparent
-  border so it never crowds the content. Cards inside lift off it in white.
+- **Sidebar** — `w-60` (240px), sticky under the bar, on the rail in **full
+  page ink** (inactive rows are not dimmed — the active cue is the pill +
+  filled glyph, never a colour change). Nav rides in **groups**: the daily
+  work (Home, Campaigns, Polsts, Distribution), a labeled **Learn** band
+  (Analytics, Audience), and Settings pinned at the bottom — work, learning,
+  administration. The active item is a **raised pill** (`app-header-field` +
+  `shadow-sm`); hover is a one-step-lighter wash (`app-content`). Analytics'
+  children indent under the active parent. Icons stay **brand ink at all
+  times**; the active row alone **fills its glyph** (Material Symbols
+  `FILL 1`). Statuses are **never** nav.
+- **Canvas** — the page scrolls as a page (document scroll, no inner
+  scroller, no rounded border frame). White cards lift straight off the
+  `app-content` canvas. `body` matches the canvas so overscroll never
+  flashes.
 
 ## Control type
 
@@ -415,12 +411,9 @@ at 16px gutters.
 - **Two rhythms.** Major sections **stack at 24px** (`space-y-6`); everything
   *inside* a card holds the consumer app's **16px** inset and 8–12px nested
   gaps. Page padding is 24px desktop (`lg:px-6 py-5`), 16px below `lg`.
-- **Two containers, and only two.** A section is either **narrow**
-  (`max-w-content`, 1024px, centered — the reading width for cards and forms)
-  or **full width** (`max-w-full` — orientation bars, tables, the calendar).
-  Pages pick one via `DashboardPage`'s `wide` flag — Home and forms read in the
-  narrow column; list, analytics, and distribution pages go full width for their
-  tables. Any view on a third width is a bug to normalize.
+- **One container.** Every page — Home, tables, editors, analytics — caps at
+  the same `max-w-dashboard` (1200px) centered column via `DashboardPage`.
+  Any view on a second width is a bug to normalize.
 
 ## Surfaces & depth (dashboard)
 
@@ -437,8 +430,12 @@ Same four-tier elevation, same "borders carry separation, shadows whisper":
 
 ## Status is a tone, never a decoration
 
-Object state maps onto the existing status + accent slots — and inherits the
-consumer rule that **a neutral outcome is neutral, not danger**:
+State speaks in **two separate families with two separate grammars**, so a
+lifecycle fact can never be misread as a verdict:
+
+**Lifecycle** (`StatusBadge` — soft pill + dot) says where an object sits in
+its workflow. It maps onto the status + accent slots and inherits the consumer
+rule that **a neutral outcome is neutral, not danger**:
 
 - **Success ink** (`status-success` on `-soft`) — *Active, Ready, Completed,
   Assigned*: healthy, live, or a call that can be made.
@@ -446,11 +443,20 @@ consumer rule that **a neutral outcome is neutral, not danger**:
   Violet because it is the interactive, "you can act on this" state.
 - **Danger ink** (`status-danger` on `-soft`) — *Needs attention*: a real gap
   that blocks a launch or a decision. Never for "losing" or "low".
+- **Warning ink** (`status-warning` on `-soft`) — eroding, not broken: a
+  source losing voters, a caveat on a read. Amber ink (`--color-yellow-ink`),
+  AA-dark on white.
 - **Neutral** (`surface-subtle`/`text-secondary`) — *Draft, Archived,
   Unassigned, All*: parked, not wrong.
 
-`StatusBadge` owns this mapping in one place; pages pass a status string and get
-the right tone for free.
+**Decision signal** (`SignalBadge` — icon + ink, **no pill fill**) says
+whether the *evidence* can be trusted yet: *Decisive, Leading, Directional,
+Too close, Inconclusive, Collecting, Not started* (`DecisionSignal` in
+`workspace.ts`). Campaign tables carry **both** columns — Status and Signal —
+never one string mixing the two.
+
+`StatusBadge` and `SignalBadge` own their mappings in one place; pages pass a
+string and get the right treatment for free.
 
 ## The dashboard component kit
 
@@ -458,8 +464,24 @@ Every screen is composed from this fixed set — extend by **prop**, never by
 fork. New surface area should feel assembled, not authored:
 
 - **`DashboardShell`** — the frame above. **`DashboardPage`** — the page header
-  (eyebrow, title, description, actions) + centered column; `wide` opts into
-  1240px.
+  (eyebrow, title, description, actions) + the one centered 1200px column.
+  Pass `updated` ("2 min ago") and every page states its data recency next to
+  the title — numbers without a freshness stamp are rumors.
+- **`DecisionBrief`** — the **Decision Narrative** as one reusable object:
+  `SignalBadge` + updated stamp → a 20px headline (the call) → what changed
+  and why → an amber **caveat** line → an **evidence strip** (label/value
+  pairs, each with an optional `InfoHint` definition) → one primary action.
+  Anywhere a result is summarized — Home's briefing, the campaign overview —
+  this pattern speaks first and charts sit under it as supporting evidence.
+- **`SignalBadge`** — the decision-signal vocabulary (see "Status is a tone").
+  **`InfoHint`** — a hoverable ⓘ that reveals a metric's definition (formula +
+  denominator); the inspectable data contract behind every number.
+- **`FlowSteps`** — the staged-workflow progress header (numbered chips,
+  active raised, finished checked and clickable). Create Campaign runs
+  **Decision → Polsts → Channels → Review**; Create Polst runs **Content →
+  Schedule & sources → Review**. One dominant **Continue to {next}** action
+  per step; dates land at Review. **`SavedChip`** — the quiet "Draft saved"
+  line; saving is the system's job and never gets a primary button.
 - **`DashboardCard`** — section container (optional header row with title,
   description, action). The atom every panel sits in. **No header rule** — the
   title sits flush above the body; cards read flat.
@@ -504,12 +526,13 @@ fork. New surface area should feel assembled, not authored:
   shows its copy, CTA and a full-bleed 3:4 image; the rest are one line each.
   Every **bullet keeps the same x-position** open or closed, so expanding never
   shifts the checkboxes. Full width. Steps are `SetupStep[]`.
-- **`CampaignRow` / `PolstMiniRow`** — the Home "Campaigns" and "Polsts" list
-  rows. `CampaignRow`: name, status, **run dates**, completion rate, and the
-  **active · started · completed** Polst breakdown (no progress bar).
-  `PolstMiniRow`: the **mini-poll anatomy** (split image thumb + OR disc,
-  question, status, and the current split). Both cards filter by **Active /
-  Queued** (`SegmentedControl`) and **scroll** (capped at 20 rows).
+- **`CampaignRow` / `PolstMiniRow`** — the Home "Campaigns" and "Recent
+  Polsts" list rows. `CampaignRow`: name, status, **run dates**, and metrics
+  that say what they measure — "71% **completion rate** · 2 of 2 **Polsts
+  live** · 0 finished", never a bare "71% complete". `PolstMiniRow`: the
+  **mini-poll anatomy** (split image thumb + OR disc, question, status, and
+  the current split). Campaigns take the wide column (col-8); Polsts support
+  (col-4). Both filter by **Active / Queued** (`SegmentedControl`).
 - **`ProgressRing`** — a small completion ring on setup cards; **hover reveals
   the remaining steps** (checked/unchecked list, "N steps left").
 - **`WorkspaceCalendar`** — Home's month grid, **always six weeks (42 cells)**:
@@ -554,8 +577,12 @@ fork. New surface area should feel assembled, not authored:
   Schedule, Shareable assets, Launch readiness).
 - **Overlays** — reuse the consumer **Modal**, **Drawer**, **Menu**; the
   Assign-Sources dialog and select-from-library picker are lists inside a
-  `Modal`; the **⌘K workspace search** is a `Modal` with entity filter chips
-  over one static index of campaigns, Polsts, and sources.
+  `Modal`. The **⌘K workspace search** is a **command palette**: the same
+  `Modal` with `placement="top"` + `bare` (no close chrome — Esc and the
+  backdrop dismiss), an input that owns the top edge, entity filter chips,
+  **arrow-key selection + Enter to open**, highlighted query matches, a
+  labeled **Recent** list when the query is empty (never unlabeled default
+  results), and a "View all results" tail row.
 - **`TrendChart`** — the one line chart (extracted from the stat strip):
   smooth accent line, soft area fill, dashed previous period, left y-axis,
   hover crosshair with a pinned value chip. Takes a `format` for units
@@ -591,6 +618,13 @@ fork. New surface area should feel assembled, not authored:
   `formatNumber`; keep both themes correct by staying on semantic tokens.
 - Lead with the next action. Stats orient, the calendar plans, cards tell the
   user what to do — analytics lives under Analytics, never on Home.
+- Honor the **metric contract**: every number states its exact window, its
+  comparison window, and its scope (`StatsStrip scope`, `InfoHint`
+  definitions, `updated` stamps), and the same metric reconciles across Home,
+  Analytics, and campaign pages. A delta without a stated baseline is
+  decoration.
+- Separate lifecycle from decision signal — `StatusBadge` and `SignalBadge`
+  are different questions, different components, different columns.
 
 **Don't**
 

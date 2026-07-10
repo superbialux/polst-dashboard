@@ -11,6 +11,12 @@ type ModalProps = {
   title?: string;
   /** Below lg the panel fills the screen (creation flows); centered card otherwise. */
   sheetOnMobile?: boolean;
+  /** "top" anchors the panel near the top of the viewport — command
+   *  palettes and search, where the eye starts at the top bar. */
+  placement?: "center" | "top";
+  /** Drop the built-in header/close chrome; the dialog supplies its own
+   *  affordances (Escape and the backdrop still close it). */
+  bare?: boolean;
   /** Pinned action row rendered outside the scroll area. */
   footer?: ReactNode;
   className?: string;
@@ -45,6 +51,8 @@ export function Modal({
   label,
   title,
   sheetOnMobile = false,
+  placement = "center",
+  bare = false,
   footer,
   className,
   children,
@@ -61,7 +69,13 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     returnFocusRef.current = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
+    if (closeRef.current) {
+      closeRef.current.focus();
+    } else {
+      panelRef.current
+        ?.querySelector<HTMLElement>("input, select, textarea, button")
+        ?.focus();
+    }
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -80,9 +94,11 @@ export function Modal({
       ref={rootRef}
       aria-hidden={!open}
       className={cn(
-        "fixed inset-0 z-50 grid place-items-center transition-opacity duration-200",
+        "fixed inset-0 z-50 transition-opacity duration-200",
         open ? "opacity-100" : "pointer-events-none opacity-0",
-        sheetOnMobile ? "p-0 lg:p-4" : "p-4",
+        placement === "top"
+          ? "flex items-start justify-center px-4 pb-4 pt-[10vh]"
+          : cn("grid place-items-center", sheetOnMobile ? "p-0 lg:p-4" : "p-4"),
       )}
     >
       <button
@@ -105,28 +121,30 @@ export function Modal({
           className,
         )}
       >
-        <div
-          className={cn(
-            "flex shrink-0 items-center px-4",
-            title
-              ? "justify-between border-b border-border-default py-2.5"
-              : "justify-end pt-3",
-          )}
-        >
-          {title && (
-            <h2 className="font-display text-base font-bold leading-6 text-text-primary">
-              {title}
-            </h2>
-          )}
-          <button
-            ref={closeRef}
-            onClick={onClose}
-            aria-label="Close"
-            className="-mr-1.5 grid h-10 w-10 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle"
+        {!bare ? (
+          <div
+            className={cn(
+              "flex shrink-0 items-center px-4",
+              title
+                ? "justify-between border-b border-border-default py-2.5"
+                : "justify-end pt-3",
+            )}
           >
-            <Icon name="close" size={22} />
-          </button>
-        </div>
+            {title && (
+              <h2 className="font-display text-base font-bold leading-6 text-text-primary">
+                {title}
+              </h2>
+            )}
+            <button
+              ref={closeRef}
+              onClick={onClose}
+              aria-label="Close"
+              className="-mr-1.5 grid h-10 w-10 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle"
+            >
+              <Icon name="close" size={22} />
+            </button>
+          </div>
+        ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
 

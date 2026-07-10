@@ -11,15 +11,18 @@ import {
   DashboardCard,
   DashboardPage,
   DataTable,
+  DecisionBrief,
   DetailList,
+  FlowSteps,
   Funnel,
   PollResults,
   PageTabs,
   PollThumb,
-  ProgressBar,
+  SavedChip,
   SearchAndFilters,
   SectionGrid,
   SegmentedControl,
+  SignalBadge,
   SnippetCard,
   StatTile,
   StatusBadge,
@@ -77,11 +80,22 @@ const columns: Array<DataColumn<Campaign>> = [
   {
     header: "Responses",
     align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
+    cell: (row) => (
+      <span className="tabular-nums">
+        {row.responses > 0
+          ? `${formatNumber(row.responses)} / ${formatNumber(row.target)}`
+          : "—"}
+      </span>
+    ),
   },
   {
-    header: "Readiness",
-    cell: (row) => <span className="text-text-secondary">{row.readiness}</span>,
+    header: "Signal",
+    cell: (row) => (
+      <SignalBadge
+        signal={row.signal}
+        detail={row.winner !== "—" ? row.winner : undefined}
+      />
+    ),
   },
   {
     header: "",
@@ -153,7 +167,6 @@ export function CampaignDetailPage() {
   const campaign = CAMPAIGNS.find((c) => c.id === id) ?? CAMPAIGNS[0];
   const detail = CAMPAIGN_DETAILS[campaign.id];
   const { active, setActive } = useTabs(DETAIL_TABS);
-  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <DashboardPage
@@ -164,28 +177,24 @@ export function CampaignDetailPage() {
       }
       title={campaign.name}
       description={campaign.decision}
+      updated="2 min ago"
       actions={
-        <>
-          <Button variant="secondary" onClick={() => setShareOpen(true)}>
-            Share / Embed
-          </Button>
-          <Button onClick={() => setActive(campaign.responses > 0 ? "Insights" : "Distribution")}>
-            {campaign.nextAction}
-          </Button>
-        </>
+        <Button onClick={() => setActive(campaign.responses > 0 ? "Insights" : "Distribution")}>
+          {campaign.nextAction}
+        </Button>
       }
     >
       <PageTabs tabs={DETAIL_TABS} active={active} onChange={setActive} />
 
-      {active === "Overview" ? <CampaignOverview campaign={campaign} detail={detail} /> : null}
+      {active === "Overview" ? (
+        <CampaignOverview campaign={campaign} detail={detail} onGoTo={setActive} />
+      ) : null}
       {active === "Polsts" ? <CampaignPolsts detail={detail} /> : null}
       {active === "Distribution" ? <CampaignDistribution /> : null}
       {active === "Influencers" ? <CampaignInfluencers campaign={campaign} /> : null}
       {active === "Insights" ? <CampaignInsights campaign={campaign} detail={detail} /> : null}
       {active === "Report" ? <CampaignReport campaign={campaign} detail={detail} /> : null}
       {active === "Settings" ? <CampaignSettings campaign={campaign} /> : null}
-
-      <ShareEmbedModal open={shareOpen} onClose={() => setShareOpen(false)} />
     </DashboardPage>
   );
 }
@@ -193,51 +202,77 @@ export function CampaignDetailPage() {
 function CampaignOverview({
   campaign,
   detail,
+  onGoTo,
 }: {
   campaign: Campaign;
   detail: CampaignDetail;
+  onGoTo: (tab: (typeof DETAIL_TABS)[number]) => void;
 }) {
   const hasSignal = campaign.responses > 0;
-  const completionValue = Number(campaign.completion.replace("%", "")) || 0;
   const [funnelSource, setFunnelSource] = useState<FunnelSource>("All sources");
   const allSteps = funnelSteps(detail);
   const steps = allSteps.map((step, i) => ({
     ...step,
     count: funnelForSource(allSteps.map((s) => s.count), funnelSource)[i],
   }));
+  // The remedy line under the funnel names the worst step and where to look.
+  let dropIndex = -1;
+  let dropLoss = 0;
+  steps.forEach((step, i) => {
+    if (i === 0) return;
+    const loss = steps[i - 1].count - step.count;
+    if (loss > dropLoss) {
+      dropLoss = loss;
+      dropIndex = i;
+    }
+  });
+  const dropStep = dropIndex > 0 ? steps[dropIndex] : null;
+  const headline = !hasSignal
+    ? "No signal yet — nothing is collecting responses"
+    : campaign.signal === "Too close"
+      ? `Too close to call — ${campaign.winner}`
+      : `Recommended: ${campaign.winner}`;
   return (
     <>
-      <SectionGrid>
-        <DashboardCard title="Decision summary" className="lg:col-span-7">
-          <div className="space-y-4">
-            <StatusBadge status={campaign.status} />
-            <h3 className="font-display text-xl font-bold text-text-primary">
-              {hasSignal ? `Recommended: ${campaign.winner}` : "No signal yet"}
-            </h3>
-            <p className="text-sm leading-6 text-text-secondary">{detail.summary}</p>
-            {hasSignal ? (
-              <ProgressBar
-                value={completionValue}
-                label="Completion rate"
-                caption={campaign.completion}
-              />
-            ) : null}
-          </div>
-        </DashboardCard>
-
-        <DashboardCard title="Campaign health" className="lg:col-span-5">
-          <DetailList
-            items={[
-              ["Status", <StatusBadge key="s" status={campaign.status} />],
-              ["Dates", campaign.dates],
-              ["Event", campaign.event],
-              ["Polsts", String(campaign.polsts)],
-              ["Responses", formatNumber(campaign.responses)],
-              ["Top source", campaign.topSource],
-            ]}
-          />
-        </DashboardCard>
-      </SectionGrid>
+      <DecisionBrief
+        signal={campaign.signal}
+        signalDetail={hasSignal ? `${formatNumber(campaign.responses)} responses` : undefined}
+        headline={headline}
+        summary={detail.summary}
+        caveat={detail.caveats[0]}
+        evidence={
+          hasSignal
+            ? [
+                {
+                  label: "Responses vs target",
+                  value: `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
+                  info: "Completed votes on this campaign's Polsts, against the response target set at launch.",
+                },
+                {
+                  label: "Completion",
+                  value: campaign.completion,
+                  info: "Voters who finished every question ÷ voters who started the sequence.",
+                },
+                { label: "Top source", value: campaign.topSource },
+                { label: "Runs", value: campaign.dates },
+              ]
+            : [
+                { label: "Launches", value: campaign.dates },
+                { label: "Polsts ready", value: String(campaign.polsts) },
+                { label: "Sources assigned", value: "0" },
+              ]
+        }
+        updated="2 min ago"
+        primary={{
+          label: campaign.nextAction,
+          onClick: () => onGoTo(hasSignal ? "Insights" : "Distribution"),
+        }}
+        secondary={
+          hasSignal
+            ? { label: "See the evidence", onClick: () => onGoTo("Insights") }
+            : undefined
+        }
+      />
 
       <SectionGrid>
         <DashboardCard
@@ -254,7 +289,21 @@ function CampaignOverview({
           }
         >
           {hasSignal ? (
-            <Funnel steps={steps} />
+            <>
+              <Funnel steps={steps} />
+              {dropStep ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-default pt-3">
+                  <p className="min-w-0 text-sm leading-5 text-text-secondary">
+                    Most voters leave at “{dropStep.label}.” Switch the source filter
+                    above — if one source drives the drop, fix the source, not the
+                    question.
+                  </p>
+                  <Button variant="secondary" size="sm" onClick={() => onGoTo("Distribution")}>
+                    Compare sources
+                  </Button>
+                </div>
+              ) : null}
+            </>
           ) : (
             <p className="py-6 text-center text-sm text-text-tertiary">
               The journey appears once the campaign starts collecting responses.
@@ -262,11 +311,16 @@ function CampaignOverview({
           )}
         </DashboardCard>
         <div className="space-y-4 lg:col-span-5">
-          <DashboardCard title="Next action">
-            <p className="text-sm leading-6 text-text-secondary">{detail.nextStep}</p>
-            <Button className="mt-4" size="sm">
-              {campaign.nextAction}
-            </Button>
+          <DashboardCard title="Campaign health">
+            <DetailList
+              items={[
+                ["Status", <StatusBadge key="s" status={campaign.status} />],
+                ["Dates", campaign.dates],
+                ["Event", campaign.event],
+                ["Polsts", String(campaign.polsts)],
+                ["Top source", campaign.topSource],
+              ]}
+            />
           </DashboardCard>
           <DashboardCard title="Source snapshot" padded={false}>
             <DataTable
@@ -449,15 +503,21 @@ function SelectFromLibraryModal({
 /* ── Distribution tab ────────────────────────────────────────────── */
 
 function CampaignDistribution() {
+  const [shareOpen, setShareOpen] = useState(false);
   return (
     <>
       <DashboardCard
         title="Campaign sources"
         padded={false}
         action={
-          <Button variant="secondary" size="sm" asChild>
-            <Link to="/distribution">Assign sources</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setShareOpen(true)}>
+              Share / Embed
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
+              <Link to="/distribution">Assign sources</Link>
+            </Button>
+          </div>
         }
       >
         <DataTable rows={DISTRIBUTION_SOURCES.slice(0, 4)} columns={sourceColumns} />
@@ -478,6 +538,7 @@ function CampaignDistribution() {
           />
         </div>
       </SectionGrid>
+      <ShareEmbedModal open={shareOpen} onClose={() => setShareOpen(false)} />
     </>
   );
 }
@@ -511,8 +572,11 @@ function CampaignInsights({
           <DetailList
             items={[
               ["Winning direction", campaign.winner],
-              ["Confidence", campaign.readiness],
-              ["Responses", formatNumber(campaign.responses)],
+              ["Signal", <SignalBadge key="sig" signal={campaign.signal} />],
+              [
+                "Responses vs target",
+                `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
+              ],
               ["Completion", campaign.completion],
             ]}
           />
@@ -624,10 +688,13 @@ function CampaignReport({
           <div className="mt-2">
             <DetailList
               items={[
-                ["Responses", formatNumber(campaign.responses)],
+                [
+                  "Responses vs target",
+                  `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
+                ],
                 ["Completion", campaign.completion],
                 ["Winning direction", campaign.winner],
-                ["Confidence", campaign.readiness],
+                ["Signal", campaign.signal],
                 ["Top source", campaign.topSource],
               ]}
             />
@@ -803,38 +870,26 @@ function ShareEmbedModal({ open, onClose }: { open: boolean; onClose: () => void
   );
 }
 
-/* ── Create campaign (guided setup + right rail) ─────────────────── */
+/* ── Create campaign (staged flow) ───────────────────────────────── */
 
-/** One numbered step card in the create flow. */
-function StepCard({
-  step,
-  title,
-  body,
-  children,
-}: {
-  step: string;
-  title: string;
-  body: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <DashboardCard>
-      <div className="flex gap-4">
-        <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-accent-soft font-display text-xs font-bold text-accent-default">
-          {step}
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-display text-lg font-bold text-text-primary">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-text-secondary">{body}</p>
-          <div className="mt-4">{children}</div>
-        </div>
-      </div>
-    </DashboardCard>
-  );
-}
+const CREATE_STEPS = ["Decision", "Polsts", "Channels", "Review"] as const;
+type CreateStep = (typeof CREATE_STEPS)[number];
+
+/** Launch checks shared by the Review step and the completeness rail. */
+const LAUNCH_CHECKS = [
+  ["Decision question written", true],
+  ["At least one Polst added", true],
+  ["A channel source selected", true],
+  ["Run dates set", false],
+] as const;
 
 export function CreateCampaignPage() {
   const toast = useToast();
+  const [step, setStep] = useState<CreateStep>("Decision");
+  const stepIndex = CREATE_STEPS.indexOf(step);
+  const nextStep = CREATE_STEPS[stepIndex + 1];
+  const blockers = LAUNCH_CHECKS.filter(([, done]) => !done);
+
   return (
     <DashboardPage
       eyebrow={
@@ -848,161 +903,198 @@ export function CreateCampaignPage() {
       title="Create campaign"
       actions={
         <>
+          <SavedChip />
           <Button variant="secondary" asChild>
             <Link to="/campaigns">Discard</Link>
           </Button>
-          <Button onClick={() => toast("Draft saved")}>Save draft</Button>
         </>
       }
     >
+      <FlowSteps steps={CREATE_STEPS} active={step} onChange={setStep} />
+
       <SectionGrid>
         <div className="space-y-4 lg:col-span-8">
-          <StepCard
-            step="1"
-            title="Decision"
-            body="Name the campaign and define the decision this test should settle."
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Campaign name">
-                {(fieldId) => (
-                  <TextInput id={fieldId} placeholder="Game Day Creative Test" />
-                )}
-              </Field>
-              <Field label="Linked event" helper={<span className="text-xs text-text-tertiary">Optional — puts the campaign on your calendar.</span>}>
-                {(fieldId) => (
-                  <Select id={fieldId} defaultValue="None">
-                    <option>None</option>
-                    {KEY_DATES.map((date) => (
-                      <option key={date.id}>{date.title}</option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Decision question">
+          {step === "Decision" ? (
+            <DashboardCard
+              title="Decision"
+              description="Name the campaign and define the decision this test should settle. Dates come at review."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Campaign name">
                   {(fieldId) => (
-                    <TextInput
-                      id={fieldId}
-                      placeholder="Which creative should we run for the World Cup?"
-                    />
+                    <TextInput id={fieldId} placeholder="Game Day Creative Test" />
                   )}
                 </Field>
-              </div>
-              <Field label="Start date">
-                {(fieldId) => <TextInput id={fieldId} type="date" icon="calendar_today" />}
-              </Field>
-              <Field label="End date">
-                {(fieldId) => <TextInput id={fieldId} type="date" icon="event" />}
-              </Field>
-            </div>
-          </StepCard>
-
-          <StepCard
-            step="2"
-            title="Build"
-            body="Add one or more Polsts. Voters see them in the order you set."
-          >
-            <div className="space-y-4">
-              <PollComposer categories={TOP_INTERESTS.map((t) => t.label)} />
-              <Button variant="secondary" size="sm">
-                <Icon name="add" size={18} />
-                Add another Polst
-              </Button>
-            </div>
-          </StepCard>
-
-          <StepCard
-            step="3"
-            title="Distribution"
-            body="Attach at least one source so every response is attributed from day one."
-          >
-            <div className="space-y-1">
-              {DISTRIBUTION_SOURCES.slice(0, 4).map((source) => (
-                <label
-                  key={source.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
+                <Field
+                  label="Linked event"
+                  helper={
+                    <span className="text-xs text-text-tertiary">
+                      Optional — puts the campaign on your calendar.
+                    </span>
+                  }
                 >
-                  <input
-                    type="checkbox"
-                    defaultChecked={source.id === "website-embed"}
-                    className="h-4 w-4 shrink-0 rounded-sm border-border-strong accent-accent-default"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-sm font-bold text-text-primary">
-                      {source.name}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-text-secondary">
-                      {source.channel} · {source.type}
-                    </p>
-                  </div>
-                  <StatusBadge status={source.status} />
-                </label>
-              ))}
-              <div className="pt-2">
-                <Button variant="secondary" size="sm" asChild>
-                  <Link to="/distribution">Create a new source</Link>
-                </Button>
+                  {(fieldId) => (
+                    <Select id={fieldId} defaultValue="None">
+                      <option>None</option>
+                      {KEY_DATES.map((date) => (
+                        <option key={date.id}>{date.title}</option>
+                      ))}
+                    </Select>
+                  )}
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Decision question">
+                    {(fieldId) => (
+                      <TextInput
+                        id={fieldId}
+                        placeholder="Which creative should we run for the World Cup?"
+                      />
+                    )}
+                  </Field>
+                </div>
               </div>
-            </div>
-          </StepCard>
+            </DashboardCard>
+          ) : null}
 
-          <StepCard
-            step="4"
-            title="Review"
-            body="Confirm launch readiness. Launch stays disabled until every check passes."
-          >
+          {step === "Polsts" ? (
+            <DashboardCard
+              title="Polsts"
+              description="Add one or more Polsts. Voters see them in the order you set."
+            >
+              <div className="space-y-4">
+                <PollComposer categories={TOP_INTERESTS.map((t) => t.label)} />
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm">
+                    <Icon name="add" size={18} />
+                    Add another Polst
+                  </Button>
+                  <Button variant="secondary" size="sm">
+                    <Icon name="library_add" size={18} />
+                    Add from your library
+                  </Button>
+                </div>
+              </div>
+            </DashboardCard>
+          ) : null}
+
+          {step === "Channels" ? (
+            <DashboardCard
+              title="Channels"
+              description="Attach at least one tracked source so every response is attributed from day one."
+            >
+              <div className="space-y-1">
+                {DISTRIBUTION_SOURCES.slice(0, 4).map((source) => (
+                  <label
+                    key={source.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
+                  >
+                    <input
+                      type="checkbox"
+                      defaultChecked={source.id === "website-embed"}
+                      className="h-4 w-4 shrink-0 rounded-sm border-border-strong accent-accent-default"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-display text-sm font-semibold text-text-primary">
+                        {source.name}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-text-secondary">
+                        {source.channel} · {source.type}
+                      </p>
+                    </div>
+                    <StatusBadge status={source.status} />
+                  </label>
+                ))}
+                <div className="pt-2">
+                  <Button variant="secondary" size="sm" asChild>
+                    <Link to="/distribution">Create a new source</Link>
+                  </Button>
+                </div>
+              </div>
+            </DashboardCard>
+          ) : null}
+
+          {step === "Review" ? (
+            <DashboardCard
+              title="Review and launch"
+              description="Set the run dates, confirm the checks, and launch. Launch stays disabled until every check passes."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Start date">
+                  {(fieldId) => <TextInput id={fieldId} type="date" icon="calendar_today" />}
+                </Field>
+                <Field label="End date">
+                  {(fieldId) => <TextInput id={fieldId} type="date" icon="event" />}
+                </Field>
+              </div>
+              <ul className="mt-5 space-y-3 border-t border-border-default pt-4">
+                {LAUNCH_CHECKS.map(([label, done]) => (
+                  <li key={label} className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-text-secondary">{label}</span>
+                    <Icon
+                      name={done ? "check_circle" : "radio_button_unchecked"}
+                      size={20}
+                      filled={done}
+                      className={done ? "text-status-success" : "text-text-tertiary"}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </DashboardCard>
+          ) : null}
+
+          {/* One dominant next action per step */}
+          <div className="flex items-center gap-2">
+            {stepIndex > 0 ? (
+              <Button variant="secondary" onClick={() => setStep(CREATE_STEPS[stepIndex - 1])}>
+                Back
+              </Button>
+            ) : null}
+            {nextStep ? (
+              <Button onClick={() => setStep(nextStep)}>
+                Continue to {nextStep}
+                <Icon name="arrow_forward" size={18} />
+              </Button>
+            ) : (
+              <Button
+                disabled={blockers.length > 0}
+                title={blockers.length ? `Blocked: ${blockers.map(([l]) => l).join(", ")}` : undefined}
+              >
+                Launch campaign
+              </Button>
+            )}
+            {!nextStep && blockers.length ? (
+              <span className="text-sm text-text-secondary">
+                {blockers.map(([label]) => label).join(" · ")}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {/* The rail shows only what still blocks launch — no dead inventory. */}
+        <div className="space-y-4 self-start lg:sticky lg:top-16 lg:col-span-4">
+          <DashboardCard title="Completeness">
             <ul className="space-y-3">
-              {(
-                [
-                  ["Decision question written", true],
-                  ["At least one Polst added", true],
-                  ["Distribution selected", true],
-                  ["Run dates set", false],
-                ] as const
-              ).map(([label, done]) => (
-                <li key={label} className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-text-secondary">{label}</span>
+              {LAUNCH_CHECKS.map(([label, done]) => (
+                <li key={label} className="flex items-center gap-2.5 text-sm">
                   <Icon
                     name={done ? "check_circle" : "radio_button_unchecked"}
                     size={20}
                     filled={done}
                     className={done ? "text-status-success" : "text-text-tertiary"}
                   />
+                  <span className={done ? "text-text-tertiary" : "text-text-primary"}>
+                    {label}
+                  </span>
                 </li>
               ))}
             </ul>
-            <Button className="mt-4" disabled>
-              Launch campaign
-            </Button>
-          </StepCard>
-        </div>
-
-        <div className="space-y-4 self-start lg:sticky lg:top-5 lg:col-span-4">
-          <DashboardCard title="Status">
-            <DetailList
-              items={[
-                ["State", <StatusBadge key="s" status="Draft" />],
-                ["Start date", "Not set"],
-                ["End date", "Not set"],
-                ["Event", "Optional"],
-              ]}
-            />
-          </DashboardCard>
-          <DashboardCard title="Shareable assets">
-            <DetailList
-              items={[
-                ["Share link", "Created at launch"],
-                ["QR codes", "0"],
-                ["Embed", "Not created"],
-                ["Assigned sources", "1"],
-              ]}
-            />
-          </DashboardCard>
-          <DashboardCard title="What happens next">
-            <p className="text-sm leading-6 text-text-secondary">
-              You'll land on the campaign page where you can reorder Polsts,
-              attach more sources, and publish when you're ready.
-            </p>
+            {blockers.length ? (
+              <p className="mt-4 border-t border-border-default pt-3 text-sm leading-5 text-text-secondary">
+                {blockers.length === 1
+                  ? "One step left before this campaign can launch."
+                  : `${blockers.length} steps left before this campaign can launch.`}
+              </p>
+            ) : null}
           </DashboardCard>
         </div>
       </SectionGrid>

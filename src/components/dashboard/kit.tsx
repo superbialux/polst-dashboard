@@ -13,6 +13,7 @@ import {
   polstOptions,
   type Campaign,
   type Cohort,
+  type DecisionSignal,
   type Integration,
   type SinglePolst,
   type Split,
@@ -32,6 +33,9 @@ type PageProps = {
   eyebrow?: ReactNode;
   title: string;
   description?: string;
+  /** Data recency, e.g. "2 min ago" — rendered as a quiet refresh line so
+   *  every page states how fresh its numbers are. */
+  updated?: string;
   actions?: ReactNode;
   children: ReactNode;
 };
@@ -43,6 +47,7 @@ export function DashboardPage({
   eyebrow,
   title,
   description,
+  updated,
   actions,
   children,
 }: PageProps) {
@@ -56,9 +61,17 @@ export function DashboardPage({
                 {eyebrow}
               </div>
             ) : null}
-            <h1 className="text-balance font-display text-2xl font-bold leading-8 text-text-primary">
-              {title}
-            </h1>
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h1 className="text-balance font-display text-2xl font-semibold leading-8 text-text-primary">
+                {title}
+              </h1>
+              {updated ? (
+                <span className="flex items-center gap-1 text-xs text-text-tertiary">
+                  <Icon name="sync" size={14} />
+                  Updated {updated}
+                </span>
+              ) : null}
+            </div>
             {description ? (
               <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">
                 {description}
@@ -184,6 +197,154 @@ export function StatusBadge({ status }: { status: Status | string }) {
       <span className="h-1.5 w-1.5 rounded-pill bg-current" aria-hidden />
       {status}
     </span>
+  );
+}
+
+/* ── Decision signal ─────────────────────────────────────────────── */
+
+/** The decision-signal vocabulary — how sure the evidence is, which is a
+ *  different question from where the object sits in its lifecycle. Signals
+ *  render as icon + ink (no pill fill) so the two families never blur.
+ *  The union itself lives in workspace.ts with the campaign data. */
+export type { DecisionSignal } from "@/lib/workspace";
+
+const SIGNAL_META: Record<DecisionSignal, { icon: string; className: string }> = {
+  Decisive: { icon: "verified", className: "text-status-success" },
+  Leading: { icon: "trending_up", className: "text-status-success" },
+  Directional: { icon: "trending_up", className: "text-text-secondary" },
+  "Too close": { icon: "balance", className: "text-status-warning" },
+  Inconclusive: { icon: "help", className: "text-text-secondary" },
+  Collecting: { icon: "hourglass_top", className: "text-text-secondary" },
+  "Not started": { icon: "schedule", className: "text-text-tertiary" },
+};
+
+/** Evidence state, not lifecycle state: `StatusBadge` says where a campaign
+ *  is; `SignalBadge` says whether its result can be trusted yet. */
+export function SignalBadge({
+  signal,
+  detail,
+  className,
+}: {
+  signal: DecisionSignal;
+  /** Optional evidence qualifier, e.g. "+18 pts" or "n too small". */
+  detail?: string;
+  className?: string;
+}) {
+  const meta = SIGNAL_META[signal];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold",
+        meta.className,
+        className,
+      )}
+    >
+      <Icon name={meta.icon} size={16} />
+      {signal}
+      {detail ? <span className="font-medium text-text-secondary">· {detail}</span> : null}
+    </span>
+  );
+}
+
+/* ── Info hint ───────────────────────────────────────────────────── */
+
+/** A metric definition on hover/focus — the inspectable data contract
+ *  behind every number. Keeps definitions out of the layout until asked. */
+export function InfoHint({ text, label = "Definition" }: { text: string; label?: string }) {
+  return (
+    <span className="group/hint relative inline-flex">
+      <span
+        tabIndex={0}
+        role="note"
+        aria-label={`${label}: ${text}`}
+        className="grid cursor-help place-items-center text-icon-tertiary transition-colors hover:text-icon-secondary"
+      >
+        <Icon name="info" size={14} />
+      </span>
+      <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-56 -translate-x-1/2 rounded-md border border-border-default bg-surface-raised p-2.5 text-left text-xs font-normal leading-4 text-text-secondary shadow-lg group-hover/hint:block group-focus-within/hint:block">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/* ── Decision brief ──────────────────────────────────────────────── */
+
+/** The Decision Narrative, as one reusable object: signal → headline →
+ *  what changed and why → caveat → evidence → the next action. Anywhere a
+ *  result is summarized (campaign overview, Home briefing, analytics),
+ *  this pattern speaks — charts sit under it as supporting evidence. */
+export function DecisionBrief({
+  signal,
+  signalDetail,
+  headline,
+  summary,
+  caveat,
+  evidence,
+  updated,
+  primary,
+  secondary,
+  className,
+}: {
+  signal: DecisionSignal;
+  signalDetail?: string;
+  headline: string;
+  /** What changed and the likely cause, in plain words. */
+  summary: string;
+  /** What could invalidate the read. */
+  caveat?: string;
+  /** The numbers behind the call: responses vs target, sources, lead. */
+  evidence?: Array<{ label: string; value: string; info?: string }>;
+  updated?: string;
+  primary?: Cta;
+  secondary?: Cta;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-card border border-border-default bg-surface-raised p-4 shadow-sm",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <SignalBadge signal={signal} detail={signalDetail} />
+        {updated ? (
+          <span className="text-xs text-text-tertiary">Updated {updated}</span>
+        ) : null}
+      </div>
+      <h2 className="mt-2 font-display text-xl font-semibold leading-7 text-text-primary">
+        {headline}
+      </h2>
+      <p className="mt-1.5 max-w-3xl text-sm leading-6 text-text-secondary">{summary}</p>
+      {caveat ? (
+        <p className="mt-2 flex max-w-3xl items-start gap-1.5 text-sm leading-5 text-status-warning">
+          <Icon name="error" size={18} className="shrink-0" />
+          <span>{caveat}</span>
+        </p>
+      ) : null}
+      {evidence?.length ? (
+        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2 border-t border-border-default pt-3">
+          {evidence.map((item) => (
+            <div key={item.label} className="min-w-0">
+              <dt className="flex items-center gap-1 text-xs font-medium text-text-secondary">
+                {item.label}
+                {item.info ? <InfoHint text={item.info} /> : null}
+              </dt>
+              <dd className="mt-0.5 font-display text-sm font-semibold tabular-nums text-text-primary">
+                {item.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {primary || secondary ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {primary ? <CtaButton cta={primary} /> : null}
+          {secondary ? <CtaButton cta={secondary} variant="secondary" /> : null}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -548,6 +709,8 @@ type Stat = {
   delta: string;
   trend?: "up" | "down" | "flat";
   spark?: number[];
+  /** The metric's definition — formula and denominator, in plain words. */
+  info?: string;
 };
 
 const trendClass = (trend?: Stat["trend"]) =>
@@ -726,7 +889,18 @@ export function TrendChart({
  *  rounded, hoverable stat cards. Click one to expand its full chart below
  *  (with a smooth reveal); the chevron toggles the panel. Purple sparklines
  *  echo the expanded chart; the trend arrow keeps its up/down colour. */
-export function StatsStrip({ stats, xTicks }: { stats: Stat[]; xTicks: string[] }) {
+export function StatsStrip({
+  stats,
+  xTicks,
+  scope,
+}: {
+  stats: Stat[];
+  xTicks: string[];
+  /** The data contract for every number on the strip: exact period, the
+   *  comparison period, and the object scope. Always show it — deltas
+   *  without a stated baseline are decoration. */
+  scope?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(0);
   const active = stats[sel] ?? stats[0];
@@ -735,6 +909,9 @@ export function StatsStrip({ stats, xTicks }: { stats: Stat[]; xTicks: string[] 
 
   return (
     <section className="rounded-card border border-border-default bg-surface-raised p-1.5 shadow-sm">
+      {scope ? (
+        <p className="px-2 pb-1 pt-1.5 text-xs text-text-tertiary">{scope}</p>
+      ) : null}
       <div className="flex items-stretch gap-1">
         <div className="grid flex-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat, i) => {
@@ -747,6 +924,7 @@ export function StatsStrip({ stats, xTicks }: { stats: Stat[]; xTicks: string[] 
                   setOpen(true);
                 }}
                 aria-pressed={selected}
+                title={stat.info}
                 className={cn(
                   "rounded-md px-3 py-2.5 text-left transition-colors hover:bg-surface-subtle",
                   selected && "bg-surface-subtle",
@@ -755,7 +933,7 @@ export function StatsStrip({ stats, xTicks }: { stats: Stat[]; xTicks: string[] 
                 <p className="truncate text-xs font-semibold text-text-secondary">{stat.label}</p>
                 <div className="mt-1.5 flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-baseline gap-1">
-                    <span className="font-display text-2xl font-bold leading-7 tabular-nums text-text-primary">
+                    <span className="font-display text-2xl font-semibold leading-7 tabular-nums text-text-primary">
                       {stat.value}
                     </span>
                     {stat.trend && stat.trend !== "flat" ? (
@@ -796,6 +974,11 @@ export function StatsStrip({ stats, xTicks }: { stats: Stat[]; xTicks: string[] 
         <div className="overflow-hidden">
           <div className="px-2 pb-2 pt-4">
             <TrendChart series={series} previous={previous} xTicks={xTicks} />
+            {active.info ? (
+              <p className="mt-2 pl-11 text-xs text-text-tertiary">
+                {active.label}: {active.info} Dashed line is the previous period.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -874,7 +1057,7 @@ export function ProgressRing({ done, total, steps }: CardProgress) {
         {done} of {total} steps done
       </span>
       <div className="pointer-events-none absolute left-0 top-6 z-20 hidden w-60 rounded-md border border-border-default bg-surface-raised p-3 text-left shadow-lg group-hover:block">
-        <p className="mb-2 text-xs font-bold text-text-primary">
+        <p className="mb-2 text-xs font-semibold text-text-primary">
           {left} {left === 1 ? "step" : "steps"} left
         </p>
         <ul className="space-y-1.5">
@@ -946,7 +1129,7 @@ export function ActionCard({
                 ) : null}
               </div>
             ) : null}
-            <h3 className="font-display text-base font-bold leading-6 text-text-primary">{title}</h3>
+            <h3 className="font-display text-base font-semibold leading-6 text-text-primary">{title}</h3>
             {reason ? <p className="mt-1 text-sm leading-5 text-text-secondary">{reason}</p> : null}
           </div>
           {status ? (
@@ -1069,7 +1252,7 @@ export function PolstMiniRow({ polst }: { polst: SinglePolst }) {
       <PollThumb options={polstOptions(polst)} />
       <div className="flex h-14 min-w-0 flex-1 flex-col justify-center gap-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="truncate font-display text-sm font-bold leading-5 text-text-primary">
+          <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
             {polst.question}
           </p>
           <StatusBadge status={polst.status} />
@@ -1117,26 +1300,31 @@ export function CampaignRow({ campaign }: { campaign: Campaign }) {
       className="block rounded-md p-2 transition-colors hover:bg-surface-subtle"
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="truncate font-display text-sm font-bold leading-5 text-text-primary">
+        <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
           {campaign.name}
         </p>
         <StatusBadge status={campaign.status} />
       </div>
       <p className="mt-0.5 text-xs text-text-secondary">{campaign.dates}</p>
+      {/* Every number says what it measures: completion is a rate, the
+          Polst counts are inventory — never a bare "71% complete". */}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-secondary">
         {hasCompletion ? (
           <>
             <span className="font-semibold tabular-nums text-text-primary">
-              {campaign.completion} complete
+              {campaign.completion} completion rate
             </span>
             <StatDot />
           </>
         ) : null}
-        <PollStat label="active" value={campaign.pollsActive} />
+        <span className="inline-flex items-center gap-1">
+          <span className="font-semibold tabular-nums text-text-primary">
+            {campaign.pollsActive} of {campaign.polsts}
+          </span>
+          Polsts live
+        </span>
         <StatDot />
-        <PollStat label="started" value={campaign.pollsStarted} />
-        <StatDot />
-        <PollStat label="completed" value={campaign.pollsCompleted} />
+        <PollStat label="finished" value={campaign.pollsCompleted} />
       </div>
     </Link>
   );
@@ -1209,7 +1397,7 @@ export function NextStepsCard({
             <StepRing done={done} total={steps.length} />
             {done} of {steps.length} tasks complete
           </p>
-          <h2 className="font-display text-base font-bold leading-6 text-text-primary">{title}</h2>
+          <h2 className="font-display text-base font-semibold leading-6 text-text-primary">{title}</h2>
           {intro && !collapsed ? (
             <p className="mt-1 text-sm leading-5 text-text-secondary">{intro}</p>
           ) : null}
@@ -1279,6 +1467,76 @@ export function NextStepsCard({
   );
 }
 
+/* ── Flow steps (staged create/edit workflows) ───────────────────── */
+
+/** The progress header for a staged workflow: numbered steps, the active
+ *  one filled, finished ones checked. Completed steps are clickable so
+ *  the user can go back without losing place. */
+export function FlowSteps<T extends string>({
+  steps,
+  active,
+  onChange,
+}: {
+  steps: readonly T[];
+  active: T;
+  onChange: (step: T) => void;
+}) {
+  const activeIndex = steps.indexOf(active);
+  return (
+    <ol className="flex flex-wrap items-center gap-2" aria-label="Setup steps">
+      {steps.map((step, i) => {
+        const state = i < activeIndex ? "done" : i === activeIndex ? "active" : "todo";
+        return (
+          <li key={step} className="flex items-center gap-2">
+            {i > 0 ? (
+              <Icon name="chevron_right" size={16} className="text-icon-tertiary" aria-hidden />
+            ) : null}
+            <button
+              type="button"
+              disabled={state === "todo"}
+              onClick={() => onChange(step)}
+              aria-current={state === "active" ? "step" : undefined}
+              className={cn(
+                "flex h-8 items-center gap-2 rounded-md px-2.5 font-display text-ui font-semibold transition-colors",
+                state === "active" && "bg-surface-raised text-text-primary shadow-sm ring-1 ring-border-default",
+                state === "done" && "text-text-secondary hover:text-text-primary",
+                state === "todo" && "cursor-default text-text-tertiary",
+              )}
+            >
+              {state === "done" ? (
+                <Icon name="check_circle" size={18} filled className="text-status-success" />
+              ) : (
+                <span
+                  className={cn(
+                    "grid h-5 w-5 place-items-center rounded-pill text-xs font-semibold",
+                    state === "active"
+                      ? "bg-accent-default text-text-on-accent"
+                      : "bg-surface-strong text-text-secondary",
+                  )}
+                >
+                  {i + 1}
+                </span>
+              )}
+              {step}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** The quiet autosave affordance: saving is the system's job, so it never
+ *  gets a primary button — just this line beside the flow's real action. */
+export function SavedChip({ when = "just now" }: { when?: string }) {
+  return (
+    <span className="flex h-8 items-center gap-1 text-xs text-text-tertiary">
+      <Icon name="cloud_done" size={16} />
+      Draft saved {when}
+    </span>
+  );
+}
+
 /* ── In-page tabs (detail pages) ─────────────────────────────────── */
 
 /** Local section tabs (e.g. campaign Overview / Polsts / Distribution) — the
@@ -1310,20 +1568,26 @@ export function StatTile({
   value,
   detail,
   trend = "flat",
+  info,
   className,
 }: {
   label: string;
   value: string;
   detail?: string;
   trend?: "up" | "down" | "flat";
+  /** Metric definition, surfaced on hover — every number stays inspectable. */
+  info?: string;
   className?: string;
 }) {
   return (
     <DashboardCard className={className}>
-      <p className="text-sm font-medium text-text-secondary">{label}</p>
+      <p className="flex items-center gap-1 text-sm font-medium text-text-secondary">
+        {label}
+        {info ? <InfoHint text={info} /> : null}
+      </p>
       <p
         className={cn(
-          "mt-2 font-display font-bold text-text-primary",
+          "mt-2 font-display font-semibold text-text-primary",
           /^[0-9]/.test(value)
             ? "text-3xl leading-9 tabular-nums"
             : "text-xl leading-7",
@@ -1502,7 +1766,7 @@ export function SnippetCard({
     <div className="rounded-md border border-border-default bg-surface-subtle">
       <div className="flex items-center justify-between gap-3 px-3 pt-3">
         <div className="min-w-0">
-          <p className="font-display text-sm font-bold text-text-primary">{title}</p>
+          <p className="font-display text-sm font-semibold text-text-primary">{title}</p>
           {description ? (
             <p className="mt-0.5 text-xs leading-4 text-text-secondary">{description}</p>
           ) : null}
@@ -1551,7 +1815,7 @@ export function LockedCard({
       </span>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-display text-sm font-bold text-text-primary">{title}</p>
+          <p className="font-display text-sm font-semibold text-text-primary">{title}</p>
           <span className="rounded-pill bg-surface-strong px-2 py-0.5 font-display text-xs font-semibold text-text-secondary">
             {chip}
           </span>
@@ -1574,14 +1838,14 @@ export function SplitBar({ split, className }: { split: Split; className?: strin
     <div className={className}>
       <div className="flex items-baseline justify-between gap-3">
         <p className="min-w-0">
-          <span className="font-display text-xl font-bold tabular-nums text-text-primary">
+          <span className="font-display text-xl font-semibold tabular-nums text-text-primary">
             {split.a.value}%
           </span>
           <span className="ml-1.5 text-sm font-medium text-text-secondary">{split.a.label}</span>
         </p>
         <p className="min-w-0 text-right">
           <span className="text-sm font-medium text-text-secondary">{split.b.label}</span>
-          <span className="ml-1.5 font-display text-xl font-bold tabular-nums text-text-primary">
+          <span className="ml-1.5 font-display text-xl font-semibold tabular-nums text-text-primary">
             {split.b.value}%
           </span>
         </p>

@@ -58,53 +58,94 @@ export type Stat = {
   delta: string;
   trend?: "up" | "down" | "flat";
   spark?: number[];
+  /** The metric's definition — formula and denominator, in plain words. */
+  info?: string;
 };
 
 export type StatRange = "7D" | "30D" | "90D" | "All";
 export const STAT_RANGES: StatRange[] = ["7D", "30D", "90D", "All"];
 
-/** Mini-stats by range — values, deltas, and shape all shift with the filter. */
+/** One definition per metric — attached to every stat so any number on the
+ *  strip can be inspected. The formulas must hold across the workspace. */
+const STAT_INFO: Record<string, string> = {
+  "Total views":
+    "Times a Polst was shown, across every campaign, standalone Polst, and source in this workspace.",
+  "Total votes":
+    "Choices tapped across the same scope. One voter answering three questions counts as three votes.",
+  "Engagement rate": "Total votes ÷ total views for the period.",
+  "Completion rate":
+    "Voters who finished a full Polst sequence ÷ voters who started one.",
+};
+
+const withInfo = (stats: Stat[]) =>
+  stats.map((stat) => ({ ...stat, info: STAT_INFO[stat.label] }));
+
+/** Mini-stats by range — values, deltas, and shape all shift with the filter.
+ *  Volumes reconcile with the rest of the workspace: campaigns run ~1–2k
+ *  responses each, so a 30-day window holds thousands of votes, not dozens. */
 export const DASHBOARD_STATS: Record<StatRange, Stat[]> = {
-  "7D": [
-    { label: "Total views", value: "52", delta: "28%", trend: "down", spark: [12, 9, 11, 8, 7, 6, 5] },
-    { label: "Total votes", value: "8", delta: "19%", trend: "down", spark: [2, 1, 2, 1, 1, 1, 1] },
-    { label: "Engagement rate", value: "15.2%", delta: "12%", trend: "up", spark: [13, 14, 14, 15, 15, 15, 16] },
-    { label: "Completion rate", value: "41.0%", delta: "2.1%", trend: "up", spark: [40, 40, 41, 41, 41, 41, 42] },
-  ],
-  "30D": [
-    { label: "Total views", value: "220", delta: "62%", trend: "down", spark: [16, 12, 15, 10, 11, 7, 5] },
-    { label: "Total votes", value: "31", delta: "47%", trend: "down", spark: [5, 4, 5, 3, 4, 2, 2] },
-    { label: "Engagement rate", value: "14.09%", delta: "42%", trend: "up", spark: [8, 9, 8, 11, 12, 13, 14] },
-    { label: "Completion rate", value: "40.00%", delta: "5.7%", trend: "up", spark: [36, 38, 37, 39, 39, 40, 40] },
-  ],
-  "90D": [
-    { label: "Total views", value: "742", delta: "12%", trend: "down", spark: [20, 18, 22, 17, 19, 15, 14] },
-    { label: "Total votes", value: "118", delta: "8%", trend: "down", spark: [8, 7, 9, 6, 7, 5, 6] },
-    { label: "Engagement rate", value: "12.8%", delta: "9%", trend: "up", spark: [10, 11, 10, 12, 12, 13, 13] },
-    { label: "Completion rate", value: "38.4%", delta: "3.2%", trend: "up", spark: [35, 36, 37, 37, 38, 38, 39] },
-  ],
-  All: [
-    { label: "Total views", value: "3,140", delta: "210%", trend: "up", spark: [4, 9, 14, 20, 26, 31, 38] },
-    { label: "Total votes", value: "486", delta: "180%", trend: "up", spark: [1, 3, 6, 9, 12, 15, 18] },
-    { label: "Engagement rate", value: "11.6%", delta: "64%", trend: "up", spark: [4, 6, 7, 9, 10, 11, 12] },
-    { label: "Completion rate", value: "37.2%", delta: "22%", trend: "up", spark: [22, 27, 30, 33, 35, 36, 37] },
-  ],
+  "7D": withInfo([
+    { label: "Total views", value: "4,120", delta: "9%", trend: "down", spark: [720, 640, 660, 590, 560, 500, 450] },
+    { label: "Total votes", value: "612", delta: "6%", trend: "down", spark: [104, 96, 98, 88, 82, 76, 68] },
+    { label: "Engagement rate", value: "14.9%", delta: "1.2%", trend: "up", spark: [14.2, 14.4, 14.5, 14.6, 14.8, 14.8, 15] },
+    { label: "Completion rate", value: "66.2%", delta: "2.1 pts", trend: "up", spark: [65, 65, 66, 66, 66, 66, 67] },
+  ]),
+  "30D": withInfo([
+    { label: "Total views", value: "17,240", delta: "18%", trend: "down", spark: [820, 760, 740, 680, 620, 560, 480] },
+    { label: "Total votes", value: "2,431", delta: "11%", trend: "down", spark: [118, 108, 112, 96, 92, 84, 74] },
+    { label: "Engagement rate", value: "14.1%", delta: "4.2%", trend: "up", spark: [12.8, 13.1, 13.2, 13.6, 13.8, 14, 14.1] },
+    { label: "Completion rate", value: "65.0%", delta: "5.7 pts", trend: "up", spark: [61, 63, 62, 64, 64, 65, 65] },
+  ]),
+  "90D": withInfo([
+    { label: "Total views", value: "46,890", delta: "12%", trend: "down", spark: [2050, 1880, 2160, 1740, 1860, 1520, 1400] },
+    { label: "Total votes", value: "6,318", delta: "8%", trend: "down", spark: [284, 262, 296, 238, 252, 214, 208] },
+    { label: "Engagement rate", value: "13.5%", delta: "0.9%", trend: "up", spark: [12.9, 13, 12.9, 13.2, 13.3, 13.4, 13.5] },
+    { label: "Completion rate", value: "61.8%", delta: "3.2 pts", trend: "up", spark: [58, 59, 60, 60, 61, 61, 62] },
+  ]),
+  All: withInfo([
+    { label: "Total views", value: "128,400", delta: "210%", trend: "up", spark: [4200, 9400, 14800, 20200, 26400, 31200, 38600] },
+    { label: "Total votes", value: "16,482", delta: "180%", trend: "up", spark: [520, 1320, 2260, 3080, 3900, 4820, 5640] },
+    { label: "Engagement rate", value: "12.8%", delta: "2.4%", trend: "up", spark: [10.9, 11.4, 11.8, 12.1, 12.4, 12.6, 12.8] },
+    { label: "Completion rate", value: "58.9%", delta: "12 pts", trend: "up", spark: [44, 49, 52, 55, 57, 58, 59] },
+  ]),
+};
+
+/** The data contract behind every number on the strip: the exact window,
+ *  the exact comparison window, and the object scope. "Today" in this demo
+ *  workspace is Jun 15, 2026 (America/Chicago). */
+export const STAT_SCOPES: Record<StatRange, string> = {
+  "7D": "Jun 9 – Jun 15, 2026 · vs Jun 2 – Jun 8 · all campaigns and standalone Polsts",
+  "30D": "May 17 – Jun 15, 2026 · vs Apr 17 – May 16 · all campaigns and standalone Polsts",
+  "90D": "Mar 18 – Jun 15, 2026 · vs Dec 18 – Mar 17 · all campaigns and standalone Polsts",
+  All: "Since Feb 3, 2026 · vs nothing — this is everything · all campaigns and standalone Polsts",
 };
 
 /** Axis labels for the expanded chart, per range. */
 export const STAT_XTICKS: Record<StatRange, string[]> = {
   "7D": ["Jun 9", "Jun 11", "Jun 13", "Jun 15"],
-  "30D": ["Jun 1", "Jun 8", "Jun 15", "Jun 22", "Jun 29"],
-  "90D": ["Apr", "May", "Jun"],
-  All: ["2024", "2025", "2026"],
+  "30D": ["May 17", "May 24", "May 31", "Jun 7", "Jun 15"],
+  "90D": ["Mar 18", "Apr 15", "May 15", "Jun 15"],
+  All: ["Feb", "Mar", "Apr", "May", "Jun"],
 };
 
-/** Response volume over the last 14 days — the Analytics trend chart. */
+/** Response volume over the last 14 days — the Analytics trend chart.
+ *  Gently declining and summing to ~1,200, so it reconciles with the
+ *  30-day total of 2,431 votes and its −11% delta. */
 export const RESPONSE_TREND = [
-  92, 118, 104, 142, 168, 151, 187, 176, 205, 231, 214, 248, 262, 288,
+  112, 104, 96, 108, 92, 88, 96, 84, 78, 86, 72, 68, 74, 62,
 ];
 
 /* ── Campaigns ───────────────────────────────────────────────────── */
+
+/** The decision-signal vocabulary — evidence state, not lifecycle state. */
+export type DecisionSignal =
+  | "Decisive"
+  | "Leading"
+  | "Directional"
+  | "Too close"
+  | "Inconclusive"
+  | "Collecting"
+  | "Not started";
 
 export type Campaign = {
   id: string;
@@ -118,9 +159,12 @@ export type Campaign = {
   pollsStarted: number;
   pollsCompleted: number;
   responses: number;
+  /** The response target set at launch — evidence sufficiency baseline. */
+  target: number;
   completion: string;
   winner: string;
-  readiness: string;
+  /** Decision-signal state (evidence), separate from lifecycle status. */
+  signal: DecisionSignal;
   nextAction: string;
   dates: string;
   topSource: string;
@@ -140,10 +184,11 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 2,
     pollsCompleted: 0,
     responses: 1486,
+    target: 1200,
     completion: "71%",
     winner: "Option B +18 pts",
-    readiness: "Leading",
-    nextAction: "Review",
+    signal: "Leading",
+    nextAction: "Review recommendation",
     dates: "Jun 3 – Jun 12",
     topSource: "Website embed",
     vertical: "Food & drink",
@@ -159,9 +204,10 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 0,
     pollsCompleted: 0,
     responses: 0,
+    target: 1000,
     completion: "—",
     winner: "—",
-    readiness: "Not started",
+    signal: "Not started",
     nextAction: "Add sources",
     dates: "Jun 10 – Jun 19",
     topSource: "—",
@@ -178,9 +224,10 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 4,
     pollsCompleted: 4,
     responses: 1184,
+    target: 1000,
     completion: "79%",
     winner: "Option A +11 pts",
-    readiness: "Decided",
+    signal: "Decisive",
     nextAction: "Export report",
     dates: "May 28 – Jun 5",
     topSource: "QR — Packaging",
@@ -197,10 +244,11 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 4,
     pollsCompleted: 2,
     responses: 2103,
+    target: 2500,
     completion: "58%",
     winner: "Citrus Mint leading",
-    readiness: "Trending",
-    nextAction: "Review",
+    signal: "Directional",
+    nextAction: "Review recommendation",
     dates: "Jun 1 – Jun 30",
     topSource: "Instagram story link",
     vertical: "Food & drink",
@@ -216,9 +264,10 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 2,
     pollsCompleted: 0,
     responses: 640,
+    target: 1200,
     completion: "47%",
     winner: "Layout A +6 pts",
-    readiness: "Too close",
+    signal: "Too close",
     nextAction: "Keep running",
     dates: "Jun 12 – Jun 24",
     topSource: "Website embed",
@@ -235,10 +284,11 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 3,
     pollsCompleted: 0,
     responses: 892,
+    target: 1200,
     completion: "64%",
     winner: "Trio Box +9 pts",
-    readiness: "Leading",
-    nextAction: "Review",
+    signal: "Leading",
+    nextAction: "Review recommendation",
     dates: "Jun 8 – Jun 20",
     topSource: "Email newsletter",
     vertical: "Shopping & deals",
@@ -254,9 +304,10 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 0,
     pollsCompleted: 0,
     responses: 0,
+    target: 800,
     completion: "—",
     winner: "—",
-    readiness: "Not started",
+    signal: "Not started",
     nextAction: "Add sources",
     dates: "Starts Jun 30",
     topSource: "—",
@@ -273,9 +324,10 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 0,
     pollsCompleted: 0,
     responses: 0,
+    target: 1000,
     completion: "—",
     winner: "—",
-    readiness: "Not started",
+    signal: "Not started",
     nextAction: "Add sources",
     dates: "Starts Jul 8",
     topSource: "—",
@@ -292,9 +344,10 @@ export const CAMPAIGNS: Campaign[] = [
     pollsStarted: 0,
     pollsCompleted: 0,
     responses: 0,
+    target: 1000,
     completion: "—",
     winner: "—",
-    readiness: "Draft",
+    signal: "Not started",
     nextAction: "Finish setup",
     dates: "Not scheduled",
     topSource: "—",
@@ -666,6 +719,8 @@ export type DistributionSource = {
   channel: string;
   type: string;
   linkedObject: string;
+  /** What the source feeds: a campaign, a standalone Polst, or nothing. */
+  linkedType: "Campaign" | "Standalone Polst" | "—";
   responses: number;
   completion: string;
   split: string;
@@ -684,6 +739,7 @@ export const DISTRIBUTION_SOURCES: DistributionSource[] = [
     channel: "Website",
     type: "Embed",
     linkedObject: "Packaging Direction Test",
+    linkedType: "Campaign",
     responses: 388,
     completion: "78%",
     split: "58 / 42",
@@ -698,6 +754,7 @@ export const DISTRIBUTION_SOURCES: DistributionSource[] = [
     channel: "QR",
     type: "QR code",
     linkedObject: "Flavor Launch Recap",
+    linkedType: "Campaign",
     responses: 312,
     completion: "74%",
     split: "55 / 45",
@@ -712,6 +769,7 @@ export const DISTRIBUTION_SOURCES: DistributionSource[] = [
     channel: "QR",
     type: "QR code",
     linkedObject: "Game Day Creative Test",
+    linkedType: "Campaign",
     responses: 120,
     completion: "41%",
     split: "51 / 49",
@@ -725,12 +783,13 @@ export const DISTRIBUTION_SOURCES: DistributionSource[] = [
     name: "Instagram Story Link",
     channel: "Instagram",
     type: "Share link",
-    linkedObject: "Which headline wins?",
+    linkedObject: "—",
+    linkedType: "—",
     responses: 214,
     completion: "64%",
     split: "57 / 43",
     status: "Unassigned",
-    lastActivity: "Feb 3",
+    lastActivity: "12w ago",
     signups: 11,
     bounce: "31%",
   },
@@ -740,11 +799,12 @@ export const DISTRIBUTION_SOURCES: DistributionSource[] = [
     channel: "Influencer",
     type: "Tracked link",
     linkedObject: "Packaging Direction Test",
+    linkedType: "Campaign",
     responses: 134,
     completion: "61%",
     split: "60 / 40",
     status: "Assigned",
-    lastActivity: "Feb 2",
+    lastActivity: "3d ago",
     signups: 9,
     bounce: "26%",
   },
@@ -754,11 +814,12 @@ export const DISTRIBUTION_SOURCES: DistributionSource[] = [
     channel: "Email",
     type: "Share link",
     linkedObject: "Flavor Launch Recap",
+    linkedType: "Campaign",
     responses: 486,
     completion: "72%",
     split: "53 / 47",
     status: "Assigned",
-    lastActivity: "Feb 1",
+    lastActivity: "6h ago",
     signups: 21,
     bounce: "14%",
   },

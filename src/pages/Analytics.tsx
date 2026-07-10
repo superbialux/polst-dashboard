@@ -20,6 +20,7 @@ import {
   SplitBar,
   StatTile,
   StatsStrip,
+  SignalBadge,
   StatusBadge,
   TimeHeatmap,
   TrendChart,
@@ -70,11 +71,36 @@ const CHANNEL_NAMES = CHANNELS.map((c) => c.name);
 
 /* ── Overview ────────────────────────────────────────────────────── */
 
+/** Same formulas and window as Home's strip — one number, one truth. */
 const PORTFOLIO = [
-  { label: "Total responses", value: "2,670", detail: "+14.2% vs prev. 30 days", trend: "up" as const },
-  { label: "Average completion", value: "72.6%", detail: "+3.4 pts vs prev. 30 days", trend: "up" as const },
-  { label: "Ready to decide", value: "2", detail: "campaigns at directional signal", trend: "flat" as const },
-  { label: "Top source", value: "Website", detail: "388 responses", trend: "flat" as const },
+  {
+    label: "Total votes",
+    value: "2,431",
+    detail: "−11% vs Apr 17 – May 16",
+    trend: "down" as const,
+    info: "Choices tapped across every campaign and standalone Polst, May 17 – Jun 15. Matches the Home strip.",
+  },
+  {
+    label: "Completion rate",
+    value: "65.0%",
+    detail: "+5.7 pts vs Apr 17 – May 16",
+    trend: "up" as const,
+    info: "Voters who finished a full Polst sequence ÷ voters who started one, same window.",
+  },
+  {
+    label: "Engagement rate",
+    value: "14.1%",
+    detail: "+4.2 pts vs Apr 17 – May 16",
+    trend: "up" as const,
+    info: "Total votes ÷ total views for the window.",
+  },
+  {
+    label: "Top source by volume",
+    value: "Website",
+    detail: "388 responses this window",
+    trend: "flat" as const,
+    info: "The source that delivered the most responses. Volume isn't quality — check completion per source in Distribution.",
+  },
 ];
 
 const campaignPerformanceColumns: Array<DataColumn<Campaign>> = [
@@ -105,8 +131,8 @@ const campaignPerformanceColumns: Array<DataColumn<Campaign>> = [
     cell: (row) => <span className="text-text-secondary">{row.winner}</span>,
   },
   {
-    header: "Readiness",
-    cell: (row) => <span className="text-text-secondary">{row.readiness}</span>,
+    header: "Signal",
+    cell: (row) => <SignalBadge signal={row.signal} />,
   },
 ];
 
@@ -172,10 +198,15 @@ export function AnalyticsOverviewPage() {
     vertical === "All verticals"
       ? CAMPAIGNS
       : CAMPAIGNS.filter((c) => c.vertical === vertical);
+  const readyToDecide = CAMPAIGNS.filter(
+    (c) => c.status === "Active" && (c.signal === "Leading" || c.signal === "Decisive"),
+  );
   return (
     <DashboardPage
       eyebrow="Analytics"
       title="Overview"
+      description="What the whole workspace is learning — per-campaign decisions live on each campaign."
+      updated="2 min ago"
       actions={<ExportMenu />}
     >
       <FilterBar
@@ -184,6 +215,37 @@ export function AnalyticsOverviewPage() {
         vertical={vertical}
         onVertical={setVertical}
       />
+
+      {/* Decisions first, telemetry after */}
+      <DashboardCard
+        title="Ready to decide"
+        description="Campaigns whose evidence can support a call today."
+        padded={false}
+        bodyClassName="pb-1"
+      >
+        <ul className="divide-y divide-border-default">
+          {readyToDecide.map((campaign) => (
+            <li key={campaign.id} className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <Link
+                  to={`/campaigns/${campaign.id}`}
+                  className="font-display text-sm font-semibold text-text-primary hover:text-text-accent"
+                >
+                  {campaign.name}
+                </Link>
+                <p className="mt-0.5 text-xs text-text-secondary">
+                  {campaign.winner} · {formatNumber(campaign.responses)} of{" "}
+                  {formatNumber(campaign.target)} target responses
+                </p>
+              </div>
+              <SignalBadge signal={campaign.signal} />
+              <Button variant="secondary" size="sm" asChild>
+                <Link to={`/campaigns/${campaign.id}`}>Review recommendation</Link>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </DashboardCard>
 
       <SectionGrid>
         {PORTFOLIO.map((item) => (
@@ -194,6 +256,7 @@ export function AnalyticsOverviewPage() {
             value={item.value}
             detail={item.detail}
             trend={item.trend}
+            info={item.info}
           />
         ))}
       </SectionGrid>
@@ -518,8 +581,8 @@ const recommendationColumns: Array<DataColumn<Campaign>> = [
     cell: (row) => <span className="text-text-secondary">{row.winner}</span>,
   },
   {
-    header: "Confidence",
-    cell: (row) => <span className="text-text-secondary">{row.readiness}</span>,
+    header: "Signal",
+    cell: (row) => <SignalBadge signal={row.signal} />,
   },
   {
     header: "Responses",

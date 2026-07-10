@@ -56,6 +56,8 @@ export default {
         "status-success-soft": "var(--status-success-soft)",
         "status-danger":       "var(--status-danger)",
         "status-danger-soft":  "var(--status-danger-soft)",
+        "status-warning":      "var(--status-warning)",
+        "status-warning-soft": "var(--status-warning-soft)",
 
         // ── Component slots (use when retuning one component) ──
         "btn-primary-bg":        "var(--btn-primary-bg)",

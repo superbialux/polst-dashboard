@@ -58,6 +58,8 @@
     --color-ink-purple-10:   rgba(51, 46, 120, 0.10);
     --color-red-10:   rgba(227, 97, 51, 0.10);
     --color-red-25:   rgba(227, 97, 51, 0.25);
+    --color-yellow-15: rgba(242, 186, 28, 0.15);
+    --color-yellow-ink: #8f6400; /* AA-dark amber for text on white (4.9:1 ✓) */
     --color-green-10: rgba(18, 140, 120, 0.10);
     --color-green-25: rgba(18, 140, 120, 0.25);
 
@@ -98,6 +100,8 @@
     --status-success-soft: var(--color-green-10);
     --status-danger:       var(--color-red);
     --status-danger-soft:  var(--color-red-10);
+    --status-warning:      var(--color-yellow-ink);
+    --status-warning-soft: var(--color-yellow-15);
 
     --focus-ring:      var(--color-brand-purple);
 
@@ -226,13 +230,11 @@
     --radius: 0.375rem;
   }
 
-html, body, #root { height: 100%; }
-  /* The app is a viewport-locked shell (every page scrolls inside its own
-     column), so the window itself must never scroll — clip guards against
-     any stray box extending the document. */
-  html { overflow: clip; }
+html, body, #root { min-height: 100%; }
+  /* The page owns the document scroll (no nested app scroller); the body
+     matches the dashboard canvas so overscroll never flashes a new color. */
   body {
-    @apply bg-surface-page text-text-primary font-sans antialiased;
+    @apply bg-app-content text-text-primary font-sans antialiased;
     font-feature-settings: "cv11", "ss01";
   }
 

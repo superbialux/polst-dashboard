@@ -57,8 +57,16 @@ export const sourceColumns: Array<DataColumn<DistributionSource>> = [
     cell: (row) => <span className="text-text-secondary">{row.channel}</span>,
   },
   {
-    header: "Linked object",
-    cell: (row) => <span className="text-text-secondary">{row.linkedObject}</span>,
+    header: "Feeds",
+    cell: (row) =>
+      row.linkedObject === "—" ? (
+        <span className="text-text-tertiary">Nothing — responses go unattributed</span>
+      ) : (
+        <span className="min-w-0">
+          <span className="block truncate text-text-primary">{row.linkedObject}</span>
+          <span className="block text-xs text-text-tertiary">{row.linkedType}</span>
+        </span>
+      ),
   },
   {
     header: "Responses",
@@ -232,11 +240,43 @@ const tierColumns: Array<DataColumn<TierBenchmark>> = [
 
 const TABS = ["Sources", "Channels", "QR codes", "Links & embeds", "Influencers"] as const;
 
-const SUMMARY = [
-  { label: "Channels", value: String(CHANNELS.length), detail: "Website, Email, Instagram, QR, Influencer" },
-  { label: "QR codes", value: String(QR_CODES.length), detail: "Each one is its own attribution source" },
-  { label: "Links & embeds", value: String(LINK_ASSETS.length), detail: "Share links and website embeds" },
-  { label: "Creators", value: String(CREATORS.length), detail: "Tracked creator links" },
+/** Health before inventory: the four questions a marketer actually asks of
+ *  distribution — is everything covered, what's eroding, what's collecting
+ *  without attribution, and can I trust the numbers. */
+const SUMMARY: Array<{
+  label: string;
+  value: string;
+  detail: string;
+  trend?: "up" | "down" | "flat";
+  info: string;
+}> = [
+  {
+    label: "Campaign coverage",
+    value: "5 of 6",
+    detail: "Game Day Creative Test has no sources",
+    trend: "down",
+    info: "Active and scheduled campaigns with at least one assigned source collecting responses.",
+  },
+  {
+    label: "Sources need attention",
+    value: "1",
+    detail: "Conference Booth QR — 41% completion",
+    trend: "down",
+    info: "Sources whose completion rate fell more than 15 points below the workspace average.",
+  },
+  {
+    label: "Unassigned sources",
+    value: "1",
+    detail: "Instagram Story Link is collecting unattributed",
+    info: "Sources with traffic but no campaign or Polst assignment — their responses can't inform a decision.",
+  },
+  {
+    label: "Attribution quality",
+    value: "94%",
+    detail: "+2.1% vs prev. 30 days",
+    trend: "up",
+    info: "Share of responses that arrived through a named source, May 17 – Jun 15 vs Apr 17 – May 16.",
+  },
 ];
 
 export function DistributionPage() {
@@ -246,12 +286,14 @@ export function DistributionPage() {
   return (
     <DashboardPage
       title="Distribution"
+      description="Channels are your reusable connections — website, email, Instagram, QR, creators. Sources are the tracked instances of a channel that feed a specific campaign or Polst."
+      updated="2 min ago"
       actions={
         <>
           <Button variant="secondary" onClick={() => setAssignOpen(true)}>
-            Assign sources
+            Assign to campaign
           </Button>
-          <Button>Create source</Button>
+          <Button>Create tracked source</Button>
         </>
       }
     >
@@ -263,6 +305,8 @@ export function DistributionPage() {
             label={item.label}
             value={item.value}
             detail={item.detail}
+            trend={item.trend}
+            info={item.info}
           />
         ))}
       </SectionGrid>

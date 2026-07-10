@@ -21,22 +21,33 @@ type NavItem = {
   children?: Array<{ label: string; to: string }>;
 };
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Home", icon: "home", to: "/" },
-  { label: "Campaigns", icon: "campaign", to: "/campaigns" },
-  { label: "Polsts", icon: "ballot", to: "/polsts" },
-  { label: "Distribution", icon: "hub", to: "/distribution" },
+/** Nav rides in three bands: the daily work (campaign-first), the learning
+ *  surfaces, and — pinned at the bottom — administration. */
+const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   {
-    label: "Analytics",
-    icon: "monitoring",
-    to: "/analytics",
-    children: [
-      { label: "Overview", to: "/analytics" },
-      { label: "Insights", to: "/analytics/insights" },
-      { label: "Reports", to: "/analytics/reports" },
+    items: [
+      { label: "Home", icon: "home", to: "/" },
+      { label: "Campaigns", icon: "campaign", to: "/campaigns" },
+      { label: "Polsts", icon: "ballot", to: "/polsts" },
+      { label: "Distribution", icon: "hub", to: "/distribution" },
     ],
   },
-  { label: "Audience", icon: "groups", to: "/audience" },
+  {
+    label: "Learn",
+    items: [
+      {
+        label: "Analytics",
+        icon: "monitoring",
+        to: "/analytics",
+        children: [
+          { label: "Overview", to: "/analytics" },
+          { label: "Insights", to: "/analytics/insights" },
+          { label: "Reports", to: "/analytics/reports" },
+        ],
+      },
+      { label: "Audience", icon: "groups", to: "/audience" },
+    ],
+  },
 ];
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -52,19 +63,18 @@ function NavIcon({ name, active }: { name: string; active: boolean }) {
   );
 }
 
-/** The whole app is one dark frame: the top row and sidebar sit directly on
- *  it (no separate header bar), and the page content is a single rounded card
- *  floating inside with an even gap — the only thing that scrolls. */
+/** Three shell layers, no frames-inside-frames: the black bar is global and
+ *  sticky, the sidebar rail is persistent, and the page itself is the working
+ *  canvas — it owns the document scroll, with no surrounding card border. */
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-app-header text-app-header-fg">
-      <Header />
-      <div className="flex min-h-0 flex-1">
+    <div className="min-h-dvh bg-app-content text-text-primary">
+      <div className="sticky top-0 z-40">
+        <Header />
+      </div>
+      <div className="flex items-start">
         <Sidebar />
-        <main
-          id="main-content"
-          className="scroll-subtle mx-3 mb-3 min-w-0 flex-1 overflow-y-auto rounded-card border border-border-default bg-app-content text-text-primary shadow-sm lg:ml-0"
-        >
+        <main id="main-content" className="min-w-0 flex-1">
           {children}
         </main>
       </div>
@@ -75,69 +85,81 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 function Sidebar() {
   const location = useLocation();
   const { modules } = useModules();
-  const navItems = NAV_ITEMS.map((item) =>
-    item.label === "Analytics"
-      ? {
-          ...item,
-          children: [
-            { label: "Overview", to: "/analytics" },
-            ...(modules.acquisition
-              ? [{ label: "Acquisition", to: "/analytics/acquisition" }]
-              : []),
-            ...(modules.retention
-              ? [{ label: "Retention", to: "/analytics/retention" }]
-              : []),
-            { label: "Insights", to: "/analytics/insights" },
-            { label: "Reports", to: "/analytics/reports" },
-          ],
-        }
-      : item,
-  );
+  const groups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.map((item) =>
+      item.label === "Analytics"
+        ? {
+            ...item,
+            children: [
+              { label: "Overview", to: "/analytics" },
+              ...(modules.acquisition
+                ? [{ label: "Acquisition", to: "/analytics/acquisition" }]
+                : []),
+              ...(modules.retention
+                ? [{ label: "Retention", to: "/analytics/retention" }]
+                : []),
+              { label: "Insights", to: "/analytics/insights" },
+              { label: "Reports", to: "/analytics/reports" },
+            ],
+          }
+        : item,
+    ),
+  }));
   return (
-    <aside className="hidden w-60 shrink-0 flex-col pb-3 pl-3 pr-3 pt-[var(--radius-card)] lg:flex">
-      <nav aria-label="Primary" className="flex flex-1 flex-col overflow-y-auto">
-        <ul className="space-y-1">
-          {navItems.map((item) => {
-            const parentActive =
-              item.to === "/"
-                ? location.pathname === "/"
-                : location.pathname === item.to ||
-                  location.pathname.startsWith(`${item.to}/`);
-            return (
-              <li key={item.to}>
-                <NavLink to={item.to} end={item.to === "/"} className={navLinkClass}>
-                  {({ isActive }) => (
-                    <>
-                      <NavIcon name={item.icon} active={isActive} />
-                      <span>{item.label}</span>
-                    </>
-                  )}
-                </NavLink>
+    <aside className="sticky top-12 hidden h-[calc(100dvh-3rem)] w-60 shrink-0 flex-col border-r border-border-default bg-app-header p-3 lg:flex">
+      <nav aria-label="Primary" className="scroll-subtle flex flex-1 flex-col overflow-y-auto">
+        {groups.map((group, gi) => (
+          <div key={group.label ?? gi} className={cn(gi > 0 && "mt-5")}>
+            {group.label ? (
+              <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-app-header-muted">
+                {group.label}
+              </p>
+            ) : null}
+            <ul className="space-y-1">
+              {group.items.map((item) => {
+                const parentActive =
+                  item.to === "/"
+                    ? location.pathname === "/"
+                    : location.pathname === item.to ||
+                      location.pathname.startsWith(`${item.to}/`);
+                return (
+                  <li key={item.to}>
+                    <NavLink to={item.to} end={item.to === "/"} className={navLinkClass}>
+                      {({ isActive }) => (
+                        <>
+                          <NavIcon name={item.icon} active={isActive} />
+                          <span>{item.label}</span>
+                        </>
+                      )}
+                    </NavLink>
 
-                {item.children && parentActive ? (
-                  <ul className="mt-1 space-y-0.5 pl-11">
-                    {item.children.map((child) => (
-                      <li key={child.to}>
-                        <NavLink
-                          to={child.to}
-                          end={child.to === item.to}
-                          className={({ isActive }) =>
-                            cn(
-                              "block rounded-sm px-3 py-1.5 text-ui font-medium text-app-header-muted transition-colors hover:text-app-header-fg",
-                              isActive && "font-semibold text-app-header-fg",
-                            )
-                          }
-                        >
-                          {child.label}
-                        </NavLink>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+                    {item.children && parentActive ? (
+                      <ul className="mt-1 space-y-0.5 pl-11">
+                        {item.children.map((child) => (
+                          <li key={child.to}>
+                            <NavLink
+                              to={child.to}
+                              end={child.to === item.to}
+                              className={({ isActive }) =>
+                                cn(
+                                  "block rounded-sm px-3 py-1.5 text-ui font-medium text-app-header-muted transition-colors hover:text-app-header-fg",
+                                  isActive && "font-semibold text-app-header-fg",
+                                )
+                              }
+                            >
+                              {child.label}
+                            </NavLink>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
 
         <div className="mt-auto pt-4">
           <NavLink to="/settings" className={navLinkClass}>
@@ -247,98 +269,199 @@ const ENTITY_ICON: Record<Exclude<SearchEntity, "All">, string> = {
   Sources: "hub",
 };
 
+/** Wrap the matched span of a result label so the eye lands on why it hit. */
+function HighlightMatch({ label, query }: { label: string; query: string }) {
+  const q = query.trim().toLowerCase();
+  const at = q ? label.toLowerCase().indexOf(q) : -1;
+  if (at < 0) return <>{label}</>;
+  return (
+    <>
+      {label.slice(0, at)}
+      <mark className="rounded-sm bg-accent-soft text-inherit">
+        {label.slice(at, at + q.length)}
+      </mark>
+      {label.slice(at + q.length)}
+    </>
+  );
+}
+
+/** The command palette: top-anchored, keyboard-first. Arrow keys move the
+ *  selection, Enter opens it, Escape closes. An empty query shows labeled
+ *  Recent items, never unlabeled default results. */
 function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [entity, setEntity] = useState<SearchEntity>("All");
+  const [selected, setSelected] = useState(0);
 
   // Reset on every open so the dialog always starts fresh.
   useEffect(() => {
     if (open) {
       setQuery("");
       setEntity("All");
+      setSelected(0);
     }
   }, [open]);
 
+  const isRecent = query.trim() === "";
   const hits = SEARCH_INDEX.filter(
     (hit) =>
       (entity === "All" || hit.entity === entity) &&
-      (query.trim() === "" ||
-        hit.label.toLowerCase().includes(query.trim().toLowerCase())),
-  ).slice(0, 8);
+      (isRecent || hit.label.toLowerCase().includes(query.trim().toLowerCase())),
+  ).slice(0, isRecent ? 5 : 7);
+
+  const openHit = (hit: SearchHit) => {
+    onClose();
+    navigate(hit.to);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelected((s) => Math.min(hits.length - 1, s + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelected((s) => Math.max(0, s - 1));
+    } else if (e.key === "Enter" && hits[selected]) {
+      e.preventDefault();
+      openHit(hits[selected]);
+    }
+  };
 
   return (
-    <Modal open={open} onClose={onClose} label="Search the workspace" className="lg:max-w-xl">
-      <div className="p-3">
-        <label className="relative block">
+    <Modal
+      open={open}
+      onClose={onClose}
+      label="Search the workspace"
+      placement="top"
+      bare
+      className="lg:max-w-2xl"
+    >
+      <div onKeyDown={onKeyDown}>
+        {/* The input owns the top edge; dismissal is Esc or the backdrop. */}
+        <label className="relative block border-b border-border-default">
           <span className="sr-only">Search the workspace</span>
           <Icon
             name="search"
             size={20}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-icon-secondary"
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-icon-secondary"
           />
           <input
             autoFocus
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="h-10 w-full rounded-md border border-border-default bg-surface-raised pl-10 pr-3 text-ui text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-border-accent"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelected(0);
+            }}
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="workspace-search-results"
+            aria-activedescendant={hits[selected] ? `search-hit-${selected}` : undefined}
+            className="h-12 w-full bg-transparent pl-12 pr-14 text-sm text-text-primary outline-none placeholder:text-text-tertiary"
             placeholder="Search campaigns, Polsts, and sources"
           />
+          <kbd className="absolute right-4 top-1/2 -translate-y-1/2 rounded-sm border border-border-default px-1.5 py-0.5 font-sans text-xs font-medium text-text-tertiary">
+            esc
+          </kbd>
         </label>
-        <div className="mt-3 flex gap-1.5">
-          {SEARCH_ENTITIES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={entity === option}
-              onClick={() => setEntity(option)}
-              className={cn(
-                "h-7 rounded-pill px-3 font-display text-xs font-semibold transition-colors",
-                entity === option
-                  ? "bg-accent-soft text-accent-default"
-                  : "bg-surface-subtle text-text-secondary hover:text-text-primary",
-              )}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-        {hits.length ? (
-          <ul className="mt-3 space-y-0.5">
-            {hits.map((hit) => (
-              <li key={`${hit.entity}-${hit.id}`}>
+
+        <div className="p-2">
+          <div className="flex gap-1.5 px-1 pb-2 pt-1">
+            {SEARCH_ENTITIES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={entity === option}
+                onClick={() => {
+                  setEntity(option);
+                  setSelected(0);
+                }}
+                className={cn(
+                  "h-7 rounded-pill px-3 font-display text-xs font-semibold transition-colors",
+                  entity === option
+                    ? "bg-accent-soft text-accent-default"
+                    : "bg-surface-subtle text-text-secondary hover:text-text-primary",
+                )}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+
+          {hits.length ? (
+            <>
+              <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+                {isRecent ? "Recent" : "Results"}
+              </p>
+              <ul id="workspace-search-results" role="listbox" aria-label="Search results">
+                {hits.map((hit, i) => (
+                  <li key={`${hit.entity}-${hit.id}`}>
+                    <button
+                      type="button"
+                      id={`search-hit-${i}`}
+                      role="option"
+                      aria-selected={i === selected}
+                      onMouseEnter={() => setSelected(i)}
+                      onClick={() => openHit(hit)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors",
+                        i === selected && "bg-surface-subtle",
+                      )}
+                    >
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-secondary">
+                        <Icon
+                          name={ENTITY_ICON[hit.entity as Exclude<SearchEntity, "All">]}
+                          size={18}
+                        />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-display text-sm font-semibold text-text-primary">
+                          <HighlightMatch label={hit.label} query={query} />
+                        </span>
+                        <span className="block truncate text-xs text-text-secondary">
+                          {hit.sublabel}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs text-text-tertiary">{hit.entity}</span>
+                      {i === selected ? (
+                        <Icon
+                          name="keyboard_return"
+                          size={16}
+                          className="shrink-0 text-icon-tertiary"
+                          aria-hidden
+                        />
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {!isRecent ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    navigate(hit.to);
-                  }}
-                  className="flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors hover:bg-surface-subtle"
+                  onClick={onClose}
+                  className="mt-1 flex w-full items-center gap-3 rounded-md border-t border-border-default p-2 pt-3 text-left text-sm text-text-secondary transition-colors hover:text-text-primary"
                 >
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-secondary">
-                    <Icon name={ENTITY_ICON[hit.entity as Exclude<SearchEntity, "All">]} size={18} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-display text-sm font-bold text-text-primary">
-                      {hit.label}
-                    </span>
-                    <span className="block truncate text-xs text-text-secondary">
-                      {hit.sublabel}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-xs text-text-tertiary">{hit.entity}</span>
+                  <Icon name="manage_search" size={18} className="ml-1.5 text-icon-secondary" />
+                  View all results for “{query.trim()}”
                 </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="flex flex-col items-center gap-2 py-10 text-center">
-            <Icon name="search" size={32} className="text-icon-tertiary" />
-            <p className="text-sm text-text-secondary">
-              Nothing in {WORKSPACE.brand} matches “{query}”.
-            </p>
-          </div>
-        )}
+              ) : null}
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <Icon name="search_off" size={32} className="text-icon-tertiary" />
+              <p className="text-sm text-text-secondary">
+                Nothing in {WORKSPACE.brand} matches “{query}”.
+              </p>
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="text-sm font-semibold text-text-accent hover:underline"
+              >
+                Clear search
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );
