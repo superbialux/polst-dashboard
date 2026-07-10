@@ -106,7 +106,6 @@ export function CampaignsPage() {
           <Link to="/campaigns/new">Create campaign</Link>
         </Button>
       }
-      wide
     >
       <DashboardCard padded={false}>
         <SearchAndFilters
@@ -175,7 +174,6 @@ export function CampaignDetailPage() {
           </Button>
         </>
       }
-      wide
     >
       <PageTabs tabs={DETAIL_TABS} active={active} onChange={setActive} />
 
@@ -386,11 +384,13 @@ function CampaignPolsts({ detail }: { detail: CampaignDetail }) {
           />
         </Menu>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <SectionGrid>
         {detail.chain.map((polst, index) => (
-          <ChainPolstCard key={polst.id} polst={polst} index={index} />
+          <div key={polst.id} className="lg:col-span-6">
+            <ChainPolstCard polst={polst} index={index} />
+          </div>
         ))}
-      </div>
+      </SectionGrid>
       <SelectFromLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </>
   );
@@ -854,7 +854,6 @@ export function CreateCampaignPage() {
           <Button onClick={() => toast("Draft saved")}>Save draft</Button>
         </>
       }
-      wide
     >
       <SectionGrid>
         <div className="space-y-4 lg:col-span-8">

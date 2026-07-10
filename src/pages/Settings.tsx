@@ -16,7 +16,6 @@ import {
   Switch,
   type DataColumn,
 } from "@/components/dashboard";
-import { useTheme, type ThemePreference } from "@/lib/theme";
 import { MODULE_INFO, useModules } from "@/lib/modules";
 import {
   INTEGRATIONS,
@@ -286,7 +285,6 @@ export function SettingsPage() {
 
         <DashboardCard title="Workspace preferences" className="lg:col-span-5">
           <div className="space-y-5">
-            <AppearanceToggle />
             <LabeledField label="Default date range" value="Last 30 days" />
             <LabeledField label="Report format" value="Executive summary" />
             <LabeledField label="Visibility" value="Private workspace" />
@@ -396,32 +394,6 @@ function LabeledField({ label, value }: { label: string; value: ReactNode }) {
       <p className="mb-1.5 text-sm font-semibold text-text-primary">{label}</p>
       <div className="flex h-10 items-center rounded-md border border-border-default bg-surface-raised px-3 text-sm text-text-primary">
         {value}
-      </div>
-    </div>
-  );
-}
-
-const APPEARANCE: ThemePreference[] = ["system", "light", "dark"];
-
-function AppearanceToggle() {
-  const { preference, setPreference } = useTheme();
-  return (
-    <div>
-      <p className="mb-1.5 text-sm font-semibold text-text-primary">Appearance</p>
-      <div className="flex rounded-md bg-surface-subtle p-1">
-        {APPEARANCE.map((option) => (
-          <button
-            key={option}
-            onClick={() => setPreference(option)}
-            aria-pressed={preference === option}
-            className={cn(
-              "h-8 flex-1 rounded-sm px-3 font-display text-sm font-semibold capitalize text-text-secondary transition-colors hover:text-text-primary",
-              preference === option && "bg-surface-raised text-text-primary shadow-sm",
-            )}
-          >
-            {option}
-          </button>
-        ))}
       </div>
     </div>
   );

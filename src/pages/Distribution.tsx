@@ -254,7 +254,6 @@ export function DistributionPage() {
           <Button>Create source</Button>
         </>
       }
-      wide
     >
       <SectionGrid>
         {SUMMARY.map((item) => (
@@ -581,7 +580,6 @@ export function ChannelDetailPage() {
       }
       title={channel.name}
       actions={<Button variant="secondary">Create source</Button>}
-      wide
     >
       <SectionGrid>
         <StatTile
@@ -704,7 +702,6 @@ export function CreatorDetailPage() {
           Copy tracked link
         </Button>
       }
-      wide
     >
       <div className="flex flex-wrap items-center gap-3">
         <span className="grid h-11 w-11 place-items-center rounded-pill bg-avatar-bg font-display text-sm font-bold text-text-inverse">

@@ -76,7 +76,7 @@ export function Drawer({
         aria-label="Close"
         onClick={onClose}
         className={cn(
-          "absolute inset-0 bg-black/40 transition-opacity duration-300 dark:bg-black/60",
+          "absolute inset-0 bg-black/40 transition-opacity duration-300",
           open ? "opacity-100" : "opacity-0",
         )}
       />

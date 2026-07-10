@@ -177,7 +177,6 @@ export function AnalyticsOverviewPage() {
       eyebrow="Analytics"
       title="Overview"
       actions={<ExportMenu />}
-      wide
     >
       <FilterBar
         channels={CHANNEL_NAMES}
@@ -358,7 +357,6 @@ export function AnalyticsAcquisitionPage() {
       eyebrow="Analytics"
       title="Acquisition"
       actions={<ExportMenu />}
-      wide
     >
       <FilterBar channels={CHANNEL_NAMES} verticals={VERTICALS} />
 
@@ -462,7 +460,6 @@ export function AnalyticsRetentionPage() {
       eyebrow="Analytics"
       title="Retention"
       actions={<ExportMenu />}
-      wide
     >
       <FilterBar channels={CHANNEL_NAMES} verticals={VERTICALS} />
 
@@ -546,19 +543,20 @@ export function AnalyticsInsightsPage() {
     <DashboardPage
       eyebrow="Analytics"
       title="Insights"
-      wide
     >
-      <div className="grid gap-4 lg:grid-cols-3">
+      <SectionGrid>
         {INSIGHTS.map((insight) => (
-          <ActionCard
-            key={insight.id}
-            title={insight.title}
-            reason={insight.context}
-            status={insight.status}
-            primary={{ label: insight.action, to: "/analytics/reports" }}
-          />
+          <div key={insight.id} className="lg:col-span-4">
+            <ActionCard
+              title={insight.title}
+              reason={insight.context}
+              status={insight.status}
+              primary={{ label: insight.action, to: "/analytics/reports" }}
+              className="h-full"
+            />
+          </div>
         ))}
-      </div>
+      </SectionGrid>
 
       <DashboardCard
         title="Recommendations by campaign"
@@ -619,7 +617,6 @@ export function AnalyticsReportsPage() {
       eyebrow="Analytics"
       title="Reports"
       actions={<ExportMenu />}
-      wide
     >
       <SectionGrid>
         <DashboardCard title="Report preview" className="lg:col-span-5">

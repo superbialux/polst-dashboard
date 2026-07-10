@@ -161,7 +161,6 @@ export function PolstsPage() {
           <Link to="/polsts/new">Create single Polst</Link>
         </Button>
       }
-      wide
     >
       {view === "grid" ? (
         <>
@@ -232,7 +231,6 @@ export function PolstDetailPage() {
           </Button>
         </>
       }
-      wide
     >
       <SectionGrid>
         {/* The REAL consumer card, live — vote on it and the bars animate. */}
@@ -327,7 +325,6 @@ export function CreatePolstPage() {
           <Button onClick={() => toast("Draft saved")}>Save draft</Button>
         </>
       }
-      wide
     >
       <SectionGrid>
         <div className="space-y-4 lg:col-span-8">

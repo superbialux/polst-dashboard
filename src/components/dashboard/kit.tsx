@@ -34,23 +34,21 @@ type PageProps = {
   description?: string;
   actions?: ReactNode;
   children: ReactNode;
-  /** Opt into the full 1240px grid; default caps at a document width. */
-  wide?: boolean;
 };
 
 /** The standard page: a header (eyebrow, title, description, actions)
- *  over a centered, vertically-rhythmic column. */
+ *  over a centered, vertically-rhythmic column. Every page shares the
+ *  one `max-w-dashboard` container — no per-page widths. */
 export function DashboardPage({
   eyebrow,
   title,
   description,
   actions,
   children,
-  wide = false,
 }: PageProps) {
   return (
     <div className="px-4 py-5 sm:px-5 lg:px-6">
-      <div className={cn("mx-auto space-y-6", wide ? "max-w-full" : "max-w-content")}>
+      <div className="mx-auto max-w-dashboard space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             {eyebrow ? (

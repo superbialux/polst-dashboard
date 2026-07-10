@@ -43,16 +43,10 @@ colors:
   accent-hover: "#5252a9"
   status-success: "{colors.green}"
   status-danger: "{colors.red}"
-  # Semantic (dark — only this layer flips; primitives never change)
-  dark-surface-page: "#14171e"
-  dark-surface-raised: "#1b1f28"
-  dark-surface-subtle: "#242a35"
-  dark-surface-strong: "#2e3543"
-  dark-text-primary: "#edeff4"
-  dark-text-secondary: "#a3acbc"
-  dark-text-tertiary: "#7e8798"
-  dark-accent: "#8585dd"
-  dark-text-on-accent: "#14171e"
+  # Top bar (dashboard) — the one dark surface, from the same neutral ramp
+  topbar-bg: "{colors.neutral-900}"
+  topbar-field: "{colors.neutral-800}"
+  topbar-muted: "{colors.neutral-500}"
 typography:
   question:
     fontFamily: Inter
@@ -169,9 +163,9 @@ Three rules govern everything:
 
 1. **Tokens in three layers.** Primitives (raw palette) → semantic (purpose:
    surface, text, border, accent) → component (per-widget slots). Components
-   consume semantics; primitives are an escape hatch, never a habit. Dark
-   mode exists *only* as a re-mapping of the semantic + component layers
-   under a `.dark` class — primitives never change.
+   consume semantics; primitives are an escape hatch, never a habit.
+   (There is no dark theme — the app is light-only, with one dark surface:
+   the dashboard's top bar, built from the same neutral ramp.)
 2. **The 4pt grid is law.** Sizes, insets, gaps, icons, radii — all multiples
    of 4 (10px card insets on mobile are the lone, documented exception).
 3. **Reuse over invention.** Every screen is composed from the same
@@ -185,23 +179,20 @@ Surfaces step *upward* in tone (page < raised < subtle < strong) while
 borders hold at neutral-300/400 so separation never depends on shadows.
 
 - **Brand black is the text ink.** Primary buttons use `neutral-800`
-  (`#21262f`), not `#000`. In dark mode the primary button inverts to light
-  ink on dark text — the "ink" identity survives the flip.
+  (`#21262f`), not `#000`; the dashboard top bar sits on `neutral-900` —
+  the same cool near-black, never a foreign gray.
 - **Violet (`#6161c7`) is the only interaction color**: active states,
   selection, focus rings, links, the chosen option, unread marks. It is
-  never decorative. In dark mode it brightens one step to `#8585dd`, and
-  because white fails AA on that lighter accent, `text-on-accent` flips to
-  dark ink (`#14171e`) — accent fills read like the light theme's primary
-  button, inverted.
+  never decorative.
 - **Red / green / yellow are tones, not alarms**: like (red), repost
   (green), and category identity. Each tone pairs an ink with a 10%-alpha
   ring tint (`lib/tones.ts`). Status semantics get their own slots:
   `status-success` for "Majority"/verified/available, `status-danger` for
   destructive menu items and spent character budgets. *Minority is neutral,
   not danger* — losing a poll isn't an error.
-- **Contrast is documented at the token.** Body text ≥ AA in both themes
-  (dark secondary `#a3acbc` = 7.4:1, tertiary `#7e8798` = 4.6:1 on cards);
-  `text-tertiary` is for placeholders and decorative icons only.
+- **Contrast is documented at the token.** Body text ≥ AA everywhere
+  (secondary 4.83:1, tertiary 4.6:1 on white; topbar muted 6.6:1 on the
+  bar); `text-tertiary` is for placeholders and decorative icons only.
 
 ## Typography
 
@@ -320,8 +311,8 @@ never changes.
 
 - Consume **semantic** tokens (`text-secondary`, `surface-subtle`); reach
   for primitives only when retuning a component slot.
-- Keep every size on the 4pt grid, and check both themes — dark is a token
-  flip, so if you used tokens, it's already done.
+- Keep every size on the 4pt grid; every color rides a token, so a retune
+  is a token edit, never a component sweep.
 - Reuse the established primitives; extend by *prop*, not by fork
   (MultiPoll is a PollCard prop, not a second card).
 - Gate motion behind `prefers-reduced-motion`; keep animations directional
@@ -332,8 +323,7 @@ never changes.
 **Don't**
 
 - Hardcode a hex, a `#000`, or a bare `white` in a component — brand black
-  is `text-primary`, and white-on-accent must be `text-on-accent` (it flips
-  in dark mode for contrast).
+  is `text-primary`, and white-on-accent must be `text-on-accent`.
 - Put borders on the OR disc, bounce an animation, or let a result bar
   drop below its content width.
 - Use danger ink for non-errors (Minority is neutral) or violet for
@@ -362,16 +352,16 @@ analytics warehouse — every screen answers *what is next?* before *how much?*.
 
 ## The shell
 
-The whole app is **one soft frame** (`app-header`) — the same background family
-as the content card but **one step darker** — on the same viewport-lock rule as
-the consumer app (`html { overflow: clip }`). The top row and the sidebar sit
-**directly on the frame** — no separate header bar, no seams — and each page
-renders as a **single rounded card floating inside** it, which is the only
-thing that scrolls (like Google Calendar / Klaviyo). The frame's foreground,
-field, and border tokens **track the semantic tokens** (`--text-primary`,
-`--surface-raised`, `--border-default`) so both themes just work; only the two
-backgrounds are set per theme. So the ladder reads: **frame (a step darker) ▸
-content card ▸ white cards inside it**.
+The app is a light frame with **one dark surface: the 48px top bar**
+(`topbar-*` tokens, our `neutral-900` — the Shopify-style black bar carrying
+the wordmark, search, and account controls in white). Below it, the sidebar
+sits on the **soft light frame** (`app-header`, a step darker than content)
+and each page renders as a **single rounded card floating inside** it — the
+only thing that scrolls (`html { overflow: clip }`, like Google Calendar /
+Klaviyo). The ladder reads: **black bar ▸ light frame ▸ content card ▸ white
+cards inside it**. Every page shares the one `max-w-dashboard` (1200px)
+container — no per-page widths — and lays out on the 12-column `SectionGrid`
+at 16px gutters.
 
 - **Top row** — `h-12` (48px), transparent on the frame. The flanks are
   **equal-width** (`flex-1` each) so the centered search stays optically

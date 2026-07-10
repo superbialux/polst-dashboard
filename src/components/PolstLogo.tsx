@@ -9,7 +9,7 @@ export function PolstWordmark({ className }: Props) {
       alt="Polst"
       draggable={false}
       className={cn(
-        "h-8 w-auto object-contain dark:brightness-0 dark:invert",
+        "h-8 w-auto object-contain",
         className,
       )}
     />
@@ -24,7 +24,7 @@ export function PolstSymbol({ className }: Props) {
       aria-hidden
       draggable={false}
       className={cn(
-        "h-7 w-auto object-contain dark:brightness-0 dark:invert",
+        "h-7 w-auto object-contain",
         className,
       )}
     />

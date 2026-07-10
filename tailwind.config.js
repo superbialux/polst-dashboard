@@ -93,6 +93,11 @@ export default {
         "app-header-field-hover":"var(--app-header-field-bg-hover)",
         "app-header-border":     "var(--app-header-border)",
         "app-content":           "var(--app-content-bg)",
+        "topbar":                "var(--topbar-bg)",
+        "topbar-fg":             "var(--topbar-fg)",
+        "topbar-muted":          "var(--topbar-muted)",
+        "topbar-field":          "var(--topbar-field-bg)",
+        "topbar-field-hover":    "var(--topbar-field-bg-hover)",
         "cal-campaign":          "var(--cal-campaign-bg)",
         "cal-campaign-fg":       "var(--cal-campaign-fg)",
         "cal-polst":             "var(--cal-polst-bg)",
@@ -133,10 +138,9 @@ export default {
         ui: ["13px", "16px"],
       },
       maxWidth: {
-        // The named content containers: `content` for reading/forms,
-        // `dashboard` for Home's mixed board, `max-w-full` for data pages.
-        content: "1024px",
-        dashboard: "1240px",
+        // ONE content container: every page — Home board, data tables,
+        // editors — caps at the same width so the app reads as one system.
+        dashboard: "1200px",
       },
       borderRadius: {
         sm: "var(--radius-sm)",

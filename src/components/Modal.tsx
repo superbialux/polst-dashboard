@@ -89,7 +89,7 @@ export function Modal({
         tabIndex={-1}
         aria-label="Close"
         onClick={onClose}
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px] dark:bg-black/65"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
       />
       <div
         ref={panelRef}

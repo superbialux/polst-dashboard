@@ -25,7 +25,6 @@ export function AudiencePage() {
   return (
     <DashboardPage
       title="Audience"
-      wide
     >
       <SectionGrid>
         {AUDIENCE_STATS.map((stat) => (

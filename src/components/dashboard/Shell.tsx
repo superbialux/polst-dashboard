@@ -170,11 +170,11 @@ function Header() {
   }, []);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 px-3 lg:px-4">
+    <header className="flex h-12 shrink-0 items-center gap-3 bg-topbar px-3 text-topbar-fg lg:px-4">
       {/* Left — mirrors the right side's width so the search stays centered */}
       <div className="flex flex-1 items-center">
         <Link to="/" aria-label="Home" className="px-1">
-          <PolstWordmark className="h-[1.625rem]" />
+          <PolstWordmark className="h-[1.625rem] brightness-0 invert" />
         </Link>
       </div>
 
@@ -183,15 +183,15 @@ function Header() {
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
-          className="relative block h-8 w-full rounded-md border border-app-header-border bg-app-header-field pl-10 pr-14 text-left text-ui text-app-header-muted outline-none transition-colors hover:border-border-strong"
+          className="relative block h-8 w-full rounded-md bg-topbar-field pl-10 pr-14 text-left text-ui text-topbar-muted outline-none transition-colors hover:bg-topbar-field-hover"
         >
           <Icon
             name="search"
             size={20}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-app-header-muted"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-topbar-muted"
           />
           Search campaigns, Polsts, and sources
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-sm bg-surface-subtle px-1.5 py-0.5 font-sans text-xs font-semibold text-app-header-muted">
+          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 font-sans text-xs font-semibold text-topbar-muted">
             ⌘K
           </kbd>
         </button>
@@ -344,9 +344,9 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-/** A 32×32 header control, sized to sit within the 48px frame row. */
+/** A 32×32 header control, sized to sit within the 48px black bar. */
 const headerButton =
-  "grid h-8 w-8 place-items-center rounded-md text-app-header-fg transition-colors hover:bg-app-content";
+  "grid h-8 w-8 place-items-center rounded-md text-topbar-fg transition-colors hover:bg-topbar-field";
 
 function CreateMenu() {
   const navigate = useNavigate();
@@ -415,7 +415,7 @@ function NotificationsMenu() {
       trigger={({ toggle }) => (
         <button onClick={toggle} aria-label="Notifications" className={cn(headerButton, "relative")}>
           <Icon name="notifications" size={20} />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-pill bg-status-danger ring-2 ring-app-header" />
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-pill bg-status-danger ring-2 ring-topbar" />
         </button>
       )}
     >
@@ -484,7 +484,7 @@ function AccountMenu() {
       trigger={({ toggle }) => (
         <button
           onClick={toggle}
-          className="flex h-8 items-center gap-2 rounded-md pl-1 pr-2.5 text-app-header-fg transition-colors hover:bg-app-content"
+          className="flex h-8 items-center gap-2 rounded-md pl-1 pr-2.5 text-topbar-fg transition-colors hover:bg-topbar-field"
         >
           <WorkspaceMark initials={WORKSPACE.initials} size="sm" />
           <span className="hidden font-display text-ui font-semibold sm:inline">

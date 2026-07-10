@@ -1,6 +1,5 @@
 import { Route, Routes } from "react-router-dom";
 import { ToastProvider } from "@/components/Toast";
-import { ThemeProvider } from "@/lib/theme";
 import { ModulesProvider } from "@/lib/modules";
 import { DashboardShell } from "@/components/dashboard";
 import { HomePage } from "@/pages/Home";
@@ -31,8 +30,7 @@ import { NotFoundPage, SettingsPage } from "@/pages/Settings";
 
 export function App() {
   return (
-    <ThemeProvider>
-      <ModulesProvider>
+    <ModulesProvider>
       <ToastProvider>
         <DashboardShell>
           <Routes>
@@ -63,7 +61,6 @@ export function App() {
           </Routes>
         </DashboardShell>
       </ToastProvider>
-      </ModulesProvider>
-    </ThemeProvider>
+    </ModulesProvider>
   );
 }
