@@ -90,10 +90,13 @@ function AttentionRow({ item }: { item: ListItem }) {
 /* ── Ready to decide ─────────────────────────────────────────────── */
 
 function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more: number }) {
+  // An Ended run's call is made — the card says "Decided" and points at the
+  // report instead of nagging "Review decision" forever.
+  const decided = campaign.status === "Ended";
   return (
-    <DashboardCard title="Ready to decide" className="lg:col-span-4">
+    <DashboardCard title={decided ? "Decided" : "Ready to decide"} className="lg:col-span-4">
       <p className="text-sm font-semibold text-status-success">
-        Ready to decide · {campaign.confidence} confidence
+        {decided ? "Decided" : "Ready to decide"} · {campaign.confidence} confidence
       </p>
       <Link
         to={`/campaigns/${campaign.id}`}
@@ -115,7 +118,7 @@ function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more: numbe
         </div>
       </dl>
       <Button className="mt-3 w-full" asChild>
-        <Link to={`/campaigns/${campaign.id}`}>Review decision</Link>
+        <Link to={`/campaigns/${campaign.id}`}>{decided ? "Open report" : "Review decision"}</Link>
       </Button>
       {more > 0 ? (
         <Link

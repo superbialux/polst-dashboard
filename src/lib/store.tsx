@@ -109,6 +109,31 @@ const blankPolst = (id: string, input: CreatePolstInput): SinglePolst => ({
 export const publishedStatus = (startAt?: string, endAt?: string): Status =>
   endAt && endAt < TODAY ? "Ended" : startAt && startAt > TODAY ? "Scheduled" : "Active";
 
+/** Pure schedule-edit rule for updateCampaign, exported so verify-model can
+ *  regression-test it. Two invariants: (1) a run that collected votes never
+ *  moves its start — the dates voters arrived under are part of the record —
+ *  and (2) any date change on a published run re-resolves the status through
+ *  publishedStatus, so an Active run can never claim a future start and a
+ *  Scheduled run can never keep "Scheduled" after its start moves into the
+ *  past. Drafts and archived runs keep their status: dates on them are plans. */
+export const scheduleEdit = (
+  c: { status: Status; voters: number; startAt?: string; endAt?: string },
+  nextStart?: string,
+  nextEnd?: string,
+): { ok: true; status: Status } | { ok: false; reason: string } => {
+  const published = c.status !== "Draft" && c.status !== "Archived";
+  if (published && c.voters > 0 && nextStart !== c.startAt)
+    return {
+      ok: false as const,
+      reason: "This run has collected votes — its start date is part of the record.",
+    };
+  const datesChanged = nextStart !== c.startAt || nextEnd !== c.endAt;
+  return {
+    ok: true as const,
+    status: published && datesChanged ? publishedStatus(nextStart, nextEnd) : c.status,
+  };
+};
+
 /* ── Public shape ─────────────────────────────────────────────────── */
 
 export type CreateCampaignInput = {
@@ -148,7 +173,12 @@ type WorkspaceStore = {
   polstById: (id?: string) => SinglePolst | undefined;
 
   createCampaign: (input: CreateCampaignInput) => string;
-  updateCampaign: (id: string, patch: Partial<CreateCampaignInput>) => void;
+  /** Refuses start-date edits on voted runs; date changes on published runs
+   *  re-resolve the status (scheduleEdit) so the UI can speak the outcome. */
+  updateCampaign: (
+    id: string,
+    patch: Partial<CreateCampaignInput>,
+  ) => { ok: true; status: Status } | { ok: false; reason: string };
   addQuestionToCampaign: (campaignId: string, q: { question: string; optionA: string; optionB: string }) => void;
   addLibraryPolstToCampaign: (campaignId: string, polstId: string) => void;
   removeChainQuestion: (campaignId: string, questionId: string) => void;
@@ -167,6 +197,8 @@ type WorkspaceStore = {
 
   addSource: (input: AddSourceInput) => string;
   assignSource: (sourceId: string, linked: NonNullable<Source["linked"]>) => void;
+  /** Refused once the source has voters — attribution is part of the record. */
+  unassignSource: (sourceId: string) => { ok: true } | { ok: false; reason: string };
 
   members: TeamMember[];
   /** Provisions a brand-only Manager account; "joined" fills at first sign-in. */
@@ -242,19 +274,51 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       polstById: (id) => polsts.find((p) => p.id === id),
 
       createCampaign,
-      updateCampaign: (id, patch) =>
-        patchCampaign(id, (c) => ({
-          ...c,
-          name: patch.name?.trim() || c.name,
-          decision: patch.decision !== undefined ? patch.decision.trim() : c.decision,
-          // "" (a cleared date / "No end") normalizes to undefined, so every
-          // truthiness guard downstream keeps working on updated campaigns.
-          startAt: patch.startAt !== undefined ? patch.startAt || undefined : c.startAt,
-          endAt: patch.endAt !== undefined ? patch.endAt || undefined : c.endAt,
-          target: patch.target !== undefined ? patch.target : c.target,
-          event: patch.event !== undefined ? patch.event : c.event,
-          vertical: patch.vertical ?? c.vertical,
-        })),
+      updateCampaign: (id, patch) => {
+        const c = campaigns.find((x) => x.id === id);
+        if (!c) return { ok: false as const, reason: "Campaign not found." };
+        // "" (a cleared date / "No end") normalizes to undefined, so every
+        // truthiness guard downstream keeps working on updated campaigns.
+        const nextStart = patch.startAt !== undefined ? patch.startAt || undefined : c.startAt;
+        const nextEnd = patch.endAt !== undefined ? patch.endAt || undefined : c.endAt;
+        // Schedule edits obey the record: a voted run's start never moves,
+        // and published-run date changes re-resolve the status honestly.
+        const result = scheduleEdit(c, nextStart, nextEnd);
+        if (!result.ok) return result;
+        patchCampaign(id, (x) => {
+          const target = patch.target !== undefined ? patch.target : x.target;
+          return {
+            ...x,
+            name: patch.name?.trim() || x.name,
+            decision: patch.decision !== undefined ? patch.decision.trim() : x.decision,
+            startAt: nextStart,
+            endAt: nextEnd,
+            target,
+            event: patch.event !== undefined ? patch.event : x.event,
+            vertical: patch.vertical ?? x.vertical,
+            status: result.status,
+            // The signal always re-derives (status or target may have moved),
+            // mirroring publishCampaign/endCampaign — never a stale verdict.
+            signal: signalFor({
+              status: result.status,
+              voters: x.voters,
+              target,
+              marginPts: x.winner?.marginPts ?? 0,
+            }),
+            // An edit that lands a voted run in the past ends it for real —
+            // the mid-run narrative flips to ended-voice, like endCampaign.
+            ...(result.status === "Ended" && x.status !== "Ended" && x.voters > 0
+              ? {
+                  summary: `Voting closed ${fmtDate(nextEnd!)} with ${fmtInt(x.voters)} voters${
+                    x.target ? ` of the ${fmtInt(x.target)} target` : ""
+                  }.`,
+                  nextStep: "Review the recommendation and lock the direction.",
+                }
+              : {}),
+          };
+        });
+        return result;
+      },
       addQuestionToCampaign: (campaignId, q) =>
         patchCampaign(campaignId, (c) => {
           const qid = uniqueId(`${c.id}-${q.question}`, new Set(c.chain.map((x) => x.id)));
@@ -436,20 +500,42 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setSources((all) =>
           all.map((s) => (s.id === sourceId ? { ...s, linked } : s)),
         ),
+      // Undoes a mis-click while the wiring is still clean. Once a source
+      // delivered voters, its attribution is evidence — the numbers on the
+      // linked run's record — so it stays, the same rule as unpublish.
+      unassignSource: (sourceId) => {
+        const s = sources.find((x) => x.id === sourceId);
+        if (!s) return { ok: false as const, reason: "Source not found." };
+        if (s.voters > 0)
+          return {
+            ok: false as const,
+            reason: "This source has collected voters — its attribution is part of the record.",
+          };
+        setSources((all) =>
+          all.map((x) => (x.id === sourceId ? { ...x, linked: null } : x)),
+        );
+        return { ok: true as const };
+      },
 
       members,
       // Members live in the store like every other in-session creation, so
-      // an added row survives navigating away from Team & access.
+      // an added row survives navigating away from Team & access. One email
+      // is one account — a duplicate address never mints a second row (the
+      // Add-member modal refuses it up front; this is the backstop).
       addMember: (name, email) =>
-        setMembers((all) => [
-          ...all,
-          {
-            id: uniqueId(name, new Set(all.map((m) => m.id))),
-            name: name.trim(),
-            email: email.trim(),
-            role: "Manager",
-          },
-        ]),
+        setMembers((all) =>
+          all.some((m) => m.email.toLowerCase() === email.trim().toLowerCase())
+            ? all
+            : [
+                ...all,
+                {
+                  id: uniqueId(name, new Set(all.map((m) => m.id))),
+                  name: name.trim(),
+                  email: email.trim(),
+                  role: "Manager",
+                },
+              ],
+        ),
 
       markNotificationRead: (id) =>
         setNotifications((all) => all.map((n) => (n.id === id ? { ...n, read: true } : n))),

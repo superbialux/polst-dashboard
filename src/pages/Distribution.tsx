@@ -56,8 +56,16 @@ const attributedUrl = (meta: LinkedMeta, sourceId: string) =>
 
 export function DistributionPage() {
   const toast = useToast();
-  const { campaigns, polsts, sources, addSource, assignSource, campaignById, polstById } =
-    useWorkspace();
+  const {
+    campaigns,
+    polsts,
+    sources,
+    addSource,
+    assignSource,
+    unassignSource,
+    campaignById,
+    polstById,
+  } = useWorkspace();
   const [addOpen, setAddOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<Source | null>(null);
   const [qrTarget, setQrTarget] = useState<{ source: Source; linked: LinkedMeta } | null>(null);
@@ -173,8 +181,29 @@ export function DistributionPage() {
     {
       header: "",
       align: "right",
+      // Assign is one click — so is undoing it while the wiring is still
+      // clean. Once a source delivered voters its attribution is part of
+      // the record: the action disables with the store's reason (and the
+      // store refuses regardless).
       cell: (s) =>
-        s.linked ? null : (
+        s.linked ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={s.voters > 0}
+            title={
+              s.voters > 0
+                ? "This source has collected voters — its attribution is part of the record."
+                : undefined
+            }
+            onClick={() => {
+              const result = unassignSource(s.id);
+              toast(result.ok ? `${s.name} unassigned` : result.reason);
+            }}
+          >
+            Unassign
+          </Button>
+        ) : (
           <Button variant="secondary" size="sm" onClick={() => setAssignTarget(s)}>
             Assign
           </Button>

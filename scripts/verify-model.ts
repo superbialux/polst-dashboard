@@ -32,6 +32,7 @@ import {
   workspaceWindow,
 } from "../src/lib/workspace";
 import { ANALYTICS_DEFAULTS, analyticsRows, segmentTotal } from "../src/lib/analytics";
+import { scheduleEdit } from "../src/lib/store";
 
 let failures = 0;
 const fail = (msg: string) => {
@@ -278,7 +279,39 @@ check(
   `feed nt-holiday-leading: stamped ${stampOf("nt-holiday-leading")} but 70% of target is reached on ${leadingDate}`,
 );
 
-/* ── 17. Attention snapshot equals the pure derivation over the seed ── */
+/* ── 17. Schedule edits on published runs stay truthful (store rule) ──
+   A voted run never moves its start (the dates voters arrived under are the
+   record) and any date change on a published run re-resolves the status —
+   an Active run can never claim a future start, a Scheduled run can never
+   stay "Scheduled" after its start moves into the past. */
+const votedActive = { status: "Active" as const, voters: 2103, startAt: "2026-06-01", endAt: "2026-06-30" };
+check(
+  !scheduleEdit(votedActive, "2026-06-20", "2026-06-30").ok,
+  "scheduleEdit: a voted Active run accepted a start-date change",
+);
+const endMovedPast = scheduleEdit(votedActive, "2026-06-01", "2026-06-10");
+check(
+  endMovedPast.ok && endMovedPast.status === "Ended",
+  "scheduleEdit: an end date moved into the past did not resolve to Ended",
+);
+const stillActive = scheduleEdit(votedActive, "2026-06-01", "2026-06-25");
+check(
+  stillActive.ok && stillActive.status === "Active",
+  "scheduleEdit: an in-range end edit changed a live run's status",
+);
+const scheduledRun = { status: "Scheduled" as const, voters: 0, startAt: "2026-06-20", endAt: "2026-06-27" };
+const startMovedPast = scheduleEdit(scheduledRun, "2026-06-10", "2026-06-27");
+check(
+  startMovedPast.ok && startMovedPast.status === "Active",
+  "scheduleEdit: a Scheduled run kept 'Scheduled' after its start moved into the past",
+);
+const draftEdit = scheduleEdit({ status: "Draft" as const, voters: 0 }, "2026-05-01", "2026-05-10");
+check(
+  draftEdit.ok && draftEdit.status === "Draft",
+  "scheduleEdit: a draft's dates re-resolved its status (plans are not runs)",
+);
+
+/* ── 18. Attention snapshot equals the pure derivation over the seed ── */
 check(
   JSON.stringify(ATTENTION_ITEMS) === JSON.stringify(attentionItems(CAMPAIGNS, SINGLE_POLSTS, SOURCES)),
   "ATTENTION_ITEMS ≠ attentionItems(seed state)",

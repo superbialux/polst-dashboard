@@ -98,6 +98,10 @@ export const METRIC_INFO = {
   interactions: "Likes, shares, and reposts of the Polst.",
   shareRate: "Voters who shared ÷ voters who completed.",
   viewWithoutVote: "Views that never became a vote: (views − voters) ÷ views.",
+  votesPerVoter:
+    "Total votes ÷ voters for the period. A voter answering a three-question campaign counts as three votes.",
+  voteVelocity:
+    "Average votes per hour over the trailing window, from this Polst's daily votes.",
 } as const;
 
 /* ── Formatters (the only number/date renderers) ──────────────────── */

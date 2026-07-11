@@ -108,7 +108,11 @@ export function DashboardCard({
 }
 
 /** 12-column layout row at the shared 16px gutter. Children set
- *  `lg:col-span-{n}`; everything stacks below `lg`. */
+ *  `lg:col-span-{n}`; everything stacks below `lg`. Grid items default to
+ *  `min-width: auto`, which lets a wide child (a table's min-content, a
+ *  segmented form control) widen its track past the viewport on small
+ *  screens — `[&>*]:min-w-0` keeps every panel inside its column so
+ *  overflow scrolls inside the panel's own wrapper, never the page. */
 export function SectionGrid({
   children,
   className,
@@ -117,7 +121,7 @@ export function SectionGrid({
   className?: string;
 }) {
   return (
-    <div className={cn("grid gap-4 lg:grid-cols-12", className)}>{children}</div>
+    <div className={cn("grid gap-4 lg:grid-cols-12 [&>*]:min-w-0", className)}>{children}</div>
   );
 }
 

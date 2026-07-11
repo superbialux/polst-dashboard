@@ -186,7 +186,6 @@ export type ComposerState = {
   /** First selected category — stores persist it as the vertical. */
   category: string | null;
   optionsSet: boolean;
-  imagesSet: boolean;
 };
 
 /** Prefill for editing an existing draft. */
@@ -230,13 +229,15 @@ export function PollComposer({
   const questionShake = useLimitShake(question, QUESTION_LIMIT);
 
   useEffect(() => {
+    // Images aren't part of readiness: attaching one here is a mock (the
+    // model derives every Polst's imagery through polstImage()), so the
+    // composer reports only what the model actually persists.
     onChange?.({
       question: question.trim(),
       optionA: choices[0].label.trim(),
       optionB: choices[1].label.trim(),
       category: selectedCategories[0] ?? null,
       optionsSet: choices.every((c) => c.label.trim() !== ""),
-      imagesSet: choices.every((c) => c.image !== null),
     });
   }, [question, choices, selectedCategories, onChange]);
 

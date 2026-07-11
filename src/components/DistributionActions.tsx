@@ -240,10 +240,12 @@ export function QrCodeModal({
               className="h-8 w-10 rounded-sm border border-border-default bg-surface-raised p-1"
             />
           </label>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-text-primary">Brand logo</span>
+          {/* A real <label>, like "QR color" beside it — clicking the words
+              toggles the switch (the button is the label's control). */}
+          <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
+            Brand logo
             <Switch checked={logo} onChange={setLogo} label="Brand logo overlay" />
-          </div>
+          </label>
         </div>
         <div className="flex items-center gap-2">
           <SegmentedControl

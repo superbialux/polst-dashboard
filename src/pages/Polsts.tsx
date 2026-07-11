@@ -592,10 +592,7 @@ export function PolstDetailPage() {
               <DashboardCard
                 title="Vote velocity"
                 action={
-                  <InfoHint
-                    label="Vote velocity"
-                    text="Average votes per hour over the trailing window, from this Polst's daily votes."
-                  />
+                  <InfoHint label="Vote velocity" text={METRIC_INFO.voteVelocity} />
                 }
               >
                 <DetailList
@@ -821,7 +818,6 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
     optionB: draft?.optionB ?? "",
     category: draft?.vertical ?? null,
     optionsSet: Boolean(draft),
-    imagesSet: Boolean(draft),
   });
   const [startDate, setStartDate] = useState(draft?.startAt ?? TODAY);
   // A saved schedule round-trips exactly (kit owns the preset vocabulary).
@@ -836,10 +832,12 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
   // so an impossible run (ends before it starts) can never be authored.
   const endBeforeStart = Boolean(endDate && startDate && endDate < startDate);
 
+  // "Images added" is deliberately not a gate: every Polst's imagery is
+  // derived through polstImage(), so the composer's mock attach can neither
+  // block a publish honestly nor survive a draft round-trip.
   const checks: Array<[string, boolean]> = [
     ["Question written", composer.question !== ""],
     ["Both options set", composer.optionsSet],
-    ["Images added", composer.imagesSet],
   ];
   const canSave = composer.question !== "" && composer.optionsSet && !endBeforeStart;
   const canPublish = checks.every(([, done]) => done) && !endBeforeStart;

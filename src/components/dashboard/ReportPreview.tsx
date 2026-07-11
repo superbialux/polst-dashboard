@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import { fmtDateRange, fmtInt, fmtPct, pct } from "@/lib/canon";
 import {
+  headlineLabel,
   polstOptions,
   verdictLabel,
-  winnerLabel,
   type Campaign,
   type SinglePolst,
   type Source,
@@ -26,7 +26,8 @@ const campaignSummary = (c: Campaign, sources: Source[]): string => {
   return [
     `${c.name} — decision report`,
     ...(c.decision ? [c.decision] : []),
-    `Result: ${verdictLabel(c)}${c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}`,
+    // A run that ended without a single voter has no verdict to state.
+    `Result: ${c.voters === 0 ? "Ended without votes" : verdictLabel(c)}${c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}`,
     `Voters: ${fmtInt(c.voters)}${c.target ? ` of ${fmtInt(c.target)} target` : ""} · Completion: ${pct(c.completed, c.voters)}`,
     ...(topSource && topSource.voters > 0 ? [`Top source: ${topSource.name}`] : []),
     ...(c.findings.length ? ["", "Findings:", ...c.findings.map((f) => `- ${f}`)] : []),
@@ -48,6 +49,10 @@ function SectionTitle({ children }: { children: string }) {
 
 function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: Source[] }) {
   const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
+  // A run can honestly reach its report with zero voters (published with
+  // already-past dates). Its report says so plainly — never a bare "—"
+  // verdict over an all-zero funnel.
+  const zeroVoters = campaign.voters === 0;
   const journey: FunnelStep[] = [
     { label: "Started", count: campaign.voters },
     ...campaign.chain.map((q, i) => ({
@@ -61,15 +66,17 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
     <>
       <header>
         {/* Plain-language verdict — the report speaks to the same
-            non-technical reader as every other campaign surface. */}
+            non-technical reader as every other campaign surface. The
+            headline carries the brief's framing ("Decided: …"), so the
+            lead label never prints twice in a row. */}
         <p className="text-sm font-semibold text-text-primary">
-          {verdictLabel(campaign)}
+          {zeroVoters ? "Ended without votes" : verdictLabel(campaign)}
           {campaign.confidence !== "—" ? (
             <span className="font-medium text-text-secondary"> · {campaign.confidence} confidence</span>
           ) : null}
         </p>
         <h3 className="mt-2 font-display text-lg font-semibold leading-6 text-text-primary">
-          {winnerLabel(campaign)}
+          {zeroVoters ? "No result — nothing was collected" : headlineLabel(campaign)}
         </h3>
         {campaign.decision ? (
           <p className="mt-1 text-sm text-text-secondary">{campaign.decision}</p>
@@ -91,7 +98,8 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
           ["Run dates", fmtDateRange(campaign.startAt, campaign.endAt)],
         ]}
       />
-      {campaign.chain.length > 0 ? (
+      {/* An all-zero funnel is noise, not a journey — suppressed at zero. */}
+      {campaign.chain.length > 0 && !zeroVoters ? (
         <section>
           <SectionTitle>Voter journey</SectionTitle>
           <div className="mt-2">

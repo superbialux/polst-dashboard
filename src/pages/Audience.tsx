@@ -121,7 +121,7 @@ export function AudiencePage() {
     {
       label: "Votes per voter",
       value: votesPerVoter !== null ? votesPerVoter.toFixed(1) : "—",
-      info: "Total votes ÷ voters for the period. A voter answering a three-question campaign counts as three votes.",
+      info: METRIC_INFO.votesPerVoter,
       ...vsPrevious(ratioDelta(votesPerVoter, prevVotesPerVoter)),
     },
   ];
@@ -141,7 +141,9 @@ export function AudiencePage() {
         </SectionGrid>
       </div>
 
-      <SectionGrid>
+      {/* items-start: short cards (Devices, Geography) keep their natural
+          height beside tall neighbours instead of stretching into dead space. */}
+      <SectionGrid className="items-start">
         <DashboardCard
           title="When your audience answers"
           action={w.votes > 0 ? <Chip>{peakLabel(heat)}</Chip> : undefined}
@@ -154,7 +156,7 @@ export function AudiencePage() {
         </DashboardCard>
       </SectionGrid>
 
-      <SectionGrid>
+      <SectionGrid className="items-start">
         <DashboardCard
           title="Geography"
           description="Where the period's voters answered from."

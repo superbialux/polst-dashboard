@@ -295,7 +295,9 @@ never changes.
 - **Overlays** — Modal (focus-trapped, Escape, restores focus, scrim
   `black/50` + 2px blur), Drawer (push pattern, inert when closed), Menu
   (roving arrow-key focus; `side="top"` for footers). All stay mounted for
-  their transitions and go `inert` when closed.
+  their transitions and go `inert` when closed. **Escape closes one layer
+  at a time**: an open Menu inside a Modal claims the first Escape (capture
+  phase + `preventDefault`); the dialog only closes on the next one.
 - **Feedback** — one dismissible Toast at a time, `aria-live`, on a raised
   token surface with a default border; it never assumes every message is a
   success. Toasts never lie (clipboard failures say so). EmptyStates pair an
@@ -467,7 +469,10 @@ at 500–650, never bold-black:
   gutters (`gap-4`) — a card spans `col-span-{n}` (7/5, 8/4, 3×4, 6×2…). Never
   hand-size a track with an arbitrary value; spend columns. Editor right
   columns are spent `SectionGrid` columns holding ordinary `DashboardCard`s —
-  there is no Rail component.
+  there is no Rail component. `SectionGrid` items carry `min-w-0`, so a wide
+  child (a table's min-content, a segmented control) scrolls inside its own
+  panel wrapper instead of widening the page — no route may scroll
+  horizontally at 390px.
 - **Two rhythms.** Major sections **stack at 24px** (`space-y-6`); cards hold
   a **20px** inset (`p-5`) with 8–12px nested gaps. Page padding lives on the
   shell's `main` — the same slim `px-4 sm:px-5` as the header, with
@@ -527,7 +532,14 @@ thresholds live in one place — `signalFor` / `confidenceFor` /
 but its raw labels never reach the dashboard UI. Surfaces speak the
 plain-language translation, `verdictLabel` in `workspace.ts` ("Minimal label
 +16 pts", "Too close to call", "Collecting votes", "No clear winner"), plus
-"Ready to decide · {confidence} confidence" where `isReadyToDecide` holds.
+"Ready to decide · {confidence} confidence" where `isReadyToDecide` holds —
+**on live runs only**: once the run is Ended the call is made, and every
+ready surface (brief eyebrow, Home card, Analytics rails) speaks
+"Decided · {confidence} confidence" with an "Open report" CTA instead of
+nagging "Ready to decide" forever. `headlineLabel` (workspace.ts) is the one
+headline framing of the call ("Decided: Trio Box +10 pts" / "Recommended: …");
+the DecisionBrief and the decision report both speak it, so the report never
+prints the raw lead label twice.
 Campaign tables carry **both** columns — Status and **"Result so far"**
 (the verdict) — never one string mixing the two. The chain itself previews
 as a **`ThumbStrip`** (first three split A/B minis + a "+N" chip). No
@@ -552,8 +564,9 @@ weaken it).
   **views**, **votes**, **voters** (say "voters", *never "responses"*),
   **started**, **completed**, **completion rate**, **engagement rate**
   (votes ÷ views — the aggregate), **votes-per-view** (the per-content twin,
-  which may exceed 100% on multi-question campaigns), **interactions**
-  (likes, shares, and reposts).
+  which may exceed 100% on multi-question campaigns), **votes-per-voter**
+  (total votes ÷ voters for the period), **vote velocity** (votes/hr over
+  the trailing window), **interactions** (likes, shares, and reposts).
 - **`lib/engine.ts` derives every aggregate** from per-entity daily series —
   no number is authored twice, so the same metric reconciles across Home,
   Analytics, and campaign pages by construction. Reporting windows and their
@@ -563,7 +576,12 @@ weaken it).
   the seed model: created objects appear everywhere immediately (breadcrumbs,
   ⌘K, calendar, lists) and start with zero traffic so every derived number
   stays coherent. Nothing survives a reload — by design. **Toasts never
-  claim what the store didn't do.**
+  claim what the store didn't do.** Evidence rules are store law, not UI
+  courtesy: a voted run never rewinds to Draft, never moves its start date
+  (`scheduleEdit` refuses; date edits on published runs re-resolve status
+  through `publishedStatus` and re-derive the signal), a voted source never
+  unassigns (its attribution is part of the linked run's record), and one
+  email is one account.
 
 ## The dashboard component kit
 
@@ -726,6 +744,11 @@ fork. New surface area should feel assembled, not authored:
   anatomy for the same report object (signal + winning direction, key
   findings, caveats, voter journey, sources) with one footer convention.
   One object, one report — never two anatomies for the same deliverable.
+  Its headline is the brief's `headlineLabel`; a zero-voter Ended run reports
+  "Ended without votes" (no empty funnel, never a bare "—"). Analytics ›
+  Reports derives its rows live: every Ended campaign carries a Ready
+  decision-report row (the authored seed rows plus in-session endings), so
+  ending a run puts its report in the library immediately.
 - **`TrendChart`** — the one line chart (extracted from the stat strip):
   smooth accent line, soft area fill, dashed previous period, left y-axis,
   hover crosshair with a pinned value chip. Takes a `format` for units
@@ -766,6 +789,10 @@ The load-bearing facts a builder must not re-invent:
   library** at `/distribution`: a **source** is a concrete asset — QR code,
   Share link, Embed, Tracked link — and a **channel** is the rollup family it
   reports under. Campaign-scoped assets live on the campaign's Sources tab.
+  Assignment is reversible while clean: linked rows carry an **Unassign**
+  action (Distribution table + campaign Sources tab); once a source has
+  recorded voters its attribution is part of the record and the action
+  disables with the store's reason.
   Completion renders only for campaign-linked sources; polst-linked rows show
   "—", and polst-linked QR tiles show scan→vote **Conversion** instead.
 - **Audience shows only what we can derive.** Geography is real — the

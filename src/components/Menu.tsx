@@ -97,6 +97,12 @@ export function Menu({
     const onResize = () => closeFromLayout();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // The menu is the topmost layer while open: one Escape closes only
+        // it. Marking the event handled (and stopping it in the capture
+        // phase, before Modal's bubble listener) keeps a parent dialog open
+        // — the second Escape reaches the modal.
+        e.preventDefault();
+        e.stopPropagation();
         setOpen(false);
         rootRef.current?.querySelector<HTMLElement>("button")?.focus();
         return;
@@ -121,12 +127,14 @@ export function Menu({
       items[next].focus();
     };
     document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
+    // Capture phase, so the menu sees Escape before a parent Modal's
+    // document-level (bubble) listener and can claim it for its own layer.
+    document.addEventListener("keydown", onKey, true);
     document.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onResize);
     return () => {
       document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
       document.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
     };

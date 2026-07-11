@@ -15,6 +15,9 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAYS_FULL = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
 const KIND_ICON: Record<CalendarItem["kind"], string> = {
   campaign: "campaign",
   polst: "ballot",
@@ -249,20 +252,32 @@ export function WorkspaceCalendar() {
 
           return (
             <div key={wi} className="relative border-b border-border-default last:border-b-0">
-              {/* Click targets + gridlines */}
+              {/* Click targets + gridlines. Each cell is a button, so each
+                  carries its date (and what's on it) as its accessible
+                  name — never 42 anonymous tab stops. */}
               <div className="grid grid-cols-7">
-                {week.map((cell) => (
-                  <button
-                    key={cell.iso}
-                    onClick={(e) => openDay(cell, e.currentTarget)}
-                    className={cn(
-                      // Sized so the capped lanes (day number + 3 bars,
-                      // or events + 2) always fit uncut.
-                      "min-h-32 border-r border-border-default transition-colors last:border-r-0",
-                      cell.inMonth ? "hover:bg-surface-subtle/60" : "bg-surface-subtle/40",
-                    )}
-                  />
-                ))}
+                {week.map((cell) => {
+                  const dayCount = items.filter(
+                    (it) => it.start <= cell.iso && it.end >= cell.iso,
+                  ).length;
+                  return (
+                    <button
+                      key={cell.iso}
+                      onClick={(e) => openDay(cell, e.currentTarget)}
+                      aria-label={`${MONTHS_SHORT[cell.m]} ${cell.day} — ${
+                        dayCount === 0
+                          ? "nothing scheduled"
+                          : `${dayCount} ${dayCount === 1 ? "item" : "items"}`
+                      }`}
+                      className={cn(
+                        // Sized so the capped lanes (day number + 3 bars,
+                        // or events + 2) always fit uncut.
+                        "min-h-32 border-r border-border-default transition-colors last:border-r-0",
+                        cell.inMonth ? "hover:bg-surface-subtle/60" : "bg-surface-subtle/40",
+                      )}
+                    />
+                  );
+                })}
               </div>
 
               {/* Day numbers, key-date dots, and event bars */}

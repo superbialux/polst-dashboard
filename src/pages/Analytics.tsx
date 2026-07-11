@@ -27,6 +27,7 @@ import {
 } from "@/components/dashboard";
 import {
   METRIC_INFO,
+  TODAY,
   fmtDate,
   fmtInt,
   fmtPct,
@@ -331,38 +332,45 @@ const verticalColumns: Array<DataColumn<VerticalRow>> = [
   },
 ];
 
-/** The Home ready-to-decide vocabulary, windowless: entity truth per row. */
+/** The Home ready-to-decide vocabulary, windowless: entity truth per row.
+ *  An Ended run's call is made — its row says "Decided" and points at the
+ *  report; "Ready to decide" is reserved for live runs. */
 function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
   return (
     <ul className="divide-y divide-border-default">
-      {campaigns.map((campaign) => (
-        <li
-          key={campaign.id}
-          className="flex flex-col items-start gap-3 px-5 py-3 sm:flex-row sm:items-center"
-        >
-          <div className="min-w-0 flex-1">
-            <Link
-              to={`/campaigns/${campaign.id}`}
-              className="font-display text-sm font-semibold text-text-primary hover:text-text-accent"
-            >
-              {campaign.name}
-            </Link>
-            <p className="mt-0.5 text-xs text-text-secondary">
-              {winnerLabel(campaign)} · {fmtInt(campaign.voters)} voters
-              {campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""} · run to date
-            </p>
-          </div>
-          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-            <span className="whitespace-nowrap text-sm font-semibold text-status-success">
-              Ready to decide
-              {campaign.confidence !== "—" ? ` · ${campaign.confidence} confidence` : ""}
-            </span>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={`/campaigns/${campaign.id}`}>Review decision</Link>
-            </Button>
-          </div>
-        </li>
-      ))}
+      {campaigns.map((campaign) => {
+        const decided = campaign.status === "Ended";
+        return (
+          <li
+            key={campaign.id}
+            className="flex flex-col items-start gap-3 px-5 py-3 sm:flex-row sm:items-center"
+          >
+            <div className="min-w-0 flex-1">
+              <Link
+                to={`/campaigns/${campaign.id}`}
+                className="font-display text-sm font-semibold text-text-primary hover:text-text-accent"
+              >
+                {campaign.name}
+              </Link>
+              <p className="mt-0.5 text-xs text-text-secondary">
+                {winnerLabel(campaign)} · {fmtInt(campaign.voters)} voters
+                {campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""} · run to date
+              </p>
+            </div>
+            <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+              <span className="whitespace-nowrap text-sm font-semibold text-status-success">
+                {decided ? "Decided" : "Ready to decide"}
+                {campaign.confidence !== "—" ? ` · ${campaign.confidence} confidence` : ""}
+              </span>
+              <Button variant="secondary" size="sm" asChild>
+                <Link to={`/campaigns/${campaign.id}`}>
+                  {decided ? "Open report" : "Review decision"}
+                </Link>
+              </Button>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -440,7 +448,7 @@ export function AnalyticsOverviewPage() {
       `Views ${fmtInt(views)} · Votes ${fmtInt(votes)} · Engagement ${pct(votes, views, 1)} · Completion ${pct(completed, voters, 1)}`,
       ...ready.map(
         (c) =>
-          `Ready to decide: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters run to date)`,
+          `${c.status === "Ended" ? "Decided" : "Ready to decide"}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters run to date)`,
       ),
     ].join("\n");
 
@@ -670,7 +678,7 @@ export function AnalyticsInsightsPage() {
       `${WORKSPACE.brand} — insights`,
       ...ready.map(
         (c) =>
-          `Ready to decide: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
+          `${c.status === "Ended" ? "Decided" : "Ready to decide"}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
       ),
       ...attention.map((item) => `Needs attention: ${item.title}`),
       ...WHAT_CHANGED.map((item) => `${fmtDate(item.at)} — ${item.text}`),
@@ -684,10 +692,13 @@ export function AnalyticsInsightsPage() {
             <ActionCard
               key={campaign.id}
               className="h-full lg:col-span-4"
-              eyebrow="Ready to decide"
+              eyebrow={campaign.status === "Ended" ? "Decided" : "Ready to decide"}
               title={campaign.name}
               reason={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters · ${campaign.confidence} confidence`}
-              primary={{ label: "Review decision", to: `/campaigns/${campaign.id}` }}
+              primary={{
+                label: campaign.status === "Ended" ? "Open report" : "Review decision",
+                to: `/campaigns/${campaign.id}`,
+              }}
             />
           ))}
         </SectionGrid>
@@ -746,19 +757,43 @@ const reportPath = (report: WorkspaceReport) =>
 
 export function AnalyticsReportsPage() {
   const { filters, rows, resetFilters } = useAnalytics();
-  const { campaignById, polstById, sources } = useWorkspace();
+  const { campaigns, campaignById, polstById, sources } = useWorkspace();
   const [previewId, setPreviewId] = useState<string | null>(null);
+
+  /* The report library derives from the LIVE store: every Ended campaign
+   * carries a Ready decision-report row — end a run in-session and its
+   * report appears here immediately (the same report the campaign header
+   * exports), on top of the authored seed rows. */
+  const reports = useMemo<WorkspaceReport[]>(
+    () => [
+      ...campaigns
+        .filter(
+          (c) =>
+            c.status === "Ended" &&
+            !REPORTS.some((r) => r.linked.type === "campaign" && r.linked.id === c.id),
+        )
+        .map((c) => ({
+          id: `${c.id}-report`,
+          name: `${c.name} — decision report`,
+          linked: { type: "campaign" as const, id: c.id },
+          state: "Ready" as const,
+          createdAt: c.endAt ?? TODAY,
+        })),
+      ...REPORTS,
+    ],
+    [campaigns],
+  );
 
   // A report follows its object: it shows when the linked campaign/Polst
   // has activity inside the selected window and filters.
   const scoped = useMemo(
     () =>
-      REPORTS.filter((report) =>
+      reports.filter((report) =>
         rows.some(
           (row) => row.kind === report.linked.type && row.objectId === report.linked.id,
         ),
       ),
-    [rows],
+    [reports, rows],
   );
   const preview = scoped.find((report) => report.id === previewId) ?? null;
   /* The shared ReportPreview speaks the live entity: the linked object and

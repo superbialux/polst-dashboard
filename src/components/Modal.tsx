@@ -78,8 +78,11 @@ export function Modal({
     }
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (panelRef.current) trapFocus(panelRef.current, e);
+      // A topmost layer (an open Menu portaled above this dialog) claims
+      // Escape by marking it handled — the dialog only closes on the next
+      // one. One keypress, one layer.
+      if (e.key === "Escape" && !e.defaultPrevented) onClose();
+      else if (e.key !== "Escape" && panelRef.current) trapFocus(panelRef.current, e);
     };
     document.addEventListener("keydown", onKey);
     return () => {

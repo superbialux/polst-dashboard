@@ -1341,6 +1341,34 @@ export const verdictLabel = (c: {
   }
 };
 
+/** The one headline framing of the call — the DecisionBrief and the decision
+ *  report speak the same words ("Decided: Trio Box +10 pts"), so the report
+ *  never prints the raw lead label twice (eyebrow verdict + headline call). */
+export const headlineLabel = (c: {
+  status: Status;
+  signal: DecisionSignal;
+  winner: { option: string; marginPts: number } | null;
+}): string => {
+  switch (c.signal) {
+    case "Decisive":
+      return c.status === "Ended"
+        ? `Decided: ${winnerLabel(c)}`
+        : `Recommended: ${winnerLabel(c)}`;
+    case "Leading":
+      return `Recommended: ${winnerLabel(c)}`;
+    case "Directional":
+      return `Early read: ${winnerLabel(c)}`;
+    case "Too close":
+      return `Too close to call — ${winnerLabel(c)}`;
+    case "Collecting":
+      return `Collecting — ${winnerLabel(c)} so far`;
+    case "Inconclusive":
+      return "Ended without a clear winner";
+    default:
+      return "No votes yet";
+  }
+};
+
 /* ── Team (Settings) ─────────────────────────────────────────────────
    Staging's model: members are provisioned brand-only accounts (no
    invite email), and everyone but the owner is a Manager. */

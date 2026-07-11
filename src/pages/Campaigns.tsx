@@ -62,10 +62,10 @@ import {
   WHAT_CHANGED,
   embedIframe,
   embedScript,
+  headlineLabel,
   polstOptions,
   shareUrl,
   verdictLabel,
-  winnerLabel,
   type Campaign,
   type Channel,
   type Source,
@@ -100,13 +100,17 @@ const campaignSources = (sources: Source[], id: string) =>
 const listColumns: Array<DataColumn<Campaign>> = [
   {
     header: "Campaign",
+    // A real link, like the Polsts list — the row onClick is a pointer
+    // convenience, but keyboard and screen-reader users need an anchor.
     cell: (row) => (
-      <div className="min-w-0">
-        <p className="font-display font-semibold text-text-primary">{row.name}</p>
+      <Link to={`/campaigns/${row.id}`} className="group block min-w-0">
+        <p className="font-display font-semibold text-text-primary group-hover:text-text-accent">
+          {row.name}
+        </p>
         <p className="mt-0.5 truncate text-xs text-text-secondary">
           {fmtDateRange(row.startAt, row.endAt)}
         </p>
-      </div>
+      </Link>
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
@@ -562,34 +566,19 @@ export function CampaignDetailPage() {
 
 /* ── Overview tab ────────────────────────────────────────────────── */
 
-const briefHeadline = (c: Campaign): string => {
-  switch (c.signal) {
-    case "Decisive":
-      return c.status === "Ended"
-        ? `Decided: ${winnerLabel(c)}`
-        : `Recommended: ${winnerLabel(c)}`;
-    case "Leading":
-      return `Recommended: ${winnerLabel(c)}`;
-    case "Directional":
-      return `Early read: ${winnerLabel(c)}`;
-    case "Too close":
-      return `Too close to call — ${winnerLabel(c)}`;
-    case "Collecting":
-      return `Collecting — ${winnerLabel(c)} so far`;
-    case "Inconclusive":
-      return "Ended without a clear winner";
-    default:
-      return "No votes yet";
-  }
-};
+/* The headline framing is the shared `headlineLabel` (workspace.ts) — the
+   decision report leads with the exact same words, one anatomy. */
 
 /** The brief's plain-language eyebrow: the decision state plus its evidence
- *  volume — canon's verdict vocabulary, never a raw signal label. */
+ *  volume — canon's verdict vocabulary, never a raw signal label. An Ended
+ *  run's call is made — it speaks "Decided", never a "Ready to decide" nag
+ *  above a headline that already says the decision happened. */
 const briefEyebrow = (c: Campaign): ReactNode => {
   if (isReadyToDecide(c)) {
     return (
       <span className="text-status-success">
-        Ready to decide{c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}
+        {c.status === "Ended" ? "Decided" : "Ready to decide"}
+        {c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}
       </span>
     );
   }
@@ -649,7 +638,7 @@ function CampaignOverview({
     <>
       <DecisionBrief
         eyebrow={briefEyebrow(campaign)}
-        headline={briefHeadline(campaign)}
+        headline={headlineLabel(campaign)}
         summary={campaign.summary}
         caveat={campaign.caveats[0]}
         evidence={[
@@ -810,7 +799,8 @@ function LaunchChecklist({
 /* ── Polsts tab ──────────────────────────────────────────────────── */
 
 function CampaignPolsts({ campaign }: { campaign: Campaign }) {
-  const { reorderChain } = useWorkspace();
+  const { reorderChain, removeChainQuestion } = useWorkspace();
+  const toast = useToast();
   const [composerOpen, setComposerOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   // The chain is evidence once voters exist — editable only before launch.
@@ -883,6 +873,20 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
                           onClick={() => reorderChain(campaign.id, index, index + 1)}
                         >
                           <Icon name="arrow_downward" size={18} />
+                        </Button>
+                        {/* A mistyped or double-added question can leave the
+                            chain while it's still editable — the store's
+                            voters-guard keeps live evidence untouchable. */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove question ${index + 1} from the chain`}
+                          onClick={() => {
+                            removeChainQuestion(campaign.id, q.id);
+                            toast("Polst removed from the chain");
+                          }}
+                        >
+                          <Icon name="close" size={18} />
                         </Button>
                       </div>
                     ) : (
@@ -1110,6 +1114,7 @@ function CampaignSources({
   sources: Source[];
   onOpenQr: () => void;
 }) {
+  const { unassignSource } = useWorkspace();
   const toast = useToast();
   const [assignOpen, setAssignOpen] = useState(false);
   const assignable = campaign.status !== "Ended" && campaign.status !== "Archived";
@@ -1135,6 +1140,36 @@ function CampaignSources({
       align: "right",
       cell: (s) => (s.completionRate !== null ? fmtPct(s.completionRate, 0) : "—"),
     },
+    // A mis-assigned source can be freed while its wiring is still clean;
+    // once it delivered voters its attribution is part of the record, so
+    // the action is disabled with the store's reason (and the store refuses
+    // regardless). Read-only runs (Ended/Archived) manage nothing here.
+    ...(assignable
+      ? [
+          {
+            header: "",
+            align: "right" as const,
+            cell: (s: Source) => (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={s.voters > 0}
+                title={
+                  s.voters > 0
+                    ? "This source has collected voters — its attribution is part of the record."
+                    : undefined
+                }
+                onClick={() => {
+                  const result = unassignSource(s.id);
+                  toast(result.ok ? `${s.name} unassigned` : result.reason);
+                }}
+              >
+                Unassign
+              </Button>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -1371,7 +1406,7 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
   const invalidRange = Boolean(startAt && endAt && endAt < startAt);
 
   const save = () => {
-    store.updateCampaign(campaign.id, {
+    const result = store.updateCampaign(campaign.id, {
       name: name.trim(),
       decision,
       startAt,
@@ -1379,10 +1414,27 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
       target: target.trim() ? Number(target) : 0,
       event,
     });
-    toast("Campaign updated");
+    if (!result.ok) {
+      // Every refusal reaches the user (voted runs never move their start).
+      toast(result.reason);
+      return;
+    }
+    // Date edits re-resolve the run's status — the toast speaks the outcome.
+    toast(
+      result.status === campaign.status
+        ? "Campaign updated"
+        : result.status === "Ended"
+          ? "Campaign updated — the end date is past, so the run is Ended"
+          : result.status === "Scheduled"
+            ? `Campaign updated — starts ${fmtDate(startAt)}`
+            : "Campaign updated — the run is live now",
+    );
   };
 
   const live = campaign.status === "Scheduled" || campaign.status === "Active";
+  // A voted run's start date is part of the record — the store refuses the
+  // edit, so the field says so up front instead of a click-to-discover toast.
+  const startLocked = live && campaign.voters > 0;
   // A finished run is the record — "becomes read-only" must be true.
   const readOnly = campaign.status === "Ended" || campaign.status === "Archived";
 
@@ -1437,12 +1489,22 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
                 )}
               </Field>
             </div>
-            <Field label="Start date">
+            <Field
+              label="Start date"
+              helper={
+                startLocked ? (
+                  <FieldHelper tone="neutral">
+                    This run has collected votes — its start date is part of the record.
+                  </FieldHelper>
+                ) : undefined
+              }
+            >
               {(id) => (
                 <TextInput
                   id={id}
                   type="date"
                   value={startAt}
+                  disabled={startLocked}
                   onChange={(e) => setStartAt(e.target.value)}
                 />
               )}

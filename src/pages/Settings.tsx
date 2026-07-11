@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { CONTROL, Field, SelectMenu, TextInput } from "@/components/Field";
+import { CONTROL, Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
 import {
   ConnectCard,
   DashboardCard,
@@ -56,11 +56,23 @@ const fieldLabelClass =
 /** The public brand identity: what voters see on embeds and the brand
  *  page. Avatar changes are real (local object URL); the profile fields
  *  save nowhere (the rail wordmark reads the WORKSPACE constant), so the
- *  toast says so — toasts never claim what the store didn't do. */
+ *  fields dirty-track like every other save in the app — the button only
+ *  wakes once something changed — and the click still tells the truth:
+ *  toasts never claim what the store didn't do. */
 function BrandProfileCard() {
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string>(WORKSPACE.brand);
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [city, setCity] = useState("");
+
+  const dirty =
+    displayName !== WORKSPACE.brand ||
+    description !== "" ||
+    location !== "" ||
+    city !== "";
 
   return (
     <DashboardCard
@@ -68,6 +80,7 @@ function BrandProfileCard() {
       action={
         <Button
           size="sm"
+          disabled={!dirty}
           onClick={() => toast("Saving the brand profile is disabled in this demo workspace")}
         >
           Save changes
@@ -109,13 +122,22 @@ function BrandProfileCard() {
         </div>
 
         <Field label="Display name">
-          {(id) => <TextInput id={id} defaultValue={WORKSPACE.brand} maxLength={50} />}
+          {(id) => (
+            <TextInput
+              id={id}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              maxLength={50}
+            />
+          )}
         </Field>
 
         <Field label="Description">
           {(id) => (
             <textarea
               id={id}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               maxLength={500}
               placeholder="Tell people about your brand…"
               className={cn(CONTROL, "h-24 resize-none px-3 py-2")}
@@ -131,11 +153,20 @@ function BrandProfileCard() {
                 label="Location"
                 placeholder="US state (optional)"
                 options={optionsOf(US_STATES)}
+                value={location}
+                onValueChange={setLocation}
               />
             )}
           </Field>
           <Field label="City">
-            {(id) => <TextInput id={id} placeholder="e.g. Austin" />}
+            {(id) => (
+              <TextInput
+                id={id}
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g. Austin"
+              />
+            )}
           </Field>
         </div>
       </div>
@@ -235,6 +266,7 @@ function AddMemberModal({
   onClose: () => void;
   onAdd: (name: string, email: string) => void;
 }) {
+  const { members } = useWorkspace();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
@@ -246,7 +278,12 @@ function AddMemberModal({
     }
   }, [open]);
 
-  const valid = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email);
+  // One email is one account — a duplicate can't be provisioned twice
+  // (the store refuses too; this surfaces the reason before the click).
+  const duplicate = members.some(
+    (m) => m.email.toLowerCase() === email.trim().toLowerCase(),
+  );
+  const valid = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email) && !duplicate;
 
   return (
     <Modal
@@ -282,7 +319,16 @@ function AddMemberModal({
             />
           )}
         </Field>
-        <Field label="Email">
+        <Field
+          label="Email"
+          helper={
+            duplicate ? (
+              <FieldHelper tone="danger">
+                That email already has an account in this workspace.
+              </FieldHelper>
+            ) : undefined
+          }
+        >
           {(fieldId) => (
             <TextInput
               id={fieldId}
