@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
+import { useWorkspace } from "@/lib/store";
 import {
-  CALENDAR_ITEMS,
   CALENDAR_MONTH,
+  KEY_DATES,
   type CalendarItem,
 } from "@/lib/workspace";
 import { DashboardCard, StatusBadge } from "./kit";
@@ -80,8 +81,47 @@ export function WorkspaceCalendar() {
     [view],
   );
 
-  const spanning = useMemo(() => CALENDAR_ITEMS.filter((it) => it.kind !== "date"), []);
-  const events = useMemo(() => CALENDAR_ITEMS.filter((it) => it.kind === "date"), []);
+  /* Items derive from the live store (same rule as workspace's static
+     CALENDAR_ITEMS): anything scheduled and not Draft/Archived draws a bar
+     from start to end, so newly published objects appear in-session. Key
+     dates stay the static planning layer. */
+  const { campaigns, polsts } = useWorkspace();
+  const items = useMemo<CalendarItem[]>(
+    () => [
+      ...campaigns
+        .filter((c) => c.startAt && c.status !== "Draft" && c.status !== "Archived")
+        .map((c) => ({
+          id: c.id,
+          title: c.name,
+          kind: "campaign" as const,
+          status: c.status,
+          start: c.startAt!,
+          end: c.endAt ?? c.startAt!,
+          to: `/campaigns/${c.id}`,
+        })),
+      ...polsts
+        .filter((p) => p.startAt && p.status !== "Draft" && p.status !== "Archived")
+        .map((p) => ({
+          id: p.id,
+          title: p.question,
+          kind: "polst" as const,
+          status: p.status,
+          start: p.startAt!,
+          end: p.endAt ?? p.startAt!,
+          to: `/polsts/${p.id}`,
+        })),
+      ...KEY_DATES.map((k) => ({
+        id: k.id,
+        title: k.title,
+        kind: "date" as const,
+        start: k.start,
+        end: k.end,
+      })),
+    ],
+    [campaigns, polsts],
+  );
+  const spanning = useMemo(() => items.filter((it) => it.kind !== "date"), [items]);
+  const events = useMemo(() => items.filter((it) => it.kind === "date"), [items]);
 
   // Always six weeks: start on the Sunday on/before the 1st, run 42 days.
   const weeks = useMemo(() => {
@@ -254,6 +294,7 @@ export function WorkspaceCalendar() {
         <DayPopover
           ref={popRef}
           cell={pop.cell}
+          items={items}
           left={pop.left}
           top={pop.top}
           onClose={() => setPop(null)}
@@ -303,11 +344,11 @@ function Legend() {
 
 const DayPopover = forwardRef<
   HTMLDivElement,
-  { cell: Cell; left: number; top: number; onClose: () => void }
->(({ cell, left, top, onClose }, ref) => {
+  { cell: Cell; items: CalendarItem[]; left: number; top: number; onClose: () => void }
+>(({ cell, items: allItems, left, top, onClose }, ref) => {
   const weekday = WEEKDAYS_FULL[new Date(cell.y, cell.m, cell.day).getDay()];
   const monthShort = new Date(cell.y, cell.m, 1).toLocaleString("en-US", { month: "short" });
-  const items = CALENDAR_ITEMS.filter((it) => it.start <= cell.iso && it.end >= cell.iso);
+  const items = allItems.filter((it) => it.start <= cell.iso && it.end >= cell.iso);
 
   return (
     <div

@@ -24,7 +24,7 @@ import {
   AnalyticsReportsPage,
   AnalyticsRetentionPage,
 } from "@/pages/Analytics";
-import { NotFoundPage, SettingsPage, TeamPage } from "@/pages/Settings";
+import { NotFoundPage, SettingsPage } from "@/pages/Settings";
 
 export function App() {
   return (
@@ -54,7 +54,6 @@ export function App() {
             <Route path="/analytics/reports" element={<AnalyticsReportsPage />} />
 
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/team" element={<TeamPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
             </Routes>

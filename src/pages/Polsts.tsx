@@ -1,54 +1,169 @@
-import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  Link,
+  Navigate,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Checkbox, Field, SelectMenu, TextInput } from "@/components/Field";
+import { Field, TextInput } from "@/components/Field";
+import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
 import { PollCard } from "@/components/PollCard";
 import { PollComposer, type ComposerState } from "@/components/PollComposer";
 import { QrCodeModal, SocialShareModal } from "@/components/DistributionActions";
 import {
+  ActionCard,
   DashboardCard,
   DashboardPage,
   DataTable,
   DetailList,
+  EmptyState,
+  NotFoundCard,
   PollResults,
   PollThumb,
-  SegmentedControl,
   SearchAndFilters,
   SectionGrid,
+  SegmentedControl,
+  StatTile,
   StatusBadge,
   filterByStatus,
   type DataColumn,
+  type EmptyStateAction,
 } from "@/components/dashboard";
 import {
-  SINGLE_POLSTS,
-  TOP_INTERESTS,
+  METRIC_INFO,
+  TODAY,
+  daysBetween,
+  fmtDate,
+  fmtDateRange,
+  fmtInt,
+  fmtPct,
+  relativeToToday,
+} from "@/lib/canon";
+import { addDays } from "@/lib/engine";
+import {
   WORKSPACE,
-  formatNumber,
+  polstImage,
   polstOptions,
+  polstSeries,
+  shareUrl,
   type SinglePolst,
+  type Vertical,
 } from "@/lib/workspace";
-const POLST_FILTERS = ["All", "Active", "Drafts"] as const;
-const DRAFT_FILTERS = ["Active", "Archived"] as const;
-const POLST_CREATED: Record<string, string> = {
-  "which-headline-wins": "Jun 5, 2026",
-  "packaging-color-premium": "Jun 4, 2026",
-  "event-hook": "Jun 11, 2026",
-  "archived-draft": "Jun 1, 2026",
-  "label-layout": "May 20, 2026",
-  "snack-size-sells": "Jun 6, 2026",
-  "hero-image-ad": "Jun 9, 2026",
-  "price-point-fair": "Jun 3, 2026",
-  "sweet-or-savory": "Jun 11, 2026",
-  "mascot-preference": "Jun 8, 2026",
-};
-const createdDate = (polst: SinglePolst) => POLST_CREATED[polst.id] ?? "Jun 1, 2026";
-const viewCount = (polst: SinglePolst) => polst.responses ? Math.round(polst.responses / 0.18) : 0;
-const displayStatus = (polst: SinglePolst) => polst.status;
+import { useWorkspace } from "@/lib/store";
 
-/** The operational default: the object's identity is a small paired thumb,
- *  the row is owned by status, scope, evidence, and recency. */
+/* ── Shared vocabulary ───────────────────────────────────────────── */
+
+/** Every lifecycle state is reachable — "All" really means everything. */
+const POLST_FILTERS = ["All", "Active", "Scheduled", "Drafts", "Ended", "Archived"] as const;
+
+const VERTICALS: Vertical[] = ["Food & drink", "Lifestyle", "Shopping & deals"];
+
+/** Nothing has run yet — analytics columns render as "—", not zeros. */
+const hasRun = (polst: SinglePolst) => polst.views > 0 || polst.votes > 0;
+
+/** Live and finished runs report real numbers (zero included); unpublished
+ *  Polsts have no analytics to report at all. */
+const reportsNumbers = (polst: SinglePolst) =>
+  polst.status === "Active" || polst.status === "Ended" || hasRun(polst);
+
+const qrUrl = (polst: SinglePolst) => `${shareUrl("polst", polst.id)}?utm_source=qr`;
+
+/* ── Row actions ─────────────────────────────────────────────────── */
+
+/** One labeled overflow menu per row; items follow the lifecycle. Drafts
+ *  edit and publish, live Polsts distribute, archived ones restore. */
+function PolstRowMenu({
+  polst,
+  onShare,
+  onQr,
+}: {
+  polst: SinglePolst;
+  onShare: () => void;
+  onQr: () => void;
+}) {
+  const { publishPolst, archivePolst, restorePolst } = useWorkspace();
+  const toast = useToast();
+  const navigate = useNavigate();
+
+  const publish = () => {
+    const result = publishPolst(polst.id);
+    if (!result.ok) {
+      toast(result.reason);
+      return;
+    }
+    toast(
+      polst.startAt && polst.startAt > TODAY
+        ? `Polst scheduled — starts ${fmtDate(polst.startAt)}`
+        : "Polst published — it's live",
+    );
+  };
+  const archive = () => {
+    archivePolst(polst.id);
+    toast("Moved to archive");
+  };
+
+  return (
+    <Menu
+      label={`Actions for ${polst.question}`}
+      trigger={({ open, toggle }) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Actions for ${polst.question}`}
+          onClick={toggle}
+        >
+          <Icon name="more_horiz" size={18} />
+        </Button>
+      )}
+    >
+      {polst.status === "Draft" ? (
+        <>
+          <MenuItem icon="edit" label="Edit draft" onClick={() => navigate(`/polsts/new?edit=${polst.id}`)} />
+          <MenuItem icon="publish" label="Publish" onClick={publish} />
+          <MenuSeparator />
+          <MenuItem icon="archive" label="Move to archive" onClick={archive} />
+        </>
+      ) : polst.status === "Archived" ? (
+        <>
+          <MenuItem icon="visibility" label="View" onClick={() => navigate(`/polsts/${polst.id}`)} />
+          <MenuItem
+            icon="restore"
+            label="Restore to drafts"
+            onClick={() => {
+              restorePolst(polst.id);
+              toast("Restored to drafts");
+            }}
+          />
+        </>
+      ) : polst.status === "Ended" ? (
+        <>
+          <MenuItem icon="visibility" label="View" onClick={() => navigate(`/polsts/${polst.id}`)} />
+          <MenuSeparator />
+          <MenuItem icon="archive" label="Move to archive" onClick={archive} />
+        </>
+      ) : (
+        <>
+          <MenuItem icon="visibility" label="View" onClick={() => navigate(`/polsts/${polst.id}`)} />
+          <MenuItem icon="send" label="Distribute" onClick={onShare} />
+          <MenuItem icon="qr_code_2" label="QR code" onClick={onQr} />
+        </>
+      )}
+    </Menu>
+  );
+}
+
+/* ── List columns ────────────────────────────────────────────────── */
+
+const numberCell = (polst: SinglePolst, value: number) => (
+  <span className="tabular-nums">{reportsNumbers(polst) ? fmtInt(value) : "—"}</span>
+);
+
 const columns = (
   onShare: (polst: SinglePolst) => void,
   onQr: (polst: SinglePolst) => void,
@@ -69,40 +184,25 @@ const columns = (
       </Link>
     ),
   },
-  { header: "Status", cell: (row) => <StatusBadge status={displayStatus(row)} /> },
-  {
-    header: "Views",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(viewCount(row))}</span>,
-  },
-  {
-    header: "Votes",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
-  },
-  {
-    header: "Engagement",
-    align: "right",
-    cell: (row) => <span className="tabular-nums text-text-secondary">{row.responses ? `${formatNumber(Math.max(1, Math.round(row.responses * 0.04)))} interactions` : "—"}</span>,
-  },
+  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
+  { header: "Views", align: "right", cell: (row) => numberCell(row, row.views) },
+  { header: "Votes", align: "right", cell: (row) => numberCell(row, row.votes) },
+  { header: "Interactions", align: "right", cell: (row) => numberCell(row, row.interactions) },
   {
     header: "Created",
-    cell: (row) => <span className="whitespace-nowrap text-text-secondary">{createdDate(row)}</span>,
+    cell: (row) => (
+      <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.createdAt)}</span>
+    ),
   },
   {
     header: "",
     align: "right",
     cell: (row) => (
-      <div className="flex justify-end gap-1">
-        <Button variant="ghost" size="icon" title="View analytics" asChild>
-          <Link to={`/polsts/${row.id}`}><Icon name="monitoring" size={18} /></Link>
-        </Button>
-        <Button variant="ghost" size="icon" title="Distribute" onClick={() => onShare(row)}>
-          <Icon name="send" size={18} />
-        </Button>
-        <Button variant="ghost" size="icon" title="QR code" onClick={() => onQr(row)}>
-          <Icon name="qr_code_2" size={18} />
-        </Button>
+      <div
+        className="flex justify-end"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <PolstRowMenu polst={row} onShare={() => onShare(row)} onQr={() => onQr(row)} />
       </div>
     ),
   },
@@ -110,9 +210,8 @@ const columns = (
 
 /* ── View toggle ─────────────────────────────────────────────────── */
 
-/** List is the operational default; the grid is a deliberate gallery mode
- *  for reviewing creative, not for admin scanning. The toggle is the kit's
- *  one SegmentedControl with icon items. */
+/** List is the operational default; the grid is a gallery for reviewing
+ *  creative. One SegmentedControl with icon items carries the switch. */
 const VIEWS = [
   { value: "list", icon: "table_rows", label: "List view" },
   { value: "grid", icon: "grid_view", label: "Gallery view" },
@@ -122,9 +221,8 @@ type View = (typeof VIEWS)[number]["value"];
 /* ── Grid card ───────────────────────────────────────────────────── */
 
 /** A Polst exactly as its voters see the results — the real option pair
- *  with animated bars — plus the operator's row of numbers. */
+ *  with animated bars — plus the operator's number or run dates. */
 function PolstGridCard({ polst }: { polst: SinglePolst }) {
-  const hasVotes = (polst.responses ?? 0) > 0;
   return (
     <DashboardCard className="lg:col-span-4">
       <div className="flex items-start justify-between gap-3">
@@ -139,20 +237,20 @@ function PolstGridCard({ polst }: { polst: SinglePolst }) {
       <PollResults className="mt-3" options={polstOptions(polst)} dense />
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-border-default pt-3 text-sm">
         <span className="text-text-secondary">
-          {hasVotes ? (
+          {polst.votes > 0 ? (
             <>
               <span className="font-semibold tabular-nums text-text-primary">
-                {formatNumber(polst.responses)}
+                {fmtInt(polst.votes)}
               </span>{" "}
-              responses
+              votes
             </>
           ) : (
-            polst.dates
+            fmtDateRange(polst.startAt, polst.endAt)
           )}
         </span>
         <Button variant="ghost" size="sm" className="-mr-2" asChild>
           <Link to={`/polsts/${polst.id}`}>
-            {polst.nextAction}
+            View
             <Icon name="arrow_forward" size={18} />
           </Link>
         </Button>
@@ -161,25 +259,53 @@ function PolstGridCard({ polst }: { polst: SinglePolst }) {
   );
 }
 
+/* ── List page ───────────────────────────────────────────────────── */
+
 export function PolstsPage() {
-  const [active, setActive] = useState("All");
-  const [draftFilter, setDraftFilter] = useState<(typeof DRAFT_FILTERS)[number]>("Active");
+  const { polsts } = useWorkspace();
+  const navigate = useNavigate();
+  const [active, setActive] = useState<string>("All");
   const [view, setView] = useState<View>("list");
   const [query, setQuery] = useState("");
   const [sharePolst, setSharePolst] = useState<SinglePolst | null>(null);
   const [qrPolst, setQrPolst] = useState<SinglePolst | null>(null);
+
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    const scoped = active === "All"
-      ? SINGLE_POLSTS.filter((polst) => polst.status !== "Draft" && polst.status !== "Archived")
-      : active === "Drafts"
-        ? SINGLE_POLSTS.filter((polst) => polst.status === (draftFilter === "Archived" ? "Archived" : "Draft"))
-        : filterByStatus(SINGLE_POLSTS, active);
-    return scoped.filter((polst) =>
-      !normalized || [polst.question, polst.optionA, polst.optionB, polst.topSource ?? ""]
-        .some((value) => value.toLowerCase().includes(normalized)),
+    return filterByStatus(polsts, active).filter(
+      (polst) =>
+        !normalized ||
+        [polst.question, polst.optionA, polst.optionB].some((value) =>
+          value.toLowerCase().includes(normalized),
+        ),
     );
-  }, [active, draftFilter, query]);
+  }, [polsts, active, query]);
+
+  const emptyTitle = query.trim()
+    ? `No Polsts match "${query.trim()}"`
+    : active === "All"
+      ? "No Polsts yet"
+      : active === "Drafts"
+        ? "No drafts"
+        : `No ${active.toLowerCase()} Polsts`;
+  const emptyAction: EmptyStateAction = query.trim()
+    ? { label: "Clear search", onClick: () => setQuery("") }
+    : active === "Archived"
+      ? { label: "View all Polsts", onClick: () => setActive("All") }
+      : { label: "Create a Polst", to: "/polsts/new" };
+
+  const toolbar = (
+    <SearchAndFilters
+      tabs={POLST_FILTERS}
+      active={active}
+      onChange={setActive}
+      placeholder="Search Polsts"
+      query={query}
+      onQueryChange={setQuery}
+      action={<SegmentedControl tabs={VIEWS} active={view} onChange={setView} />}
+      className={view === "grid" ? "border-b-0" : undefined}
+    />
+  );
 
   return (
     <DashboardPage
@@ -189,36 +315,9 @@ export function PolstsPage() {
         </Button>
       }
     >
-      {active === "Drafts" ? (
+      {view === "grid" ? (
         <>
-          <div className="flex items-center justify-between gap-3">
-            <SegmentedControl tabs={DRAFT_FILTERS} active={draftFilter} onChange={setDraftFilter} />
-            <TextInput
-              icon="search"
-              placeholder="Search drafts"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="h-[37px] max-w-72"
-            />
-          </div>
-          <DashboardCard padded={false}>
-            <DataTable rows={rows} columns={columns(setSharePolst, setQrPolst)} emptyLabel={`No ${draftFilter.toLowerCase()} drafts`} />
-          </DashboardCard>
-        </>
-      ) : view === "grid" ? (
-        <>
-          <div className="flex items-center justify-between gap-3">
-            <SearchAndFilters
-              tabs={POLST_FILTERS}
-              active={active}
-              onChange={setActive}
-              placeholder="Search Polsts"
-              query={query}
-              onQueryChange={setQuery}
-              className="min-w-0 flex-1 border-b-0 p-0"
-            />
-            <SegmentedControl tabs={VIEWS} active={view} onChange={setView} />
-          </div>
+          <DashboardCard padded={false}>{toolbar}</DashboardCard>
           {rows.length ? (
             <SectionGrid>
               {rows.map((polst) => (
@@ -226,33 +325,36 @@ export function PolstsPage() {
               ))}
             </SectionGrid>
           ) : (
-            <DashboardCard>
-              <p className="py-6 text-center text-sm text-text-tertiary">
-                No Polsts match this filter.
-              </p>
+            <DashboardCard padded={false}>
+              <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
             </DashboardCard>
           )}
         </>
       ) : (
         <DashboardCard padded={false}>
-          <SearchAndFilters
-            tabs={POLST_FILTERS}
-            active={active}
-            onChange={setActive}
-            placeholder="Search Polsts"
-            query={query}
-            onQueryChange={setQuery}
-            action={<SegmentedControl tabs={VIEWS} active={view} onChange={setView} />}
-          />
-          <DataTable
-            rows={rows}
-            columns={columns(setSharePolst, setQrPolst)}
-            emptyLabel="No Polsts match this filter"
-          />
+          {toolbar}
+          {rows.length ? (
+            <DataTable
+              rows={rows}
+              columns={columns(setSharePolst, setQrPolst)}
+              onRowClick={(row) => navigate(`/polsts/${row.id}`)}
+            />
+          ) : (
+            <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
+          )}
         </DashboardCard>
       )}
-      <SocialShareModal open={Boolean(sharePolst)} onClose={() => setSharePolst(null)} objectName={sharePolst?.question ?? "this Polst"} />
-      <QrCodeModal open={Boolean(qrPolst)} onClose={() => setQrPolst(null)} objectName={qrPolst?.question ?? "this Polst"} url={`https://polst.app/p/${qrPolst?.id ?? "polst"}?utm_source=qr`} />
+      <SocialShareModal
+        open={Boolean(sharePolst)}
+        onClose={() => setSharePolst(null)}
+        objectName={sharePolst?.question ?? "this Polst"}
+      />
+      <QrCodeModal
+        open={Boolean(qrPolst)}
+        onClose={() => setQrPolst(null)}
+        objectName={qrPolst?.question ?? "this Polst"}
+        url={qrPolst ? qrUrl(qrPolst) : ""}
+      />
     </DashboardPage>
   );
 }
@@ -261,154 +363,438 @@ export function PolstsPage() {
 
 export function PolstDetailPage() {
   const { id } = useParams();
+  const { polstById, archivePolst, restorePolst } = useWorkspace();
   const toast = useToast();
-  const polst = SINGLE_POLSTS.find((p) => p.id === id) ?? SINGLE_POLSTS[0];
-  const hasVotes = (polst.responses ?? 0) > 0;
   const [shareOpen, setShareOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
-  const [lifetime, setLifetime] = useState("7 days");
-  const splitA = Number.parseInt(polst.split ?? "", 10) || 0;
-  const optionAVotes = Math.round((polst.responses ?? 0) * splitA / 100);
+  const polst = polstById(id);
+  if (!polst) return <NotFoundCard kind="Polst" />;
+
+  const isDraft = polst.status === "Draft";
+  const isScheduled = polst.status === "Scheduled";
+  const isActive = polst.status === "Active";
+  const isEnded = polst.status === "Ended";
+  const isArchived = polst.status === "Archived";
+  const locked = isScheduled || isActive || isEnded;
+
+  /* Schedule facts — every value from the entity, none synthesized. */
+  const scheduleItems: Array<[string, ReactNode]> = [["Created", fmtDate(polst.createdAt)]];
+  if (polst.startAt) {
+    // An unpublished start date is a plan, not a fact — it never "started".
+    const neverRan = isDraft || (isArchived && !hasRun(polst));
+    scheduleItems.push([
+      polst.startAt > TODAY || neverRan ? "Starts" : "Started",
+      fmtDate(polst.startAt),
+    ]);
+    scheduleItems.push([
+      polst.endAt ? (polst.endAt > TODAY ? "Ends" : "Ended") : "Ends",
+      polst.endAt ? fmtDate(polst.endAt) : "No end date",
+    ]);
+  } else {
+    scheduleItems.push(["Runs", "Not scheduled"]);
+  }
+  if (isActive && polst.endAt && polst.endAt >= TODAY) {
+    const left = daysBetween(TODAY, polst.endAt);
+    scheduleItems.push(["Days left", left === 0 ? "Ends today" : `${left} ${left === 1 ? "day" : "days"}`]);
+  }
+  if (isScheduled && polst.startAt) {
+    const until = daysBetween(TODAY, polst.startAt);
+    scheduleItems.push(["Starts in", `${until} ${until === 1 ? "day" : "days"}`]);
+  }
+
+  /* Recent pace from the polst's real daily series — Active runs with
+   *  votes only; a zero-vote run has no pace to report. */
+  const pace = (() => {
+    if (!isActive || polst.votes === 0) return null;
+    const series = polstSeries(polst, "votes");
+    const on = (iso: string) => {
+      const i = series.dates.indexOf(iso);
+      return i === -1 ? 0 : series.values[i];
+    };
+    const last7 = series.dates.reduce((sum, date, i) => {
+      const back = daysBetween(date, TODAY);
+      return back >= 0 && back <= 6 ? sum + series.values[i] : sum;
+    }, 0);
+    return { today: on(TODAY), yesterday: on(addDays(TODAY, -1)), last7 };
+  })();
+
+  /* Voter preview facts. The like/repost counts split the polst's real
+   *  interactions total, so the card reconciles with the tile above. */
+  const showPreview = !isEnded && !isArchived;
+  const startedDaysAgo =
+    polst.startAt && polst.startAt <= TODAY ? daysBetween(polst.startAt, TODAY) : 0;
+  const previewReposts = Math.round(polst.interactions / 4);
+  const previewLikes = polst.interactions - previewReposts;
+  const previewTimeLeft = (() => {
+    if (isActive && polst.endAt) {
+      const left = daysBetween(TODAY, polst.endAt);
+      return left > 0 ? `${left}d` : "<1d";
+    }
+    if (polst.startAt && polst.endAt) return `${daysBetween(polst.startAt, polst.endAt)}d`;
+    return undefined;
+  })();
 
   return (
     <DashboardPage
       actions={
         <>
-          <Button variant="secondary" onClick={() => setShareOpen(true)}>
-            <Icon name="send" size={18} />
-            Distribute
-          </Button>
-          <Button variant="secondary" onClick={() => setQrOpen(true)}>
-            <Icon name="qr_code_2" size={18} />
-            QR code
-          </Button>
-          <Button onClick={() => toast(hasVotes ? "Live Polsts can be duplicated into drafts" : "Draft opened for editing")}>
-            Edit Polst
-          </Button>
+          {isActive || isScheduled ? (
+            <>
+              <Button variant="secondary" onClick={() => setShareOpen(true)}>
+                <Icon name="send" size={18} />
+                Distribute
+              </Button>
+              <Button variant="secondary" onClick={() => setQrOpen(true)}>
+                <Icon name="qr_code_2" size={18} />
+                QR code
+              </Button>
+            </>
+          ) : null}
+          {isDraft ? (
+            <Button asChild>
+              <Link to={`/polsts/new?edit=${polst.id}`}>Edit Polst</Link>
+            </Button>
+          ) : null}
+          {isEnded ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                archivePolst(polst.id);
+                toast("Moved to archive");
+              }}
+            >
+              <Icon name="archive" size={18} />
+              Archive
+            </Button>
+          ) : null}
+          {isArchived ? (
+            <Button
+              onClick={() => {
+                restorePolst(polst.id);
+                toast("Restored to drafts");
+              }}
+            >
+              Restore to drafts
+            </Button>
+          ) : null}
         </>
       }
     >
-      <DashboardCard
-        title="Lifetime"
-        action={<StatusBadge status={displayStatus(polst)} />}
-      >
-        <SegmentedControl
-          tabs={["3 days", "7 days", "10 days", "Custom"]}
-          active={lifetime}
-          onChange={setLifetime}
+      <div>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-display text-xl font-semibold leading-7 text-text-primary">
+            {polst.question}
+          </h1>
+          <StatusBadge status={polst.status} />
+        </div>
+        <p className="mt-1 text-sm text-text-secondary">
+          {polst.optionA} vs {polst.optionB}
+          {locked ? " · Question and options lock after publishing." : ""}
+        </p>
+      </div>
+
+      {isDraft ? (
+        <ActionCard
+          title="Finish and publish this Polst"
+          reason="Voters can't see a draft. Publish it to start collecting votes."
+          primary={{ label: "Finish & publish", to: `/polsts/new?edit=${polst.id}` }}
         />
-      </DashboardCard>
+      ) : null}
+      {isScheduled && polst.startAt && polst.sources.length === 0 ? (
+        <ActionCard
+          title={`Starts ${relativeToToday(polst.startAt)} with no sources`}
+          reason="Attach a QR code, share link, or embed so it collects votes from day one."
+          primary={{ label: "Add a source", to: "/distribution" }}
+        />
+      ) : null}
 
-      <SectionGrid>
-        <DashboardCard title="Total votes" className="lg:col-span-4">
-          <p className="font-display text-3xl font-semibold tabular-nums text-text-primary">{formatNumber(polst.responses)}</p>
-        </DashboardCard>
-        <DashboardCard title={polst.optionA} className="lg:col-span-4">
-          <p className="font-display text-3xl font-semibold tabular-nums text-text-primary">{formatNumber(optionAVotes)}</p>
-        </DashboardCard>
-        <DashboardCard title={polst.optionB} className="lg:col-span-4">
-          <p className="font-display text-3xl font-semibold tabular-nums text-text-primary">{formatNumber((polst.responses ?? 0) - optionAVotes)}</p>
-        </DashboardCard>
-      </SectionGrid>
+      {hasRun(polst) ? (
+        <SectionGrid>
+          <StatTile className="lg:col-span-3" label="Views" value={fmtInt(polst.views)} />
+          <StatTile className="lg:col-span-3" label="Votes" value={fmtInt(polst.votes)} />
+          <StatTile
+            className="lg:col-span-3"
+            label="Interactions"
+            value={fmtInt(polst.interactions)}
+            info={METRIC_INFO.interactions}
+          />
+          <StatTile
+            className="lg:col-span-3"
+            label="Votes / view"
+            value={polst.engagementRate !== null ? fmtPct(polst.engagementRate, 1) : "—"}
+            info={METRIC_INFO.votesPerView}
+          />
+        </SectionGrid>
+      ) : null}
 
-      <SectionGrid>
-        <div className="space-y-4 lg:col-span-7">
-          <DashboardCard title="Results">
-            <PollResults options={polstOptions(polst)} />
-          </DashboardCard>
-          <DashboardCard title="Vote velocity">
-            <DetailList
-              items={[
-                ["Last hour", hasVotes ? "12 votes/hr" : "0 votes/hr"],
-                ["Last 6 hours", hasVotes ? "9 votes/hr" : "0 votes/hr"],
-                ["Last 24 hours", hasVotes ? "7 votes/hr" : "0 votes/hr"],
-              ]}
+      {showPreview ? (
+        <SectionGrid>
+          <div className="space-y-4 lg:col-span-7">
+            {polst.votes > 0 ? (
+              <DashboardCard title="Results">
+                <PollResults options={polstOptions(polst)} />
+              </DashboardCard>
+            ) : null}
+            <DashboardCard title="Schedule">
+              <DetailList items={scheduleItems} />
+            </DashboardCard>
+            {pace ? (
+              <DashboardCard title="Vote velocity">
+                <DetailList
+                  items={[
+                    ["Today", `${fmtInt(pace.today)} votes`],
+                    ["Yesterday", `${fmtInt(pace.yesterday)} votes`],
+                    ["Last 7 days", `${fmtInt(pace.last7)} votes`],
+                  ]}
+                />
+              </DashboardCard>
+            ) : null}
+          </div>
+          <DashboardCard
+            title="Voter preview"
+            padded={false}
+            className="self-start lg:col-span-5"
+            bodyClassName="pt-2"
+          >
+            <PollCard
+              author={WORKSPACE.brand}
+              authorBadge={WORKSPACE.initials}
+              authorColor="var(--color-purple-tint)"
+              isFollowing
+              postedAgo={startedDaysAgo > 0 ? `${startedDaysAgo}d` : undefined}
+              categories={[polst.vertical]}
+              question={polst.question}
+              options={polstOptions(polst)}
+              tags={[]}
+              likes={previewLikes}
+              reposts={previewReposts}
+              votes={polst.votes}
+              timeLeft={previewTimeLeft}
             />
           </DashboardCard>
-        </div>
+        </SectionGrid>
+      ) : (
+        <SectionGrid>
+          {polst.votes > 0 ? (
+            <DashboardCard title="Results" className="lg:col-span-7">
+              <PollResults options={polstOptions(polst)} />
+            </DashboardCard>
+          ) : null}
+          <DashboardCard
+            title="Schedule"
+            className={polst.votes > 0 ? "self-start lg:col-span-5" : "lg:col-span-7"}
+          >
+            <DetailList items={scheduleItems} />
+          </DashboardCard>
+        </SectionGrid>
+      )}
 
-        <DashboardCard
-          title="Voter preview"
-          description="Preview only."
-          padded={false}
-          className="self-start lg:col-span-5"
-          bodyClassName="pt-2"
-        >
-          <PollCard
-            author={WORKSPACE.brand}
-            authorBadge={WORKSPACE.initials}
-            authorColor="var(--color-purple-tint)"
-            isFollowing
-            postedAgo="2d"
-            categories={[TOP_INTERESTS[0].label]}
-            question={polst.question}
-            options={polstOptions(polst)}
-            tags={[]}
-            likes={Math.round((polst.responses ?? 0) * 0.16)}
-            reposts={Math.round((polst.responses ?? 0) * 0.04)}
-            votes={polst.responses ?? 0}
-            timeLeft="2d"
-          />
-        </DashboardCard>
-      </SectionGrid>
-      <SocialShareModal open={shareOpen} onClose={() => setShareOpen(false)} objectName={polst.question} />
-      <QrCodeModal open={qrOpen} onClose={() => setQrOpen(false)} objectName={polst.question} url={`https://polst.app/p/${polst.id}?utm_source=qr`} />
+      <SocialShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        objectName={polst.question}
+      />
+      <QrCodeModal
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        objectName={polst.question}
+        url={qrUrl(polst)}
+      />
     </DashboardPage>
   );
 }
 
-/* ── Create a Polst ──────────────────────────────────────────────── */
+/* ── Create / edit a Polst ───────────────────────────────────────── */
 
+const DURATION_TABS = ["3 days", "7 days", "10 days", "Custom"] as const;
+type DurationTab = (typeof DURATION_TABS)[number];
+const DURATION_DAYS: Record<Exclude<DurationTab, "Custom">, number> = {
+  "3 days": 3,
+  "7 days": 7,
+  "10 days": 10,
+};
+
+/** /polsts/new — also the draft editor via ?edit={id}. */
 export function CreatePolstPage() {
+  const [params] = useSearchParams();
+  const editId = params.get("edit");
+  const { polstById } = useWorkspace();
+  const editing = editId ? polstById(editId) : undefined;
+  if (editId && !editing) return <NotFoundCard kind="Polst" />;
+  // Only drafts are editable — published Polsts land back on their page.
+  if (editing && editing.status !== "Draft") {
+    return <Navigate to={`/polsts/${editing.id}`} replace />;
+  }
+  return <ComposePolst key={editing?.id ?? "new"} draft={editing} />;
+}
+
+function ComposePolst({ draft }: { draft?: SinglePolst }) {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { createPolst, updatePolst, publishPolst } = useWorkspace();
+
   const [composer, setComposer] = useState<ComposerState>({
-    question: "",
-    optionsSet: false,
-    imagesSet: false,
+    question: draft?.question ?? "",
+    optionA: draft?.optionA ?? "",
+    optionB: draft?.optionB ?? "",
+    category: draft?.vertical ?? null,
+    optionsSet: Boolean(draft),
+    imagesSet: Boolean(draft),
   });
-  const [lifetime, setLifetime] = useState("3 days");
-  const [isPrivate, setIsPrivate] = useState(false);
-  const checks: [string, boolean][] = [
+  const [startDate, setStartDate] = useState(draft?.startAt ?? TODAY);
+  const [duration, setDuration] = useState<DurationTab>(() => {
+    if (!draft) return "7 days";
+    // A saved schedule round-trips exactly: no end = Custom with an empty
+    // end field, an off-preset run = Custom with its end date.
+    if (!draft.startAt || !draft.endAt) return draft.startAt ? "Custom" : "7 days";
+    const days = daysBetween(draft.startAt, draft.endAt);
+    const preset = (Object.entries(DURATION_DAYS) as Array<[DurationTab, number]>).find(
+      ([, presetDays]) => presetDays === days,
+    );
+    return preset ? preset[0] : "Custom";
+  });
+  const [customEnd, setCustomEnd] = useState(draft?.endAt ?? "");
+
+  const endDate =
+    duration === "Custom"
+      ? customEnd || undefined
+      : startDate
+        ? addDays(startDate, DURATION_DAYS[duration])
+        : undefined;
+
+  const checks: Array<[string, boolean]> = [
     ["Question written", composer.question !== ""],
     ["Both options set", composer.optionsSet],
     ["Images added", composer.imagesSet],
   ];
+  const canSave = composer.question !== "" && composer.optionsSet;
   const canPublish = checks.every(([, done]) => done);
+
+  const input = () => ({
+    question: composer.question,
+    optionA: composer.optionA,
+    optionB: composer.optionB,
+    startAt: startDate || undefined,
+    endAt: endDate,
+    vertical: VERTICALS.find((vertical) => vertical === composer.category),
+  });
+
+  const saveDraft = () => {
+    let id: string;
+    if (draft) {
+      updatePolst(draft.id, input());
+      id = draft.id;
+    } else {
+      id = createPolst(input());
+    }
+    toast("Draft saved");
+    navigate(`/polsts/${id}`);
+  };
+
+  const publish = () => {
+    let id: string;
+    if (draft) {
+      updatePolst(draft.id, input());
+      const result = publishPolst(draft.id);
+      if (!result.ok) {
+        toast(result.reason);
+        return;
+      }
+      id = draft.id;
+    } else {
+      id = createPolst(input(), { publish: true });
+    }
+    toast(
+      startDate && startDate > TODAY
+        ? `Polst scheduled — starts ${fmtDate(startDate)}`
+        : "Polst published — it's live",
+    );
+    navigate(`/polsts/${id}`);
+  };
 
   return (
     <DashboardPage
       actions={
-        <Button variant="secondary" asChild><Link to="/polsts">Discard</Link></Button>
+        <Button variant="secondary" asChild>
+          <Link to={draft ? `/polsts/${draft.id}` : "/polsts"}>Cancel</Link>
+        </Button>
       }
     >
       <SectionGrid>
         <div className="space-y-4 lg:col-span-8">
           <DashboardCard>
-            <PollComposer categories={TOP_INTERESTS.map((t) => t.label)} onChange={setComposer} />
+            <PollComposer
+              categories={VERTICALS}
+              initial={
+                draft
+                  ? {
+                      question: draft.question,
+                      optionA: draft.optionA,
+                      optionB: draft.optionB,
+                      imageA: polstImage(draft.id, "a"),
+                      imageB: polstImage(draft.id, "b"),
+                      categories: [draft.vertical],
+                    }
+                  : undefined
+              }
+              onChange={setComposer}
+            />
           </DashboardCard>
-          <DashboardCard title="Polst lifetime">
-            <SegmentedControl tabs={["3 days", "7 days", "10 days", "Custom date"]} active={lifetime} onChange={setLifetime} />
-            {lifetime === "Custom date" ? (
-              <div className="mt-4 max-w-sm"><Field label="End date">{(id) => <TextInput id={id} type="datetime-local" />}</Field></div>
-            ) : null}
-          </DashboardCard>
-          <DashboardCard title="Schedule" description="Optional">
+          <DashboardCard title="Schedule">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Start date">{(id) => <TextInput id={id} type="datetime-local" />}</Field>
-              <Field label="End date">{(id) => <TextInput id={id} type="datetime-local" />}</Field>
+              <Field label="Start date">
+                {(fieldId) => (
+                  <TextInput
+                    id={fieldId}
+                    type="date"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="Duration">
+                {() => (
+                  <SegmentedControl
+                    tabs={DURATION_TABS}
+                    active={duration}
+                    onChange={setDuration}
+                    size="form"
+                  />
+                )}
+              </Field>
             </div>
+            {duration === "Custom" ? (
+              <div className="mt-4 max-w-sm">
+                <Field label="End date">
+                  {(fieldId) => (
+                    <TextInput
+                      id={fieldId}
+                      type="date"
+                      value={customEnd}
+                      onChange={(event) => setCustomEnd(event.target.value)}
+                    />
+                  )}
+                </Field>
+              </div>
+            ) : null}
+            <p className="mt-3 text-xs leading-4 text-text-tertiary">
+              {endDate
+                ? `Runs ${fmtDateRange(startDate || undefined, endDate)}. Voting closes when the Polst ends.`
+                : "No end date set — the Polst keeps collecting votes until you archive it."}
+            </p>
           </DashboardCard>
-          <label className="flex cursor-pointer items-center gap-3 rounded-md border border-border-default bg-surface-raised p-4">
-            <Checkbox label="Private Polst" checked={isPrivate} onCheckedChange={setIsPrivate} />
-            <span className="font-display text-sm font-semibold text-text-primary">Private Polst</span>
-          </label>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary">Save draft</Button>
-            <Button disabled={!canPublish}>Publish Polst</Button>
+            <Button variant="secondary" disabled={!canSave} onClick={saveDraft}>
+              Save draft
+            </Button>
+            <Button disabled={!canPublish} onClick={publish}>
+              Publish Polst
+            </Button>
           </div>
         </div>
 
         <div className="space-y-4 self-start lg:sticky lg:top-16 lg:col-span-4">
-          <DashboardCard title="Completeness">
+          <DashboardCard title="Ready to publish">
             <ul className="space-y-3">
               {checks.map(([label, done]) => (
                 <li key={label} className="flex items-center gap-2.5 text-sm">

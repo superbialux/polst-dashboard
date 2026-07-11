@@ -1,159 +1,92 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   ActionCard,
-  type CardTone,
-  CampaignRow,
   DashboardCard,
   DashboardPage,
   DateRangeMenu,
+  EmptyState,
   NextStepsCard,
   SectionGrid,
-  SignalBadge,
+  SegmentedControl,
   type SetupStep,
+  SignalBadge,
   StatsStrip,
   WorkspaceCalendar,
 } from "@/components/dashboard";
 import { cn } from "@/lib/utils";
 import {
-  CAMPAIGNS,
-  DASHBOARD_STATS,
+  TODAY,
+  fmtDateRange,
+  fmtInt,
+  isReadyToDecide,
+  pct,
+  relativeToToday,
+} from "@/lib/canon";
+import { useWorkspace } from "@/lib/store";
+import {
   ATTENTION_ITEMS,
+  DASHBOARD_STATS,
   KEY_DATES,
   STAT_XTICKS,
   winnerLabel,
+  workspaceWindow,
   type Campaign,
+  type KeyDate,
   type ListItem,
+  type SinglePolst,
+  type Source,
   type StatRange,
 } from "@/lib/workspace";
 
-/* ── The attention queue ─────────────────────────────────────────────
-   Ranked by severity: what blocks a campaign, then what erodes one, then
-   what's simply waiting on you. The shared data also drives the sidebar count. */
+/* ── Shared helpers ──────────────────────────────────────────────── */
 
-const ATTENTION_TONE: Record<string, string> = {
-  "game-day-distribution": "bg-status-danger",
-  "super-bowl-uncovered": "bg-status-danger",
-  "event-hook-draft": "bg-icon-secondary",
-  "conference-completion": "bg-status-warning",
+/** Sources currently pointed at a campaign — read from the store so
+ *  in-session assignments update every readiness surface at once. */
+const campaignSources = (sources: Source[], id: string) =>
+  sources.filter((s) => s.linked?.type === "campaign" && s.linked.id === id);
+
+const polstSources = (sources: Source[], id: string) =>
+  sources.filter((s) => s.linked?.type === "polst" && s.linked.id === id);
+
+/** A dot separator between inline stats. */
+const StatDot = () => (
+  <span aria-hidden className="text-border-strong">
+    ·
+  </span>
+);
+
+/* ── Attention queue ─────────────────────────────────────────────────
+   Ranked by severity in the model (blocked launches → eroding sources →
+   waiting drafts); the same rows drive the sidebar count. */
+
+const TONE_DOT: Record<ListItem["tone"], string> = {
+  danger: "bg-status-danger",
+  warning: "bg-status-warning",
+  neutral: "bg-icon-secondary",
 };
 
 function AttentionRow({ item }: { item: ListItem }) {
   return (
-    <li className="flex min-h-12 items-center gap-3 py-2.5">
-      <span
-        aria-hidden
-        className={cn("h-2 w-2 shrink-0 rounded-pill", ATTENTION_TONE[item.id] ?? "bg-icon-secondary")}
-      />
-      <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-text-primary">
-        {item.title}
-      </p>
-      {item.to ? (
-        <Button variant="secondary" size="sm" className="shrink-0" asChild>
-          <Link to={item.to}>{item.action}</Link>
-        </Button>
-      ) : null}
+    <li className="flex items-center gap-3 py-2.5">
+      <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-pill", TONE_DOT[item.tone])} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
+          {item.title}
+        </p>
+        <p className="truncate text-xs leading-4 text-text-secondary">{item.reason}</p>
+      </div>
+      <Button variant="secondary" size="sm" className="shrink-0" asChild>
+        <Link to={item.to}>{item.action}</Link>
+      </Button>
     </li>
   );
 }
 
-/** The workspace setup checklist (Shopify "Get your first N" pattern). */
-const SETUP_STEPS: SetupStep[] = [
-  {
-    title: "Name your first campaign",
-    description: "Packaging Direction Test is ready.",
-    done: true,
-    cta: { label: "View campaign", to: "/campaigns/packaging-direction" },
-    media: { tone: "green", icon: "campaign", placement: "side" },
-  },
-  {
-    title: "Add a distribution source",
-    description: "Connect a link, QR code, or embed.",
-    cta: { label: "Add a source", to: "/distribution" },
-    media: { tone: "accent", icon: "hub", placement: "side" },
-  },
-  {
-    title: "Confirm the campaign schedule",
-    description: "Confirm launch and end dates.",
-    cta: { label: "Review schedule", to: "/campaigns/game-day-creative" },
-    media: { tone: "amber", icon: "calendar_month", placement: "side" },
-  },
-  {
-    title: "Complete your brand profile",
-    description: "Add your logo, website, and timezone.",
-    cta: { label: "Open profile", to: "/settings" },
-    media: { tone: "neutral", icon: "business", placement: "side" },
-  },
-  {
-    title: "Invite a teammate",
-    description: "Add teammates and choose access.",
-    cta: { label: "Manage team", to: "/settings" },
-    media: { tone: "green", icon: "group", placement: "side" },
-  },
-];
+/* ── Ready to decide ─────────────────────────────────────────────── */
 
-/** Date helpers for the event bento (ISO → "Jun 11" / "Jun 22–26"). */
-const fmtDate = (iso: string) => {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleString("en-US", { month: "short", day: "numeric" });
-};
-const fmtRange = (start: string, end: string) => {
-  if (start === end) return fmtDate(start);
-  return start.slice(0, 7) === end.slice(0, 7)
-    ? `${fmtDate(start)}–${Number(end.slice(8, 10))}`
-    : `${fmtDate(start)} – ${fmtDate(end)}`;
-};
-
-/** Per-event presentation: art tone + glyph, a line of why it matters, a bento
- *  span, and where its full-bleed image sits (bottom for the tall hero card). */
-const KEY_DATE_META: Record<
-  string,
-  { icon: string; tone: CardTone; blurb: string; span: string; placement: "side" | "bottom" }
-> = {
-  "world-cup": {
-    icon: "sports_soccer",
-    tone: "accent",
-    blurb: "A tentpole cultural moment — line up a snack campaign before kickoff.",
-    span: "lg:col-span-8",
-    placement: "side",
-  },
-  "product-launch": {
-    icon: "rocket_launch",
-    tone: "green",
-    blurb: "Your own launch window. Get creative tested and ready to ship.",
-    span: "lg:col-span-4",
-    placement: "side",
-  },
-  "fancy-food-show": {
-    icon: "storefront",
-    tone: "amber",
-    blurb: "Buyers in the room — a fresh Polst sharpens the pitch.",
-    span: "lg:col-span-4",
-    placement: "side",
-  },
-  "july-fourth": {
-    icon: "celebration",
-    tone: "red",
-    blurb: "Grill-season peak. Worth a seasonal flavor read.",
-    span: "lg:col-span-4",
-    placement: "side",
-  },
-};
-
-/** Empty-state line for a filtered list. */
-function EmptyRow({ label }: { label: string }) {
-  return <p className="py-6 text-center text-sm text-text-tertiary">{label}</p>;
-}
-
-/** A quiet band header that names the section: What's next, Plan ahead. */
-function SectionHeading({ title }: { title: string }) {
-  return (
-    <h2 className="pt-2 font-display text-lg font-semibold leading-7 text-text-primary">{title}</h2>
-  );
-}
-
-function ReadyDecisionCard({ campaign }: { campaign: Campaign }) {
+function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more: number }) {
   return (
     <DashboardCard title="Ready to decide" className="lg:col-span-4">
       <SignalBadge signal={campaign.signal} detail={`${campaign.confidence} confidence`} />
@@ -169,124 +102,335 @@ function ReadyDecisionCard({ campaign }: { campaign: Campaign }) {
           <dd className="mt-0.5 text-sm font-semibold text-text-primary">{winnerLabel(campaign)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-text-secondary">Responses</dt>
+          <dt className="text-xs text-text-secondary">Voters</dt>
           <dd className="mt-0.5 text-sm font-semibold tabular-nums text-text-primary">
-            {(campaign.responses ?? 0).toLocaleString()} / {(campaign.target ?? 0).toLocaleString()}
+            {fmtInt(campaign.voters)}
+            {campaign.target ? ` / ${fmtInt(campaign.target)}` : ""}
           </dd>
         </div>
       </dl>
       <Button className="mt-3 w-full" asChild>
         <Link to={`/campaigns/${campaign.id}`}>Review decision</Link>
       </Button>
+      {more > 0 ? (
+        <Link
+          to="/campaigns"
+          className="mt-2.5 block text-center text-xs font-semibold text-text-accent hover:underline"
+        >
+          {more} more ready to decide
+        </Link>
+      ) : null}
     </DashboardCard>
   );
 }
 
-export function HomePage() {
-  const [range, setRange] = useState<StatRange>("30D");
-  const campaigns = CAMPAIGNS.filter((campaign) => campaign.status === "Active");
-  const readyCampaign = campaigns.find((campaign) => campaign.signal === "Leading") ?? campaigns[0];
+/* ── Campaigns (Active / Queued) ─────────────────────────────────── */
 
+function HomeCampaignRow({ campaign, sourceCount }: { campaign: Campaign; sourceCount: number }) {
+  const live = campaign.status === "Active";
   return (
-    <DashboardPage>
-        {/* Real-time health leads without a section title. */}
-        <section className="space-y-2">
-          <div className="flex justify-end">
-            <DateRangeMenu value={range} onChange={setRange} />
-          </div>
-          <StatsStrip
-            stats={DASHBOARD_STATS[range]}
-            xTicks={STAT_XTICKS[range]}
-          />
-        </section>
-
-        <NextStepsCard
-          title="Get your workspace launch-ready"
-          steps={SETUP_STEPS}
-        />
-
-        <DashboardCard
-          title="Active campaigns"
-          bodyClassName="pt-2"
-          action={
-            <Button variant="secondary" size="sm" asChild>
-              <Link to="/campaigns">View all</Link>
-            </Button>
-          }
-        >
-          <div className="-mx-2 space-y-0.5">
-            {campaigns.length ? (
-              campaigns.map((c) => <CampaignRow key={c.id} campaign={c} />)
-            ) : (
-              <EmptyRow label="No active campaigns." />
-            )}
-          </div>
-        </DashboardCard>
-
-        {/* Structured priorities, without generated narrative copy. */}
-        <SectionGrid>
-          {readyCampaign ? <ReadyDecisionCard campaign={readyCampaign} /> : null}
-          <DashboardCard
-            title={`${ATTENTION_ITEMS.length} need attention`}
-            className="lg:col-span-8"
-            bodyClassName="pt-2"
-          >
-            <ul className="divide-y divide-border-default">
-              {ATTENTION_ITEMS.map((item) => (
-                <AttentionRow key={item.id} item={item} />
-              ))}
-            </ul>
-          </DashboardCard>
-        </SectionGrid>
-
-        {/* The calendar + key dates: one planning band */}
-        <SectionHeading title="Plan ahead" />
-        <WorkspaceCalendar />
-
-        {/* Key dates — each event its own bento card; only World Cup carries art */}
-        <SectionGrid>
-          {KEY_DATES.map((date) => {
-            const meta = KEY_DATE_META[date.id];
-            if (!meta) return null;
-            return (
-              <ActionCardForDate
-                key={date.id}
-                span={meta.span}
-                eyebrow={fmtRange(date.start, date.end)}
-                title={date.title}
-                blurb={meta.blurb}
-                media={date.id === "world-cup" ? { tone: meta.tone, icon: meta.icon } : undefined}
-              />
-            );
-          })}
-        </SectionGrid>
-
-    </DashboardPage>
+    <Link
+      to={`/campaigns/${campaign.id}`}
+      className="block rounded-md p-2 transition-colors hover:bg-surface-subtle"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
+          {campaign.name}
+        </p>
+        <SignalBadge signal={campaign.signal} />
+      </div>
+      <p className="mt-0.5 text-xs text-text-secondary">
+        {fmtDateRange(campaign.startAt, campaign.endAt)}
+      </p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-secondary">
+        {live ? (
+          <>
+            <span>
+              <span className="font-semibold tabular-nums text-text-primary">
+                {fmtInt(campaign.voters)}
+                {campaign.target ? ` / ${fmtInt(campaign.target)}` : ""}
+              </span>{" "}
+              voters
+            </span>
+            <StatDot />
+            <span>
+              <span className="font-semibold tabular-nums text-text-primary">
+                {pct(campaign.completed, campaign.voters)}
+              </span>{" "}
+              completion
+            </span>
+            <StatDot />
+            <span>
+              <span className="font-semibold tabular-nums text-text-primary">
+                {campaign.chain.length}
+              </span>{" "}
+              Polsts live
+            </span>
+          </>
+        ) : (
+          <>
+            <span>starts {campaign.startAt ? relativeToToday(campaign.startAt) : "—"}</span>
+            <StatDot />
+            <span>
+              <span className="font-semibold tabular-nums text-text-primary">
+                {campaign.chain.length}
+              </span>{" "}
+              Polsts staged
+            </span>
+            <StatDot />
+            <span>
+              <span className="font-semibold tabular-nums text-text-primary">{sourceCount}</span>{" "}
+              sources
+            </span>
+          </>
+        )}
+      </div>
+    </Link>
   );
 }
 
-/** Key-date bento card — thin wrapper so the map above stays readable. */
-function ActionCardForDate({
-  span,
-  eyebrow,
-  title,
-  blurb,
-  media,
-}: {
-  span: string;
-  eyebrow: string;
-  title: string;
-  blurb: string;
-  media?: { tone: CardTone; icon: string };
-}) {
+/* ── Launch readiness ────────────────────────────────────────────────
+   The nearest Scheduled campaign that can't launch cleanly yet, with its
+   real gaps as steps. Fully derived — assign a source and the card moves
+   on (or disappears). */
+
+function launchSteps(campaign: Campaign, sourceCount: number): SetupStep[] {
+  return [
+    {
+      title: "Stage the Polsts",
+      done: campaign.chain.length > 0,
+      description: campaign.chain.length
+        ? `${campaign.chain.length} Polsts are staged in the voting sequence.`
+        : "The campaign can't be published without at least one Polst.",
+      cta: {
+        label: campaign.chain.length ? "Review Polsts" : "Add Polsts",
+        to: `/campaigns/${campaign.id}?tab=polsts`,
+      },
+    },
+    {
+      title: "Assign a source",
+      done: sourceCount > 0,
+      description:
+        sourceCount > 0
+          ? `${sourceCount} ${sourceCount === 1 ? "source is" : "sources are"} attached.`
+          : "Nothing is attached to collect voters — add a QR code, share link, or embed.",
+      cta: {
+        label: sourceCount > 0 ? "Review sources" : "Add sources",
+        to: `/campaigns/${campaign.id}?tab=sources`,
+      },
+    },
+    {
+      title: "Confirm the schedule",
+      done: Boolean(campaign.startAt),
+      description: campaign.startAt
+        ? `Runs ${fmtDateRange(campaign.startAt, campaign.endAt)}.`
+        : "No start date is set.",
+      cta: { label: "Review schedule", to: `/campaigns/${campaign.id}?tab=settings` },
+    },
+  ];
+}
+
+/* ── Key-date coverage ───────────────────────────────────────────── */
+
+type KeyDateCoverage =
+  | { kind: "campaign"; campaign: Campaign; sourceCount: number }
+  | { kind: "polst"; polst: SinglePolst; sourceCount: number }
+  | null;
+
+function KeyDateCard({ date, coverage }: { date: KeyDate; coverage: KeyDateCoverage }) {
+  let reason: string;
+  let primary: { label: string; to: string };
+  if (coverage?.kind === "campaign") {
+    const { campaign, sourceCount } = coverage;
+    reason =
+      sourceCount > 0
+        ? `${campaign.name} is ${campaign.status.toLowerCase()} — runs ${fmtDateRange(campaign.startAt, campaign.endAt)}.`
+        : `${campaign.name} is ${campaign.status.toLowerCase()} — no sources yet.`;
+    primary =
+      sourceCount > 0
+        ? { label: "View campaign", to: `/campaigns/${campaign.id}` }
+        : { label: "Add sources", to: `/campaigns/${campaign.id}?tab=sources` };
+  } else if (coverage?.kind === "polst") {
+    const { polst, sourceCount } = coverage;
+    reason =
+      sourceCount > 0
+        ? `"${polst.question}" is ${polst.status.toLowerCase()} — runs ${fmtDateRange(polst.startAt, polst.endAt)}.`
+        : `"${polst.question}" is ${polst.status.toLowerCase()} — no source yet.`;
+    primary = {
+      label: sourceCount > 0 ? "View Polst" : "Add a source",
+      to: `/polsts/${polst.id}`,
+    };
+  } else {
+    reason = "Nothing is attached to this date yet.";
+    primary = { label: "Plan a campaign", to: `/campaigns/new?event=${date.id}` };
+  }
   return (
     <ActionCard
-      className={span}
-      eyebrow={eyebrow}
-      title={title}
-      reason={blurb}
-      primary={{ label: "Plan a campaign", to: "/campaigns/new" }}
-      media={media ? { ...media, placement: "side" } : undefined}
+      className="lg:col-span-3"
+      eyebrow={`${fmtDateRange(date.start, date.end)} · ${relativeToToday(date.start)}`}
+      title={date.title}
+      reason={reason}
+      primary={primary}
     />
+  );
+}
+
+/* ── Page ────────────────────────────────────────────────────────── */
+
+export function HomePage() {
+  const [range, setRange] = useState<StatRange>("30D");
+  const [campaignView, setCampaignView] = useState<"Active" | "Queued">("Active");
+  const { campaigns, polsts, sources } = useWorkspace();
+
+  const activeCampaigns = campaigns.filter((c) => c.status === "Active");
+  const queuedCampaigns = useMemo(
+    () =>
+      campaigns
+        .filter((c) => c.status === "Scheduled")
+        .sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? "")),
+    [campaigns],
+  );
+  const shownCampaigns = campaignView === "Active" ? activeCampaigns : queuedCampaigns;
+
+  /* Ready to decide — same rule as canon everywhere; live campaigns first. */
+  const readyToDecide = useMemo(
+    () =>
+      campaigns
+        .filter((c) => isReadyToDecide(c))
+        .sort((a, b) => Number(a.status === "Ended") - Number(b.status === "Ended")),
+    [campaigns],
+  );
+  const readyCampaign = readyToDecide[0];
+
+  /* The nearest scheduled campaign that still has a launch gap. */
+  const launchCampaign = useMemo(
+    () =>
+      queuedCampaigns.find(
+        (c) => !c.chain.length || !campaignSources(sources, c.id).length || !c.startAt,
+      ),
+    [queuedCampaigns, sources],
+  );
+
+  /* Key dates still ahead, each with its real coverage. */
+  const keyDates = useMemo(
+    () =>
+      KEY_DATES.filter((k) => k.end >= TODAY).map((date) => {
+        const campaign = campaigns.find((c) => c.event === date.id && c.status !== "Archived");
+        if (campaign) {
+          return {
+            date,
+            coverage: {
+              kind: "campaign",
+              campaign,
+              sourceCount: campaignSources(sources, campaign.id).length,
+            } as KeyDateCoverage,
+          };
+        }
+        const polst = polsts.find((p) => p.event === date.id && p.status !== "Archived");
+        if (polst) {
+          return {
+            date,
+            coverage: {
+              kind: "polst",
+              polst,
+              sourceCount: polstSources(sources, polst.id).length,
+            } as KeyDateCoverage,
+          };
+        }
+        return { date, coverage: null };
+      }),
+    [campaigns, polsts, sources],
+  );
+
+  return (
+    <DashboardPage
+      actions={
+        <Button variant="secondary" size="sm" asChild>
+          <Link to="/analytics">View analytics</Link>
+        </Button>
+      }
+    >
+      {/* Workspace health leads; every delta states its comparison window. */}
+      <section className="space-y-2">
+        <div className="flex justify-end">
+          <DateRangeMenu value={range} onChange={setRange} />
+        </div>
+        <StatsStrip
+          stats={DASHBOARD_STATS[range]}
+          xTicks={STAT_XTICKS[range]}
+          scopeLabel={workspaceWindow(range).compareLabel ?? undefined}
+        />
+      </section>
+
+      {/* What can be decided, and what's in the way. */}
+      <SectionGrid>
+        {readyCampaign ? (
+          <ReadyDecisionCard campaign={readyCampaign} more={readyToDecide.length - 1} />
+        ) : null}
+        <DashboardCard
+          title={`${ATTENTION_ITEMS.length} need attention`}
+          className={readyCampaign ? "lg:col-span-8" : "lg:col-span-12"}
+          bodyClassName="pt-2"
+        >
+          <ul className="divide-y divide-border-default">
+            {ATTENTION_ITEMS.map((item) => (
+              <AttentionRow key={item.id} item={item} />
+            ))}
+          </ul>
+        </DashboardCard>
+      </SectionGrid>
+
+      <DashboardCard
+        title="Campaigns"
+        bodyClassName="pt-2"
+        action={
+          <div className="flex items-center gap-2">
+            <SegmentedControl
+              tabs={["Active", "Queued"]}
+              active={campaignView}
+              onChange={setCampaignView}
+              size="compact"
+            />
+            <Button variant="secondary" size="sm" asChild>
+              <Link to="/campaigns">View all</Link>
+            </Button>
+          </div>
+        }
+      >
+        {shownCampaigns.length ? (
+          <div className="-mx-2 space-y-0.5">
+            {shownCampaigns.map((c) => (
+              <HomeCampaignRow
+                key={c.id}
+                campaign={c}
+                sourceCount={campaignSources(sources, c.id).length}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon="campaign"
+            title={campaignView === "Active" ? "No active campaigns." : "Nothing is scheduled."}
+            action={{ label: "Create campaign", to: "/campaigns/new" }}
+          />
+        )}
+      </DashboardCard>
+
+      {launchCampaign ? (
+        <NextStepsCard
+          title={`Get ${launchCampaign.name} ready to launch`}
+          intro={launchCampaign.startAt ? `Starts ${relativeToToday(launchCampaign.startAt)}.` : undefined}
+          steps={launchSteps(launchCampaign, campaignSources(sources, launchCampaign.id).length)}
+        />
+      ) : null}
+
+      {/* Planning band: the calendar, then each key date's real coverage. */}
+      <WorkspaceCalendar />
+      <SectionGrid>
+        {keyDates.map(({ date, coverage }) => (
+          <KeyDateCard key={date.id} date={date} coverage={coverage} />
+        ))}
+      </SectionGrid>
+    </DashboardPage>
   );
 }

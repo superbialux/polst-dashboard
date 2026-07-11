@@ -13,9 +13,11 @@ const routes = [
   ["campaign-new", "/campaigns/new"],
   ["campaign-detail", "/campaigns/packaging-direction"],
   ["campaign-detail-draft", "/campaigns/summer-launch-draft"],
+  ["campaign-sources", "/campaigns/packaging-direction?tab=sources"],
   ["polsts", "/polsts"],
   ["polst-new", "/polsts/new"],
   ["polst-detail", "/polsts/which-headline-wins"],
+  ["polst-draft", "/polsts/event-hook"],
   ["distribution", "/distribution"],
   ["audience", "/audience"],
   ["analytics-overview", "/analytics"],
@@ -24,7 +26,6 @@ const routes = [
   ["analytics-insights", "/analytics/insights"],
   ["analytics-reports", "/analytics/reports"],
   ["settings", "/settings"],
-  ["team", "/team"],
   ["not-found", "/nope-404"],
 ];
 

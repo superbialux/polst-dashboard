@@ -1,75 +1,80 @@
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Menu, MenuItem } from "@/components/Menu";
+import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import {
   ActionCard,
-  CohortGrid,
+  Chip,
+  ConnectCard,
   DashboardCard,
   DashboardPage,
   DataTable,
   DetailList,
+  EmptyState,
   FilterBar,
   Funnel,
+  InfoHint,
+  LockedCard,
   MixBars,
+  PollResults,
   SectionGrid,
-  SplitBar,
-  StatTile,
-  StatsStrip,
   SignalBadge,
+  StatTile,
   StatusBadge,
-  TimeHeatmap,
   TrendChart,
   type DataColumn,
 } from "@/components/dashboard";
 import {
+  METRIC_INFO,
+  fmtDate,
+  fmtDateRange,
+  fmtInt,
+  fmtPct,
+  isReadyToDecide,
+  pct,
+  relativeToToday,
+  type DecisionSignal,
+  type Status,
+} from "@/lib/canon";
+import { allocate, dateSpan, windowBounds, type WindowRange } from "@/lib/engine";
+import {
+  ATTENTION_ITEMS,
   CAMPAIGNS,
-  HEATMAP_BUCKETS,
-  HEATMAP_DAYS,
-  HEATMAP_PEAK,
-  TIME_HEATMAP,
-  formatNumber,
+  INTEGRATIONS,
+  REPORTS,
+  SINGLE_POLSTS,
+  STAT_XTICKS,
+  WHAT_CHANGED,
+  WORKSPACE,
+  campaignSeries,
+  polstOptions,
+  polstSeries,
   winnerLabel,
   type Campaign,
-  type ChurnRisk,
-  type Finding,
-  type Report,
-  type VerticalPerformance,
+  type SinglePolst,
+  type WorkspaceReport,
 } from "@/lib/workspace";
 import {
   ANALYTICS_CHANNELS,
-  ANALYTICS_UTMS,
   ANALYTICS_VERTICALS,
-  acquisitionByChannel,
-  campaignReturns,
-  contentPerformance,
-  formatMoney,
-  formatPercent,
   mixBy,
-  ratio,
-  retentionByChannel,
-  seriesFor,
-  total,
-  trafficQuality,
-  weightedAverage,
-  type AcquisitionRow,
-  type AnalyticsResult,
-  type CampaignReturnRow,
-  type ContentPerformanceRow,
-  type RetentionBreakdownRow,
-  type TrafficQualityRow,
+  segmentTotal,
+  verticalRows,
+  type AnalyticsFilters,
+  type SegmentRow,
+  type VerticalRow,
 } from "@/lib/analytics";
 import { useAnalytics } from "@/lib/analytics-context";
+import { useModules } from "@/lib/modules";
+import { useWorkspace } from "@/lib/store";
 
-const RANGE_TICKS = {
-  "7D": ["7 days ago", "3 days ago", "Today"],
-  "30D": ["30 days ago", "15 days ago", "Today"],
-  "90D": ["90 days ago", "45 days ago", "Today"],
-  All: ["First response", "Midpoint", "Today"],
-} as const;
+/* ── Shared scaffolding ──────────────────────────────────────────── */
 
-function AnalyticsFilters() {
+function AnalyticsFilterBar() {
   const { filters, setFilters } = useAnalytics();
   return (
     <FilterBar
@@ -77,38 +82,148 @@ function AnalyticsFilters() {
       onChange={setFilters}
       channels={ANALYTICS_CHANNELS}
       verticals={ANALYTICS_VERTICALS}
-      utms={ANALYTICS_UTMS}
     />
   );
 }
 
+/** The one filtered-out state: what happened and the way back. */
 function EmptyAnalytics() {
+  const { resetFilters } = useAnalytics();
   return (
     <DashboardCard>
-      <p className="py-8 text-center text-sm text-text-secondary">
-        No activity matches these filters.
-      </p>
+      <EmptyState
+        icon="filter_alt_off"
+        title="No activity matches these filters"
+        hint="Nothing collected votes in this window for the selected channel and vertical."
+        action={{ label: "Reset filters", onClick: resetFilters }}
+      />
     </DashboardCard>
   );
 }
 
-function campaignScope(rows: AnalyticsResult[]) {
-  const byCampaign = new Map<string, AnalyticsResult[]>();
-  rows.forEach((row) => byCampaign.set(row.campaignId, [...(byCampaign.get(row.campaignId) ?? []), row]));
-  return [...byCampaign.entries()].map(([id, scoped]) => {
-    const campaign = CAMPAIGNS.find((item) => item.id === id)!;
-    return {
-      ...campaign,
-      responses: total(scoped, "completions"),
-      completion: formatPercent(ratio(total(scoped, "completions"), total(scoped, "starts")), 0),
-      topSource: mixBy(scoped, (row) => row.channel, "completions")[0]?.label ?? "-",
-    };
-  });
+/** Copies text for real and tells the truth about the outcome. */
+function useCopyText() {
+  const toast = useToast();
+  return async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Summary copied to clipboard");
+    } catch {
+      toast("Copy failed — the browser blocked clipboard access");
+    }
+  };
+}
+
+/** Header export: a real copy and a real print — never a fake download. */
+function ExportMenu({ summary }: { summary: () => string }) {
+  const copy = useCopyText();
+  return (
+    <Menu
+      label="Export"
+      trigger={({ toggle }) => (
+        <Button variant="secondary" onClick={toggle}>
+          <Icon name="ios_share" size={18} />
+          Export
+        </Button>
+      )}
+    >
+      <MenuItem icon="content_copy" label="Copy summary" onClick={() => void copy(summary())} />
+      <MenuItem icon="print" label="Print page" onClick={() => window.print()} />
+    </Menu>
+  );
+}
+
+/** "Jun 9 – Jun 15 · Email · Food & drink" — the scope behind a summary. */
+function scopeLine(filters: AnalyticsFilters): string {
+  const [start, end] = windowBounds(filters.range);
+  return [
+    `${fmtDate(start)} – ${fmtDate(end)}`,
+    filters.channel !== "All channels" ? filters.channel : null,
+    filters.vertical !== "All verticals" ? filters.vertical : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/* ── Windowed series (derived, never fabricated) ─────────────────────
+   Every object's daily votes come from the same series the Home stats
+   read; a channel/vertical filter keeps each object's share by exact
+   integer allocation, so the chart total equals the table totals. */
+
+const OBJECTS = new Map<string, { kind: "campaign" | "polst"; object: Campaign | SinglePolst }>([
+  ...CAMPAIGNS.map((c) => [c.id, { kind: "campaign" as const, object: c }] as const),
+  ...SINGLE_POLSTS.map((p) => [p.id, { kind: "polst" as const, object: p }] as const),
+]);
+
+function scopedDailyVotes(rows: SegmentRow[], range: WindowRange): number[] {
+  const [start, end] = windowBounds(range);
+  const days = dateSpan(start, end);
+  const totals = days.map(() => 0);
+  const votesByObject = new Map<string, number>();
+  for (const row of rows) {
+    votesByObject.set(row.objectId, (votesByObject.get(row.objectId) ?? 0) + row.metrics.votes);
+  }
+  for (const [objectId, scopedVotes] of votesByObject) {
+    const entry = OBJECTS.get(objectId);
+    if (!entry) continue;
+    const series =
+      entry.kind === "campaign"
+        ? campaignSeries(entry.object as Campaign, "votes")
+        : polstSeries(entry.object as SinglePolst, "votes");
+    const daily = days.map((iso) => {
+      const i = series.dates.indexOf(iso);
+      return i === -1 ? 0 : series.values[i];
+    });
+    const windowTotal = daily.reduce((a, b) => a + b, 0);
+    const allocated = windowTotal === scopedVotes ? daily : allocate(scopedVotes, daily);
+    allocated.forEach((v, i) => {
+      totals[i] += v;
+    });
+  }
+  return totals;
 }
 
 /* ── Overview ────────────────────────────────────────────────────── */
 
-const campaignPerformanceColumns: Array<DataColumn<Campaign>> = [
+type CampaignPerfRow = {
+  id: string;
+  name: string;
+  status: Status;
+  signal: DecisionSignal;
+  voters: number;
+  completed: number;
+  winner: string;
+};
+
+function buildCampaignPerf(rows: SegmentRow[], campaigns: Campaign[]): CampaignPerfRow[] {
+  const grouped = new Map<string, { voters: number; completed: number }>();
+  for (const row of rows) {
+    if (row.kind !== "campaign") continue;
+    const g = grouped.get(row.objectId) ?? { voters: 0, completed: 0 };
+    g.voters += row.metrics.voters;
+    g.completed += row.metrics.completed;
+    grouped.set(row.objectId, g);
+  }
+  return [...grouped.entries()]
+    .flatMap(([id, m]) => {
+      const campaign = campaigns.find((c) => c.id === id) ?? CAMPAIGNS.find((c) => c.id === id);
+      if (!campaign) return [];
+      return [
+        {
+          id,
+          name: campaign.name,
+          status: campaign.status,
+          signal: campaign.signal,
+          voters: m.voters,
+          completed: m.completed,
+          winner: winnerLabel(campaign),
+        },
+      ];
+    })
+    .sort((a, b) => b.voters - a.voters);
+}
+
+const campaignPerfColumns: Array<DataColumn<CampaignPerfRow>> = [
   {
     header: "Campaign",
     cell: (row) => (
@@ -121,772 +236,677 @@ const campaignPerformanceColumns: Array<DataColumn<Campaign>> = [
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
+  { header: "Signal", cell: (row) => <SignalBadge signal={row.signal} /> },
   {
-    header: "Responses",
+    header: "Voters",
     align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
   },
   {
     header: "Completion",
     align: "right",
-    cell: (row) => <span className="tabular-nums">{row.completion}</span>,
+    cell: (row) => <span className="tabular-nums">{pct(row.completed, row.voters)}</span>,
   },
   {
-    header: "Winning direction",
-    cell: (row) => <span className="text-text-secondary">{winnerLabel(row)}</span>,
-  },
-  {
-    header: "Signal",
-    cell: (row) => <SignalBadge signal={row.signal} />,
+    header: "Winner",
+    cell: (row) => <span className="text-text-secondary">{row.winner}</span>,
   },
 ];
 
-/** The CSV/PDF export affordance shared by Overview and Reports. */
-function ExportMenu() {
-  const toast = useToast();
-  return (
-    <Menu
-      label="Export"
-      trigger={({ toggle }) => (
-        <Button variant="secondary" onClick={toggle}>
-          <Icon name="download" size={18} />
-          Export
-        </Button>
-      )}
-    >
-      <MenuItem icon="csv" label="Download CSV" onClick={() => toast("Exported as CSV")} />
-      <MenuItem
-        icon="picture_as_pdf"
-        label="Download PDF"
-        onClick={() => toast("Exported as PDF")}
-      />
-    </Menu>
-  );
-}
+type PolstPerfRow = { id: string; question: string; views: number; votes: number };
 
-const verticalColumns: Array<DataColumn<VerticalPerformance>> = [
-  {
-    header: "Vertical",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.vertical}</p>
-    ),
-  },
-  {
-    header: "Responses",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
-  },
-  {
-    header: "Completion",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.completion}</span>,
-  },
-  {
-    header: "Drop-off",
-    cell: (row) => <span className="text-text-secondary">{row.dropOff}</span>,
-  },
-  {
-    header: "Time to vote",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.timeToVote}</span>,
-  },
-  {
-    header: "Share rate",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.shareRate}</span>,
-  },
-];
-
-const contentColumns: Array<DataColumn<ContentPerformanceRow>> = [
-  { header: "Topic", cell: (row) => <span className="font-display font-semibold">{row.topic}</span> },
-  { header: "Hook", cell: (row) => <span className="text-text-secondary">{row.hook}</span> },
-  { header: "Format", cell: (row) => <span className="text-text-secondary">{row.format}</span> },
-  { header: "Views", align: "right", cell: (row) => <span className="tabular-nums">{formatNumber(row.views)}</span> },
-  { header: "Engagement", align: "right", cell: (row) => <span className="tabular-nums">{row.engagement}</span> },
-  { header: "Completion", align: "right", cell: (row) => <span className="tabular-nums">{row.completion}</span> },
-  { header: "Share", align: "right", cell: (row) => <span className="tabular-nums">{row.shareRate}</span> },
-];
-
-const trafficColumns: Array<DataColumn<TrafficQualityRow>> = [
-  { header: "Channel", cell: (row) => <span className="font-display font-semibold">{row.channel}</span> },
-  { header: "Vertical", cell: (row) => <span className="text-text-secondary">{row.vertical}</span> },
-  { header: "Creative", cell: (row) => <span className="text-text-secondary">{row.format}</span> },
-  { header: "Bounce", align: "right", cell: (row) => <span className="tabular-nums">{row.bounce}</span> },
-  { header: "Time on site", align: "right", cell: (row) => <span className="tabular-nums">{row.timeOnSite}</span> },
-  { header: "Vote drop-off", align: "right", cell: (row) => <span className="tabular-nums">{row.dropOff}</span> },
-];
-
-export function AnalyticsOverviewPage() {
-  const { filters, rows } = useAnalytics();
-  const campaigns = campaignScope(rows);
-  const readyToDecide = campaigns.filter(
-    (c) => c.status === "Active" && (c.signal === "Leading" || c.signal === "Decisive"),
-  );
-  const views = total(rows, "views");
-  const votes = total(rows, "votes");
-  const starts = total(rows, "starts");
-  const completions = total(rows, "completions");
-  const newUsers = total(rows, "newUsers");
-  const returningUsers = total(rows, "returningUsers");
-  const sourceMix = mixBy(rows, (row) => row.channel, "completions");
-  const topSource = sourceMix[0]?.label ?? "-";
-  const portfolio = [
-    { label: "Total views", value: formatNumber(views), info: "Attributed views in the selected scope." },
-    { label: "Total votes", value: formatNumber(votes), info: "Choices tapped in the selected scope." },
-    { label: "Completion rate", value: formatPercent(ratio(completions, starts)), info: "Completed sequences divided by starts." },
-    { label: "Top source", value: topSource, info: "Highest completed-response volume in the selected scope." },
-  ];
-  const verticalRows: VerticalPerformance[] = ANALYTICS_VERTICALS.map((vertical) => {
-    const scoped = rows.filter((row) => row.vertical === vertical);
-    return {
-      id: vertical.toLowerCase().replace(/ /g, "-"),
-      vertical,
-      responses: total(scoped, "completions"),
-      completion: formatPercent(ratio(total(scoped, "completions"), total(scoped, "starts"))),
-      dropOff: formatPercent(100 - ratio(total(scoped, "completions"), total(scoped, "starts"))),
-      timeToVote: `${weightedAverage(scoped, "timeToVoteSeconds", "starts").toFixed(1)}s`,
-      shareRate: formatPercent(ratio(total(scoped, "shares"), total(scoped, "completions"))),
-    };
-  }).filter((row) => row.responses > 0);
-  const heatScale = completions / 2670;
-  const heatmap = TIME_HEATMAP.map((day) => day.map((value) => Math.round(value * heatScale)));
-  const peak = filters.channel === "Email" ? "Wednesday 6-8pm" : filters.channel === "Instagram" ? "Thursday 8-10pm" : filters.channel === "QR" ? "Saturday 2-4pm" : HEATMAP_PEAK;
-  const journey = [
-    { label: "Landed", count: views },
-    { label: "Started voting", count: starts },
-    { label: "Completed", count: completions },
-    { label: "Shared", count: total(rows, "shares") },
-  ];
-  return (
-    <DashboardPage
-      actions={<ExportMenu />}
-    >
-      <AnalyticsFilters />
-
-      {!rows.length ? <EmptyAnalytics /> : null}
-
-      {/* Decisions first, telemetry after */}
-      {rows.length ? <DashboardCard
-        title="Ready to decide"
-        padded={false}
-        bodyClassName="pb-1"
-      >
-        <ul className="divide-y divide-border-default">
-          {readyToDecide.map((campaign) => (
-            <li key={campaign.id} className="flex flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center">
-              <div className="min-w-0 flex-1">
-                <Link
-                  to={`/campaigns/${campaign.id}`}
-                  className="font-display text-sm font-semibold text-text-primary hover:text-text-accent"
-                >
-                  {campaign.name}
-                </Link>
-                <p className="mt-0.5 text-xs text-text-secondary">
-                  {winnerLabel(campaign)} · {formatNumber(campaign.responses)} scoped responses
-                </p>
-              </div>
-              <div className="flex w-full flex-wrap items-center justify-start gap-3 sm:w-auto">
-                <SignalBadge
-                  signal={campaign.signal}
-                  detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
-                />
-                <Button variant="secondary" size="sm" asChild>
-                  <Link to={`/campaigns/${campaign.id}`}>Review</Link>
-                </Button>
-              </div>
-            </li>
-          ))}
-          {!readyToDecide.length ? <p className="px-4 py-8 text-center text-sm text-text-secondary">No ready decisions in this scope.</p> : null}
-        </ul>
-      </DashboardCard> : null}
-
-      {rows.length ? <SectionGrid>
-        {portfolio.map((item) => (
-          <StatTile
-            key={item.label}
-            className="lg:col-span-3"
-            label={item.label}
-            value={item.value}
-            info={item.info}
-          />
-        ))}
-      </SectionGrid> : null}
-
-      {rows.length ? <SectionGrid>
-        <DashboardCard
-          title="Response trend"
-          className="lg:col-span-8"
-        >
-          <TrendChart series={seriesFor(rows, "completions")} xTicks={[...RANGE_TICKS[filters.range]]} />
-        </DashboardCard>
-        <DashboardCard title="Source mix" className="lg:col-span-4">
-          <MixBars slices={sourceMix} />
-        </DashboardCard>
-      </SectionGrid> : null}
-
-      {rows.length ? <SectionGrid>
-        <DashboardCard
-          title="When your audience answers"
-          className="lg:col-span-7"
-          action={
-            <span className="rounded-pill bg-accent-soft px-2.5 py-1 font-display text-xs font-semibold text-accent-default">
-              Peak: {peak}
-            </span>
-          }
-        >
-          <TimeHeatmap values={heatmap} days={HEATMAP_DAYS} buckets={HEATMAP_BUCKETS} />
-        </DashboardCard>
-        <DashboardCard title="Journey across campaigns" className="lg:col-span-5">
-          <Funnel steps={journey} />
-        </DashboardCard>
-      </SectionGrid> : null}
-
-      {rows.length ? <DashboardCard title="Verticals side by side" padded={false}>
-        <DataTable rows={verticalRows} columns={verticalColumns} />
-      </DashboardCard> : null}
-
-      {rows.length ? <SectionGrid>
-        <DashboardCard
-          title="Devices"
-          className="lg:col-span-6"
-        >
-          <MixBars slices={mixBy(rows, (row) => row.device, "completions")} />
-        </DashboardCard>
-        <DashboardCard
-          title="New vs returning"
-          className="lg:col-span-6"
-        >
-          <SplitBar split={{
-            a: { label: "New", value: Math.round(ratio(newUsers, newUsers + returningUsers)) },
-            b: { label: "Returning", value: Math.round(ratio(returningUsers, newUsers + returningUsers)) },
-          }} />
-        </DashboardCard>
-      </SectionGrid> : null}
-
-      {rows.length ? <DashboardCard
-        title="Campaign performance"
-        padded={false}
-      >
-        <DataTable
-          rows={campaigns}
-          columns={campaignPerformanceColumns}
-          emptyLabel="No campaigns match these filters"
-        />
-      </DashboardCard> : null}
-
-      {rows.length ? <DashboardCard title="Content performance" padded={false}>
-        <DataTable rows={contentPerformance(rows)} columns={contentColumns} />
-      </DashboardCard> : null}
-
-      {rows.length ? <DashboardCard title="Traffic quality" padded={false}>
-        <DataTable rows={trafficQuality(rows)} columns={trafficColumns} />
-      </DashboardCard> : null}
-    </DashboardPage>
-  );
-}
-
-/* ── Acquisition (module) ────────────────────────────────────────── */
-
-const economicsColumns: Array<DataColumn<AcquisitionRow>> = [
-  {
-    header: "Channel",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.channel}</p>
-    ),
-  },
-  {
-    header: "Visits",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.visits)}</span>,
-  },
-  {
-    header: "Signups",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.signups)}</span>,
-  },
-  {
-    header: "New",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.newUsers)}</span>,
-  },
-  {
-    header: "Returning",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.returningUsers)}</span>,
-  },
-  {
-    header: "Creation rate",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.conversion}</span>,
-  },
-  {
-    header: "CTR",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.ctr}</span>,
-  },
-  {
-    header: "CPC",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.cpc}</span>,
-  },
-  {
-    header: "Cost per account",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.cpa}</span>,
-  },
-];
-
-const roiColumns: Array<DataColumn<CampaignReturnRow>> = [
-  {
-    header: "Campaign",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.campaign}</p>
-    ),
-  },
-  {
-    header: "Spend",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.spend}</span>,
-  },
-  {
-    header: "Accounts",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.accounts}</span>,
-  },
-  {
-    header: "Engaged",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.engaged)}</span>,
-  },
-  {
-    header: "New / returning",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.newUsers)} / {formatNumber(row.returningUsers)}</span>,
-  },
-  {
-    header: "CPA",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.cpa}</span>,
-  },
-  {
-    header: "Cost per engaged",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.costPerEngaged}</span>,
-  },
-];
-
-/** A starred dream-list item shipped honestly: a written conclusion with a
- *  confidence chip, not a speculative chart. */
-function FindingCard({ finding }: { finding: Finding }) {
-  return (
-    <DashboardCard className="lg:col-span-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-display text-sm font-semibold text-text-primary">
-          {finding.title}
-        </h3>
-        <span className="rounded-pill bg-surface-subtle px-2 py-0.5 font-display text-xs font-semibold text-text-secondary">
-          {finding.confidence}
-        </span>
-      </div>
-      <p className="mt-2 text-sm leading-6 text-text-secondary">{finding.body}</p>
-    </DashboardCard>
-  );
-}
-
-export function AnalyticsAcquisitionPage() {
-  const { filters, rows } = useAnalytics();
-  const economics = acquisitionByChannel(rows);
-  const returns = campaignReturns(rows);
-  const signups = total(rows, "signups");
-  const completions = total(rows, "completions");
-  const spend = total(rows, "spend");
-  const paidViews = rows
-    .filter((row) => row.utm === "Paid social" || row.utm === "Creator")
-    .reduce((sum, row) => sum + row.metrics.views, 0);
-  const views = total(rows, "views");
-  const stats = [
-    { label: "New accounts", value: formatNumber(signups), delta: "", trend: "flat" as const, spark: seriesFor(rows, "signups") },
-    { label: "Creation rate", value: formatPercent(ratio(signups, completions)), delta: "", trend: "flat" as const, spark: seriesFor(rows, "signups") },
-    { label: "Cost per account", value: formatMoney(signups ? spend / signups : 0), delta: "", trend: "flat" as const, spark: seriesFor(rows, "spend") },
-    { label: "Paid share", value: formatPercent(ratio(paidViews, views), 0), delta: "", trend: "flat" as const, spark: seriesFor(rows.filter((row) => row.utm === "Paid social" || row.utm === "Creator"), "views") },
-  ];
-  const paidShare = Math.round(ratio(paidViews, views));
-  const bestChannel = [...economics].sort((a, b) => parseFloat(b.conversion) - parseFloat(a.conversion))[0];
-  const bestCampaign = [...returns].filter((row) => row.accounts > 0).sort((a, b) => parseFloat(a.cpa.replace(/[$-]/g, "") || "999") - parseFloat(b.cpa.replace(/[$-]/g, "") || "999"))[0];
-  const findings: Finding[] = [
-    ...(bestChannel ? [{ id: "best-channel", title: `${bestChannel.channel} converts best`, body: `${bestChannel.conversion} of completed voters create an account.`, confidence: "High confidence" as const }] : []),
-    ...(bestCampaign ? [{ id: "best-campaign", title: `${bestCampaign.campaign} has the lowest CPA`, body: `${bestCampaign.cpa} per account across ${formatNumber(bestCampaign.accounts)} creations.`, confidence: "High confidence" as const }] : []),
-  ];
-  return (
-    <DashboardPage
-      actions={<ExportMenu />}
-    >
-      <AnalyticsFilters />
-
-      {!rows.length ? <EmptyAnalytics /> : null}
-
-      {rows.length ? <StatsStrip stats={stats} xTicks={[...RANGE_TICKS[filters.range]]} /> : null}
-
-      {rows.length ? <SectionGrid>
-        <DashboardCard
-          title="Account creations"
-          className="lg:col-span-8"
-        >
-          <TrendChart
-            series={seriesFor(rows, "signups", 30)}
-            xTicks={[...RANGE_TICKS[filters.range]]}
-          />
-        </DashboardCard>
-        <div className="space-y-4 lg:col-span-4">
-          <DashboardCard title="Paid vs organic">
-            <SplitBar split={{
-              a: { label: "Paid", value: paidShare, detail: `${formatNumber(paidViews)} views` },
-              b: { label: "Organic", value: 100 - paidShare, detail: `${formatNumber(views - paidViews)} views` },
-            }} />
-          </DashboardCard>
-          <DashboardCard title="Creative formats">
-            <MixBars slices={mixBy(rows, (row) => row.format, "signups")} />
-          </DashboardCard>
-        </div>
-      </SectionGrid> : null}
-
-      {rows.length ? <DashboardCard title="Channel economics" padded={false}>
-        <DataTable rows={economics} columns={economicsColumns} />
-      </DashboardCard> : null}
-
-      {rows.length ? <DashboardCard title="Campaign spend and return" padded={false}>
-        <DataTable rows={returns} columns={roiColumns} />
-      </DashboardCard> : null}
-
-      {rows.length ? <SectionGrid>
-        {findings.map((finding) => (
-          <FindingCard key={finding.id} finding={finding} />
-        ))}
-      </SectionGrid> : null}
-    </DashboardPage>
-  );
-}
-
-/* ── Retention (module) ──────────────────────────────────────────── */
-
-const cohortUsageColumns: Array<DataColumn<RetentionBreakdownRow>> = [
-  {
-    header: "Cohort",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.cohort}</p>
-    ),
-  },
-  {
-    header: "New",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.newUsers)}</span>,
-  },
-  {
-    header: "Returning",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.returningUsers)}</span>,
-  },
-  {
-    header: "Repeat",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.repeatRate}</span>,
-  },
-  { header: "Polls / session", align: "right", cell: (row) => <span className="tabular-nums">{row.frequency}</span> },
-  { header: "D1", align: "right", cell: (row) => <span className="tabular-nums">{row.d1}</span> },
-  { header: "D7", align: "right", cell: (row) => <span className="tabular-nums">{row.d7}</span> },
-  { header: "D30", align: "right", cell: (row) => <span className="tabular-nums">{row.d30}</span> },
-];
-
-/** One at-risk segment: who they are, why they're cooling, and the next
- *  action — every row answers "so what do I do?" */
-function ChurnRow({ risk }: { risk: ChurnRisk }) {
-  const toast = useToast();
-  return (
-    <li className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-      <div className="min-w-0">
-        <p className="font-display text-sm font-semibold text-text-primary">
-          {risk.segment}
-          <span className="ml-2 font-sans text-xs font-normal tabular-nums text-text-tertiary">
-            {formatNumber(risk.size)} people
-          </span>
-        </p>
-        <p className="mt-0.5 text-sm text-text-secondary">{risk.detail}</p>
-      </div>
-      <Button
-        variant="secondary"
-        size="sm"
-        className="shrink-0"
-        onClick={() => toast(`${risk.action} queued for ${risk.segment}`)}
-      >
-        {risk.action}
-      </Button>
-    </li>
-  );
-}
-
-export function AnalyticsRetentionPage() {
-  const { filters, rows } = useAnalytics();
-  const breakdowns = retentionByChannel(rows);
-  const newUsers = total(rows, "newUsers");
-  const d1 = weightedAverage(rows, "d1", "newUsers");
-  const d7 = weightedAverage(rows, "d7", "newUsers");
-  const d30 = weightedAverage(rows, "d30", "newUsers");
-  const repeatUsers = total(rows, "repeatUsers");
-  const starts = total(rows, "starts");
-  const churned = total(rows, "churnedUsers");
-  const notifications = total(rows, "notificationReturns");
-  const stats = [
-    { label: "Day-7 retention", value: formatPercent(d7, 0), delta: "", trend: "flat" as const, spark: seriesFor(rows, "returningUsers") },
-    { label: "Repeat vote rate", value: formatPercent(ratio(repeatUsers, starts)), delta: "", trend: "flat" as const, spark: seriesFor(rows, "repeatUsers") },
-    { label: "Gone quiet", value: formatNumber(churned), delta: "", trend: "flat" as const, spark: seriesFor(rows, "churnedUsers") },
-    { label: "Notification returns", value: formatPercent(ratio(notifications, total(rows, "returningUsers"))), delta: "", trend: "flat" as const, spark: seriesFor(rows, "notificationReturns") },
-  ];
-  const cohortSizes = [0.13, 0.15, 0.16, 0.17, 0.19, 0.2];
-  const cohorts = cohortSizes.map((share, index) => ({
-    label: `Week ${index + 1}`,
-    size: Math.round(newUsers * share),
-    d1: Math.max(0, Math.round(d1 + (index - 2) * 1.2)),
-    d7: Math.max(0, Math.round(d7 + (index - 2) * 0.8)),
-    d14: Math.max(0, Math.round((d7 + d30) / 2 + (index - 2) * 0.5)),
-    d30: Math.max(0, Math.round(d30 + (index - 2) * 0.4)),
-  }));
-  const churnRisks: ChurnRisk[] = breakdowns
-    .map((row) => {
-      const scoped = rows.filter((item) => item.channel === row.cohort);
-      return {
-        id: row.id,
-        segment: `${row.cohort} arrivals`,
-        detail: `${row.d30} remain active at day 30`,
-        size: total(scoped, "churnedUsers"),
-        action: "Re-ask",
-      };
+function buildPolstPerf(rows: SegmentRow[], polsts: SinglePolst[]): PolstPerfRow[] {
+  const grouped = new Map<string, { views: number; votes: number }>();
+  for (const row of rows) {
+    if (row.kind !== "polst") continue;
+    const g = grouped.get(row.objectId) ?? { views: 0, votes: 0 };
+    g.views += row.metrics.views;
+    g.votes += row.metrics.votes;
+    grouped.set(row.objectId, g);
+  }
+  return [...grouped.entries()]
+    .flatMap(([id, m]) => {
+      const polst = polsts.find((p) => p.id === id) ?? SINGLE_POLSTS.find((p) => p.id === id);
+      if (!polst) return [];
+      return [{ id, question: polst.question, views: m.views, votes: m.votes }];
     })
-    .filter((row) => row.size > 0)
-    .sort((a, b) => b.size - a.size)
-    .slice(0, 3);
-  const postVote = [
-    { label: "Voted", count: total(rows, "completions") },
-    { label: "Continued", count: repeatUsers },
-    { label: "Shared", count: total(rows, "shares") },
-    { label: "Created account", count: total(rows, "signups") },
-  ];
-  return (
-    <DashboardPage
-      actions={<ExportMenu />}
-    >
-      <AnalyticsFilters />
-
-      {!rows.length ? <EmptyAnalytics /> : null}
-
-      {rows.length ? <StatsStrip stats={stats} xTicks={[...RANGE_TICKS[filters.range]]} /> : null}
-
-      {rows.length ? <SectionGrid>
-        <DashboardCard
-          title="Weekly cohorts"
-          className="lg:col-span-7"
-        >
-          <CohortGrid cohorts={cohorts} />
-        </DashboardCard>
-        <DashboardCard title="Returning by channel" className="lg:col-span-5">
-          <MixBars slices={mixBy(rows, (row) => row.channel, "returningUsers")} />
-        </DashboardCard>
-      </SectionGrid> : null}
-
-      {rows.length ? <SectionGrid>
-        <DashboardCard title="After the vote" className="lg:col-span-5">
-          <Funnel steps={postVote} />
-        </DashboardCard>
-        <DashboardCard title="Cooling segments" className="lg:col-span-7">
-          <ul className="divide-y divide-border-default">
-            {churnRisks.map((risk) => (
-              <ChurnRow key={risk.id} risk={risk} />
-            ))}
-          </ul>
-        </DashboardCard>
-      </SectionGrid> : null}
-
-      {rows.length ? <DashboardCard title="Behavior by arrival channel" padded={false}>
-        <DataTable rows={breakdowns} columns={cohortUsageColumns} />
-      </DashboardCard> : null}
-    </DashboardPage>
-  );
+    .sort((a, b) => b.views - a.views);
 }
 
-/* ── Insights ────────────────────────────────────────────────────── */
-
-/** Campaigns with a live recommendation, ranked by readiness. */
-const recommendationColumns: Array<DataColumn<Campaign>> = [
+const polstPerfColumns: Array<DataColumn<PolstPerfRow>> = [
   {
-    header: "Campaign",
+    header: "Polst",
     cell: (row) => (
       <Link
-        to={`/campaigns/${row.id}`}
+        to={`/polsts/${row.id}`}
         className="font-display font-semibold text-text-primary hover:text-text-accent"
       >
-        {row.name}
+        {row.question}
       </Link>
     ),
   },
   {
-    header: "Recommendation",
-    cell: (row) => <span className="text-text-secondary">{winnerLabel(row)}</span>,
-  },
-  {
-    header: "Signal",
-    cell: (row) => <SignalBadge signal={row.signal} />,
-  },
-  {
-    header: "Responses",
+    header: "Views",
     align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.views)}</span>,
   },
   {
-    header: "",
+    header: "Votes",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.votes)}</span>,
+  },
+  {
+    header: "Votes / view",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{pct(row.votes, row.views, 1)}</span>,
+  },
+];
+
+const verticalColumns: Array<DataColumn<VerticalRow>> = [
+  {
+    header: "Vertical",
+    cell: (row) => (
+      <span className="font-display font-semibold text-text-primary">{row.vertical}</span>
+    ),
+  },
+  {
+    header: "Voters",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
+  },
+  {
+    header: "Completion",
     align: "right",
     cell: (row) => (
-      <Button variant="secondary" size="sm" asChild>
-        <Link to={`/campaigns/${row.id}`}>Open insights</Link>
-      </Button>
+      <span className="tabular-nums">
+        {row.completionRate !== null ? fmtPct(row.completionRate, 1) : "—"}
+      </span>
+    ),
+  },
+  {
+    header: "Votes / view",
+    align: "right",
+    cell: (row) => (
+      <span className="tabular-nums">
+        {row.engagementRate !== null ? fmtPct(row.engagementRate, 1) : "—"}
+      </span>
     ),
   },
 ];
 
-export function AnalyticsInsightsPage() {
-  const { rows } = useAnalytics();
-  const withSignal = campaignScope(rows).filter((c) => c.responses > 0);
-  const content = contentPerformance(rows);
-  const traffic = trafficQuality(rows);
-  const retention = retentionByChannel(rows);
-  const topContent = content[0];
-  const worstTraffic = traffic[0];
-  const weakestRetention = [...retention].sort((a, b) => parseFloat(a.d30) - parseFloat(b.d30))[0];
-  const scopedInsights = [
-    ...(topContent ? [{ id: "content", title: `${topContent.topic} drives the most reach`, context: `${formatNumber(topContent.views)} views with ${topContent.completion} completion.`, status: "Ready" as const, action: "Open performance", to: "/analytics" }] : []),
-    ...(worstTraffic ? [{ id: "dropoff", title: `${worstTraffic.channel} needs attention`, context: `${worstTraffic.dropOff} vote drop-off on ${worstTraffic.format.toLowerCase()} traffic.`, status: "Needs attention" as const, action: "Review traffic", to: "/analytics" }] : []),
-    ...(weakestRetention ? [{ id: "retention", title: `${weakestRetention.cohort} has the weakest return rate`, context: `${weakestRetention.d30} remain active at day 30.`, status: "Needs attention" as const, action: "Review retention", to: "/analytics/retention" }] : []),
-  ];
+/** The Home ready-to-decide vocabulary, windowless: entity truth per row. */
+function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
   return (
-    <DashboardPage
-    >
-      <AnalyticsFilters />
-
-      {!rows.length ? <EmptyAnalytics /> : null}
-
-      {rows.length ? <SectionGrid>
-        {scopedInsights.map((insight) => (
-          <div key={insight.id} className="lg:col-span-4">
-            <ActionCard
-              title={insight.title}
-              reason={insight.context}
-              meta={insight.status}
-              primary={{ label: insight.action, to: insight.to }}
-              className="h-full"
-            />
-          </div>
-        ))}
-      </SectionGrid> : null}
-
-      {rows.length ? <DashboardCard
-        title="Recommendations by campaign"
-        padded={false}
-      >
-        <DataTable rows={withSignal} columns={recommendationColumns} />
-      </DashboardCard> : null}
-
-      {rows.length ? <DashboardCard title="What changed">
-        <ul className="divide-y divide-border-default">
-          {withSignal.slice(0, 4).map((campaign) => (
-            <li
-              key={campaign.id}
-              className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+    <ul className="divide-y divide-border-default">
+      {campaigns.map((campaign) => (
+        <li
+          key={campaign.id}
+          className="flex flex-col items-start gap-3 px-5 py-3 sm:flex-row sm:items-center"
+        >
+          <div className="min-w-0 flex-1">
+            <Link
+              to={`/campaigns/${campaign.id}`}
+              className="font-display text-sm font-semibold text-text-primary hover:text-text-accent"
             >
-              <span className="text-sm text-text-primary">{campaign.name} reached {formatNumber(campaign.responses)} scoped responses</span>
-              <span className="shrink-0 text-xs text-text-secondary">{campaign.completion} completion</span>
-            </li>
+              {campaign.name}
+            </Link>
+            <p className="mt-0.5 text-xs text-text-secondary">
+              {winnerLabel(campaign)} · {fmtInt(campaign.voters)} voters
+              {campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""}
+            </p>
+          </div>
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+            <SignalBadge
+              signal={campaign.signal}
+              detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
+            />
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={`/campaigns/${campaign.id}`}>Review decision</Link>
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function AnalyticsOverviewPage() {
+  const { filters, rows } = useAnalytics();
+  const { campaigns, polsts } = useWorkspace();
+
+  const views = segmentTotal(rows, "views");
+  const votes = segmentTotal(rows, "votes");
+  const voters = segmentTotal(rows, "voters");
+  const completed = segmentTotal(rows, "completed");
+  const shares = segmentTotal(rows, "shares");
+
+  const ready = useMemo(() => {
+    const inScope = new Set(rows.filter((r) => r.kind === "campaign").map((r) => r.objectId));
+    return campaigns.filter((c) => isReadyToDecide(c) && inScope.has(c.id));
+  }, [rows, campaigns]);
+
+  const trend = useMemo(() => scopedDailyVotes(rows, filters.range), [rows, filters.range]);
+  const sourceMix = useMemo(() => mixBy(rows, (row) => row.channel, "voters"), [rows]);
+  const verticals = useMemo(() => verticalRows(rows), [rows]);
+  const campaignPerf = useMemo(() => buildCampaignPerf(rows, campaigns), [rows, campaigns]);
+  const polstPerf = useMemo(() => buildPolstPerf(rows, polsts), [rows, polsts]);
+
+  const journey = [
+    { label: "Landed", count: views },
+    { label: "Started voting", count: voters },
+    { label: "Completed", count: completed },
+    { label: "Shared", count: shares },
+  ];
+
+  const summary = () =>
+    [
+      `${WORKSPACE.brand} — analytics (${scopeLine(filters)})`,
+      `Views ${fmtInt(views)} · Votes ${fmtInt(votes)} · Engagement ${pct(votes, views, 1)} · Completion ${pct(completed, voters, 1)}`,
+      ...ready.map(
+        (c) => `Ready to decide: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters)`,
+      ),
+    ].join("\n");
+
+  if (!rows.length) {
+    return (
+      <DashboardPage>
+        <AnalyticsFilterBar />
+        <EmptyAnalytics />
+      </DashboardPage>
+    );
+  }
+
+  return (
+    <DashboardPage actions={<ExportMenu summary={summary} />}>
+      <AnalyticsFilterBar />
+
+      {/* Decisions first, telemetry after. */}
+      <DashboardCard title="Ready to decide" padded={false} bodyClassName="pb-1">
+        {ready.length ? (
+          <ReadyToDecideList campaigns={ready} />
+        ) : (
+          <EmptyState
+            title="No campaigns are ready to decide"
+            hint="Campaigns appear here once their signal reaches Leading or Decisive."
+            action={{ label: "View campaigns", to: "/campaigns" }}
+          />
+        )}
+      </DashboardCard>
+
+      <SectionGrid>
+        <StatTile
+          className="lg:col-span-3"
+          label="Total views"
+          value={fmtInt(views)}
+          info={METRIC_INFO.views}
+        />
+        <StatTile
+          className="lg:col-span-3"
+          label="Total votes"
+          value={fmtInt(votes)}
+          info={METRIC_INFO.votes}
+        />
+        <StatTile
+          className="lg:col-span-3"
+          label="Engagement rate"
+          value={pct(votes, views, 1)}
+          info={METRIC_INFO.engagementRate}
+        />
+        <StatTile
+          className="lg:col-span-3"
+          label="Completion rate"
+          value={pct(completed, voters, 1)}
+          info={METRIC_INFO.completionRate}
+        />
+      </SectionGrid>
+
+      <SectionGrid>
+        <DashboardCard title="Votes per day" className="lg:col-span-8">
+          <TrendChart series={trend} xTicks={STAT_XTICKS[filters.range]} />
+        </DashboardCard>
+        <DashboardCard
+          title="Source mix"
+          className="lg:col-span-4"
+          action={
+            <InfoHint
+              label="Source mix"
+              text="Share of voters by the channel of the source that delivered them."
+            />
+          }
+        >
+          <MixBars slices={sourceMix} />
+        </DashboardCard>
+      </SectionGrid>
+
+      <SectionGrid>
+        <DashboardCard title="Voter journey" className="lg:col-span-5">
+          <Funnel steps={journey} />
+        </DashboardCard>
+        <DashboardCard
+          title="Verticals"
+          className="lg:col-span-7"
+          padded={false}
+          action={<InfoHint label="Votes / view" text={METRIC_INFO.votesPerView} />}
+        >
+          <DataTable rows={verticals} columns={verticalColumns} />
+        </DashboardCard>
+      </SectionGrid>
+
+      <DashboardCard title="Campaign performance" padded={false}>
+        <DataTable
+          rows={campaignPerf}
+          columns={campaignPerfColumns}
+          emptyLabel="No campaigns collected votes in this view"
+        />
+      </DashboardCard>
+
+      <DashboardCard
+        title="Standalone Polsts"
+        padded={false}
+        action={<InfoHint label="Votes / view" text={METRIC_INFO.votesPerView} />}
+      >
+        <DataTable
+          rows={polstPerf}
+          columns={polstPerfColumns}
+          emptyLabel="No standalone Polsts collected votes in this view"
+        />
+      </DashboardCard>
+    </DashboardPage>
+  );
+}
+
+/* ── Acquisition & Retention (modules) ───────────────────────────────
+   Honest connect states: Polst has no ad-platform or identity data of
+   its own, so these pages hold the connection flow — nothing invented.
+   When the module is off the route doesn't exist (nav already hides it). */
+
+function ModuleConnectPage({
+  locked,
+  integrationIds,
+}: {
+  locked: { title: string; description: string };
+  integrationIds: string[];
+}) {
+  const integrations = INTEGRATIONS.filter((i) => integrationIds.includes(i.id));
+  return (
+    <DashboardPage>
+      <LockedCard title={locked.title} description={locked.description} chip="Not connected" />
+      <DashboardCard title="Connect a platform">
+        <div className="grid gap-3 lg:grid-cols-2">
+          {integrations.map((integration) => (
+            <ConnectCard key={integration.id} integration={integration} />
           ))}
-        </ul>
-      </DashboardCard> : null}
+        </div>
+      </DashboardCard>
+    </DashboardPage>
+  );
+}
+
+export function AnalyticsAcquisitionPage() {
+  const { modules } = useModules();
+  if (!modules.acquisition) return <Navigate to="/analytics" replace />;
+  return (
+    <ModuleConnectPage
+      locked={{
+        title: "Acquisition data isn't flowing yet",
+        description:
+          "Spend, reach, and cost per voter come from your ad platforms. Connect one and this page fills in from its first sync.",
+      }}
+      integrationIds={["int-meta", "int-tiktok", "int-ga4"]}
+    />
+  );
+}
+
+export function AnalyticsRetentionPage() {
+  const { modules } = useModules();
+  if (!modules.retention) return <Navigate to="/analytics" replace />;
+  return (
+    <ModuleConnectPage
+      locked={{
+        title: "Retention data isn't flowing yet",
+        description:
+          "Polst voters are anonymous, so repeat visits can't be counted on their own. Connect a platform that recognizes voters across visits and return behavior appears here.",
+      }}
+      integrationIds={["int-klaviyo"]}
+    />
+  );
+}
+
+/* ── Insights ────────────────────────────────────────────────────────
+   Everything here references a real entity with its real numbers — the
+   same derived queues Home reads (ready-to-decide, attention, changes).
+   No date filter: these are current workspace facts, each row carries
+   its own stamp. */
+
+const TONE_DOT: Record<"danger" | "warning" | "neutral", string> = {
+  danger: "bg-status-danger",
+  warning: "bg-status-warning",
+  neutral: "bg-icon-secondary",
+};
+
+export function AnalyticsInsightsPage() {
+  const { campaigns } = useWorkspace();
+  const ready = campaigns.filter(isReadyToDecide);
+
+  const summary = () =>
+    [
+      `${WORKSPACE.brand} — insights`,
+      ...ready.map(
+        (c) =>
+          `Ready to decide: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
+      ),
+      ...ATTENTION_ITEMS.map((item) => `Needs attention: ${item.title}`),
+      ...WHAT_CHANGED.map((item) => `${fmtDate(item.at)} — ${item.text}`),
+    ].join("\n");
+
+  return (
+    <DashboardPage actions={<ExportMenu summary={summary} />}>
+      {ready.length ? (
+        <SectionGrid>
+          {ready.map((campaign) => (
+            <ActionCard
+              key={campaign.id}
+              className="h-full lg:col-span-4"
+              eyebrow="Ready to decide"
+              title={campaign.name}
+              reason={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters · ${campaign.confidence} confidence`}
+              meta={<SignalBadge signal={campaign.signal} />}
+              primary={{ label: "Review decision", to: `/campaigns/${campaign.id}` }}
+            />
+          ))}
+        </SectionGrid>
+      ) : null}
+
+      <SectionGrid>
+        <DashboardCard title="Needs attention" className="lg:col-span-7" bodyClassName="pt-2">
+          <ul className="divide-y divide-border-default">
+            {ATTENTION_ITEMS.map((item) => (
+              <li key={item.id} className="flex items-start gap-3 py-3 first:pt-1">
+                <span
+                  aria-hidden
+                  className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-pill", TONE_DOT[item.tone])}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-display text-sm font-semibold text-text-primary">
+                    {item.title}
+                  </p>
+                  <p className="mt-0.5 text-sm leading-5 text-text-secondary">{item.reason}</p>
+                </div>
+                <Button variant="secondary" size="sm" className="shrink-0" asChild>
+                  <Link to={item.to}>{item.action}</Link>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </DashboardCard>
+        <DashboardCard title="What changed" className="lg:col-span-5" bodyClassName="pt-2">
+          <ul className="divide-y divide-border-default">
+            {WHAT_CHANGED.map((item) => (
+              <li key={item.id} className="py-3 first:pt-1 last:pb-1">
+                <Link
+                  to={item.to}
+                  className="block text-sm leading-5 text-text-primary hover:text-text-accent"
+                >
+                  {item.text}
+                </Link>
+                <p className="mt-0.5 text-xs text-text-tertiary">{relativeToToday(item.at)}</p>
+              </li>
+            ))}
+          </ul>
+        </DashboardCard>
+      </SectionGrid>
     </DashboardPage>
   );
 }
 
 /* ── Reports ─────────────────────────────────────────────────────── */
 
-const reportColumns: Array<DataColumn<Report>> = [
-  {
-    header: "Report",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.name}</p>
-    ),
-  },
-  {
-    header: "Linked object",
-    cell: (row) => <span className="text-text-secondary">{row.linkedObject}</span>,
-  },
-  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  {
-    header: "Updated",
-    cell: (row) => <span className="text-text-secondary">{row.updated}</span>,
-  },
-  {
-    header: "",
-    align: "right",
-    cell: (row) => (
-      <Button variant="secondary" size="sm">
-        {row.primaryAction}
-      </Button>
-    ),
-  },
-];
+const reportPath = (report: WorkspaceReport) =>
+  `/${report.linked.type === "campaign" ? "campaigns" : "polsts"}/${report.linked.id}`;
+
+function CampaignReportBody({ campaign }: { campaign: Campaign }) {
+  const topSource = [...campaign.sources].sort((a, b) => b.voters - a.voters)[0];
+  return (
+    <div className="space-y-4">
+      <div>
+        <SignalBadge
+          signal={campaign.signal}
+          detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
+        />
+        <h3 className="mt-2 font-display text-lg font-semibold leading-6 text-text-primary">
+          {winnerLabel(campaign)}
+        </h3>
+        <p className="mt-1 text-sm leading-6 text-text-secondary">{campaign.summary}</p>
+        {campaign.caveats[0] ? (
+          <p className="mt-2 flex items-start gap-1.5 text-sm leading-5 text-status-warning">
+            <Icon name="error" size={18} className="shrink-0" />
+            <span>{campaign.caveats[0]}</span>
+          </p>
+        ) : null}
+      </div>
+      <DetailList
+        items={[
+          [
+            "Voters",
+            `${fmtInt(campaign.voters)}${campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""}`,
+          ],
+          [
+            "Completion",
+            campaign.completionRate !== null ? fmtPct(campaign.completionRate, 0) : "—",
+          ],
+          ["Top source", topSource && topSource.voters > 0 ? topSource.name : "—"],
+          ["Run dates", fmtDateRange(campaign.startAt, campaign.endAt)],
+        ]}
+      />
+      <div>
+        <p className="mb-2 text-xs font-semibold text-text-secondary">Voter journey</p>
+        <Funnel
+          steps={campaign.chain.map((q, i) => ({
+            label: q.question,
+            count: campaign.votesByQuestion[i] ?? 0,
+          }))}
+        />
+      </div>
+      {campaign.sources.length ? (
+        <div>
+          <p className="mb-2 text-xs font-semibold text-text-secondary">Sources</p>
+          <ul className="divide-y divide-border-default rounded-md border border-border-default">
+            {campaign.sources.map((source) => (
+              <li key={source.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <span className="min-w-0 truncate text-sm font-medium text-text-primary">
+                  {source.name}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-text-secondary">
+                  {fmtInt(source.voters)} voters ·{" "}
+                  {source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—"}{" "}
+                  completion
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PolstReportBody({ polst }: { polst: SinglePolst }) {
+  return (
+    <div className="space-y-4">
+      <h3 className="font-display text-lg font-semibold leading-6 text-text-primary">
+        {polst.question}
+      </h3>
+      <PollResults options={polstOptions(polst)} dense className="mx-auto max-w-sm" />
+      <DetailList
+        items={[
+          ["Views", fmtInt(polst.views)],
+          ["Votes", fmtInt(polst.votes)],
+          [
+            "Votes / view",
+            polst.engagementRate !== null ? fmtPct(polst.engagementRate, 1) : "—",
+          ],
+          ["Interactions", fmtInt(polst.interactions)],
+          ["Run dates", fmtDateRange(polst.startAt, polst.endAt)],
+        ]}
+      />
+    </div>
+  );
+}
+
+function ReportPreviewModal({
+  report,
+  onClose,
+}: {
+  report: WorkspaceReport | null;
+  onClose: () => void;
+}) {
+  const { campaignById, polstById } = useWorkspace();
+  const copy = useCopyText();
+  const campaign = report?.linked.type === "campaign" ? campaignById(report.linked.id) : undefined;
+  const polst = report?.linked.type === "polst" ? polstById(report.linked.id) : undefined;
+
+  const summary = () => {
+    if (campaign) {
+      return [
+        report!.name,
+        `${winnerLabel(campaign)} — ${campaign.decision}`,
+        campaign.summary,
+        `Voters ${fmtInt(campaign.voters)}${campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""} · Completion ${
+          campaign.completionRate !== null ? fmtPct(campaign.completionRate, 0) : "—"
+        }`,
+        ...campaign.findings.map((finding) => `• ${finding}`),
+        ...(campaign.caveats[0] ? [`Caveat: ${campaign.caveats[0]}`] : []),
+      ].join("\n");
+    }
+    if (polst) {
+      return [
+        report!.name,
+        `${polst.question} — ${polst.optionA} ${polst.splitA}% / ${polst.optionB} ${100 - polst.splitA}%`,
+        `Views ${fmtInt(polst.views)} · Votes ${fmtInt(polst.votes)} · Interactions ${fmtInt(polst.interactions)}`,
+      ].join("\n");
+    }
+    return "";
+  };
+
+  return (
+    <Modal
+      open={Boolean(report)}
+      onClose={onClose}
+      label="Report preview"
+      title={report?.name ?? "Report"}
+      className="max-w-2xl"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={() => window.print()}>
+            Print
+          </Button>
+          <Button onClick={() => void copy(summary())}>Copy summary</Button>
+        </div>
+      }
+    >
+      <div className="p-4 pt-3">
+        {campaign ? (
+          <CampaignReportBody campaign={campaign} />
+        ) : polst ? (
+          <PolstReportBody polst={polst} />
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
 
 export function AnalyticsReportsPage() {
-  const { rows } = useAnalytics();
-  const campaigns = campaignScope(rows);
-  const reports: Report[] = campaigns.map((campaign) => ({
-    id: `report-${campaign.id}`,
-    name: campaign.name,
-    linkedObject: `${campaign.name} · Campaign`,
-    status: campaign.status === "Ended" ? "Ready" : "Draft",
-    updated: "Today",
-    primaryAction: "Preview",
-  }));
-  const preview = campaigns[0];
+  const { filters, rows, resetFilters } = useAnalytics();
+  const { campaignById, polstById } = useWorkspace();
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  // A report follows its object: it shows when the linked campaign/Polst
+  // has activity inside the selected window and filters.
+  const scoped = useMemo(
+    () =>
+      REPORTS.filter((report) =>
+        rows.some(
+          (row) => row.kind === report.linked.type && row.objectId === report.linked.id,
+        ),
+      ),
+    [rows],
+  );
+  const preview = scoped.find((report) => report.id === previewId) ?? null;
+
+  const linkedName = (report: WorkspaceReport) =>
+    report.linked.type === "campaign"
+      ? campaignById(report.linked.id)?.name ?? "—"
+      : polstById(report.linked.id)?.question ?? "—";
+
+  const reportColumns: Array<DataColumn<WorkspaceReport>> = [
+    {
+      header: "Report",
+      cell: (row) => (
+        <span className="font-display font-semibold text-text-primary">{row.name}</span>
+      ),
+    },
+    {
+      header: "Scope",
+      cell: (row) => (
+        <Link to={reportPath(row)} className="text-text-secondary hover:text-text-accent">
+          {linkedName(row)}
+        </Link>
+      ),
+    },
+    {
+      header: "Status",
+      cell: (row) => (
+        <Chip tone={row.status === "Ready" ? "success" : "neutral"}>{row.status}</Chip>
+      ),
+    },
+    {
+      header: "Created",
+      cell: (row) => <span className="text-text-secondary">{fmtDate(row.createdAt)}</span>,
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (row) =>
+        row.status === "Ready" ? (
+          <Button variant="secondary" size="sm" onClick={() => setPreviewId(row.id)}>
+            Preview
+          </Button>
+        ) : (
+          <Button variant="secondary" size="sm" asChild>
+            <Link to={reportPath(row)}>Continue</Link>
+          </Button>
+        ),
+    },
+  ];
+
+  const summary = () =>
+    [
+      `${WORKSPACE.brand} — reports (${scopeLine(filters)})`,
+      ...scoped.map(
+        (report) => `${report.name} — ${report.status}, created ${fmtDate(report.createdAt)}`,
+      ),
+    ].join("\n");
+
   return (
-    <DashboardPage
-      actions={<ExportMenu />}
-    >
-      <AnalyticsFilters />
+    <DashboardPage actions={scoped.length ? <ExportMenu summary={summary} /> : undefined}>
+      <AnalyticsFilterBar />
 
-      {!rows.length ? <EmptyAnalytics /> : null}
+      {scoped.length ? (
+        <DashboardCard padded={false}>
+          <DataTable rows={scoped} columns={reportColumns} />
+        </DashboardCard>
+      ) : (
+        <DashboardCard>
+          <EmptyState
+            icon="lab_profile"
+            title="No reports in this view"
+            hint="A report shows when its campaign or Polst has activity inside the selected window and filters."
+            action={{ label: "Reset filters", onClick: resetFilters }}
+          />
+        </DashboardCard>
+      )}
 
-      {rows.length ? <SectionGrid>
-        <DashboardCard title="Report preview" className="lg:col-span-5">
-          <div className="space-y-4">
-            <StatusBadge status={preview.status === "Ended" ? "Ready" : "Draft"} />
-            <h3 className="font-display text-xl font-semibold text-text-primary">
-              {preview.name}
-            </h3>
-            <DetailList
-              items={[
-                ["Responses", formatNumber(preview.responses)],
-                ["Winning direction", winnerLabel(preview)],
-                ["Completion", preview.completion],
-                ["Top source", preview.topSource],
-              ]}
-            />
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={`/campaigns/${preview.id}`}>Open full report</Link>
-            </Button>
-          </div>
-        </DashboardCard>
-        <DashboardCard
-          title="Generated and draft reports"
-          className="lg:col-span-7"
-          padded={false}
-        >
-          <DataTable rows={reports} columns={reportColumns} />
-        </DashboardCard>
-      </SectionGrid> : null}
+      <ReportPreviewModal report={preview} onClose={() => setPreviewId(null)} />
     </DashboardPage>
   );
 }

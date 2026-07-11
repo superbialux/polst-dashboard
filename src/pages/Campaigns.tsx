@@ -1,129 +1,141 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Menu, MenuItem } from "@/components/Menu";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Checkbox, Field, SelectMenu, TextInput } from "@/components/Field";
-import { PollComposer } from "@/components/PollComposer";
+import {
+  CONTROL,
+  Checkbox,
+  Field,
+  FieldHelper,
+  SelectMenu,
+  TextInput,
+} from "@/components/Field";
 import { QrCodeModal } from "@/components/DistributionActions";
 import {
+  Chip,
   DashboardCard,
   DashboardPage,
   DataTable,
-  DateRangeMenu,
   DecisionBrief,
   DetailList,
+  EmptyState,
   Funnel,
-  PollResults,
+  NextStepsCard,
+  NotFoundCard,
   PageTabs,
+  PollResults,
   PollThumb,
   SearchAndFilters,
   SectionGrid,
   SegmentedControl,
   SignalBadge,
   SnippetCard,
-  StatTile,
   StatusBadge,
   filterByStatus,
-  useTabs,
   type DataColumn,
   type FunnelStep,
-  type DateRangeValue,
+  type SetupStep,
 } from "@/components/dashboard";
 import {
-  CAMPAIGNS,
-  CAMPAIGN_DETAILS,
-  CAMPAIGN_SHARE_URL,
-  CREATORS,
-  DISTRIBUTION_SOURCES,
-  EMBED_IFRAME,
-  EMBED_SCRIPT,
-  FUNNEL_SOURCES,
+  METRIC_INFO,
+  TODAY,
+  daysBetween,
+  fmtDate,
+  fmtDateRange,
+  fmtInt,
+  fmtPct,
+  pct,
+  relativeToToday,
+} from "@/lib/canon";
+import {
   KEY_DATES,
-  SINGLE_POLSTS,
-  TOP_INTERESTS,
-  WORKSPACE,
-  formatNumber,
-  funnelForSource,
+  WHAT_CHANGED,
+  embedIframe,
+  embedScript,
   polstOptions,
+  shareUrl,
   winnerLabel,
   type Campaign,
-  type CampaignDetail,
-  type ChainPolst,
-  type FunnelSource,
+  type Channel,
+  type Source,
 } from "@/lib/workspace";
-import { creatorColumns, sourceColumns } from "./Distribution";
+import { useWorkspace } from "@/lib/store";
+
+/* ── Shared vocabulary ───────────────────────────────────────────── */
+
+/** The one status filter set — "All" passes everything through. */
+const CAMPAIGN_FILTERS = ["All", "Active", "Scheduled", "Drafts", "Ended", "Archived"] as const;
 
 const EVENT_OPTIONS = [
-  { value: "None", label: "None" },
-  ...KEY_DATES.map((date) => ({ value: date.title, label: date.title })),
+  { value: "", label: "No event" },
+  ...KEY_DATES.map((k) => ({ value: k.id, label: `${k.title} · ${fmtDate(k.start)}` })),
 ];
-const CAMPAIGN_FILTERS = ["All", "Draft", "Active", "Ended"] as const;
-const campaignStatus = (campaign: Campaign) => campaign.status;
-const CAMPAIGN_CREATED: Record<string, string> = {
-  "summer-launch-draft": "Jul 10",
-  "packaging-direction": "Jun 3",
-  "game-day-creative": "Jun 10",
-  "flavor-launch-recap": "May 28",
-  "summer-flavor-lineup": "Jun 1",
-  "retail-shelf-layout": "Jun 12",
-  "holiday-gifting-bundles": "Jun 8",
-  "loyalty-program-naming": "Jun 30",
-  "back-to-school-snacks": "Jul 8",
-  "rebrand-concept-test": "Jun 4",
+
+const eventTitle = (id?: string) => KEY_DATES.find((k) => k.id === id)?.title ?? "—";
+
+/** Best-effort clipboard write — the mockup's copy affordances stay honest
+ *  in normal browsers and never crash where the permission is denied. */
+const copyText = (text: string) => {
+  navigator.clipboard?.writeText(text).catch(() => {});
 };
-const campaignCreated = (campaign: Campaign) => CAMPAIGN_CREATED[campaign.id] ?? "Jun 1";
+
+/** This campaign's sources, read live from the store (never the stale
+ *  back-refs baked onto the entity at module load). */
+const campaignSources = (sources: Source[], id: string) =>
+  sources.filter((s) => s.linked?.type === "campaign" && s.linked.id === id);
 
 /* ── Campaigns list ──────────────────────────────────────────────── */
 
-const columns: Array<DataColumn<Campaign>> = [
+const listColumns: Array<DataColumn<Campaign>> = [
   {
     header: "Campaign",
     cell: (row) => (
       <div className="min-w-0">
-        <Link
-          to={`/campaigns/${row.id}`}
-          className="font-display font-semibold text-text-primary hover:text-text-accent"
-        >
-          {row.name}
-        </Link>
-        <p className="mt-0.5 truncate text-xs text-text-secondary">Created {campaignCreated(row)}, 2026</p>
+        <p className="font-display font-semibold text-text-primary">{row.name}</p>
+        <p className="mt-0.5 truncate text-xs text-text-secondary">
+          {fmtDateRange(row.startAt, row.endAt)}
+        </p>
       </div>
     ),
   },
-  { header: "Status", cell: (row) => <StatusBadge status={campaignStatus(row)} /> },
-  { header: "Polsts", align: "right", cell: (row) => row.polsts },
-  { header: "Started", align: "right", cell: (row) => row.pollsStarted },
-  { header: "Completed", align: "right", cell: (row) => row.pollsCompleted },
-  { header: "Completion", align: "right", cell: (row) => row.completion },
+  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
+  { header: "Signal", cell: (row) => <SignalBadge signal={row.signal} /> },
+  { header: "Polsts", align: "right", cell: (row) => row.chain.length },
   {
-    header: "",
+    header: "Voters",
     align: "right",
     cell: (row) => (
-      <Button variant="ghost" size="icon" title="Open campaign" asChild>
-        <Link to={`/campaigns/${row.id}`}><Icon name="chevron_right" size={18} /></Link>
-      </Button>
+      <span className="tabular-nums">
+        {fmtInt(row.voters)}
+        {row.target ? <span className="text-text-tertiary"> / {fmtInt(row.target)}</span> : null}
+      </span>
     ),
   },
+  { header: "Completion", align: "right", cell: (row) => pct(row.completed, row.voters) },
 ];
 
 export function CampaignsPage() {
-  const [active, setActive] = useState("All");
+  const { campaigns } = useWorkspace();
+  const navigate = useNavigate();
+  const [active, setActive] = useState<string>("All");
   const [query, setQuery] = useState("");
-  const [range, setRange] = useState<DateRangeValue>("30D");
+
   const rows = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    const scoped = active === "Ended"
-      ? CAMPAIGNS.filter((campaign) => campaign.status === "Ended")
-      : filterByStatus(CAMPAIGNS, active);
-    return scoped.filter((campaign) =>
-      !normalized || [campaign.name, campaign.decision, campaign.event ?? "", campaign.vertical]
-        .some((value) => value.toLowerCase().includes(normalized)),
+    const q = query.trim().toLowerCase();
+    return filterByStatus(campaigns, active).filter(
+      (c) =>
+        !q ||
+        [c.name, c.decision, eventTitle(c.event), c.vertical].some((v) =>
+          v.toLowerCase().includes(q),
+        ),
     );
-  }, [active, query]);
+  }, [campaigns, active, query]);
+
+  const searching = query.trim().length > 0;
 
   return (
     <DashboardPage
@@ -141,496 +153,1428 @@ export function CampaignsPage() {
           placeholder="Search campaigns"
           query={query}
           onQueryChange={setQuery}
-          action={<DateRangeMenu value={range} onChange={setRange} />}
         />
-        <DataTable
-          rows={rows}
-          columns={columns}
-          emptyLabel="No campaigns match this filter"
-        />
+        {searching && rows.length > 0 ? (
+          <p className="border-b border-border-default px-5 py-2 text-xs text-text-secondary">
+            {rows.length} {rows.length === 1 ? "campaign matches" : "campaigns match"} “
+            {query.trim()}”
+          </p>
+        ) : null}
+        {rows.length > 0 ? (
+          <DataTable
+            rows={rows}
+            columns={listColumns}
+            onRowClick={(row) => navigate(`/campaigns/${row.id}`)}
+          />
+        ) : searching ? (
+          <EmptyState
+            icon="search"
+            title={`No campaigns match “${query.trim()}”`}
+            action={{ label: "Clear search", onClick: () => setQuery("") }}
+          />
+        ) : (
+          <EmptyState
+            icon="campaign"
+            title={
+              active === "All"
+                ? "No campaigns yet"
+                : active === "Drafts"
+                  ? "No draft campaigns"
+                  : `No ${active.toLowerCase()} campaigns`
+            }
+            action={
+              active === "All" || active === "Drafts"
+                ? { label: "Create campaign", to: "/campaigns/new" }
+                : undefined
+            }
+          />
+        )}
       </DashboardCard>
+    </DashboardPage>
+  );
+}
+
+/* ── Create campaign ─────────────────────────────────────────────── */
+
+const DURATIONS = ["3 days", "7 days", "10 days", "Custom", "No end"] as const;
+const DURATION_DAYS: Record<string, number> = { "3 days": 3, "7 days": 7, "10 days": 10 };
+
+const addDays = (iso: string, days: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+export function CreateCampaignPage() {
+  const { campaigns, createCampaign } = useWorkspace();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const eventParam = params.get("event") ?? "";
+
+  const [name, setName] = useState("");
+  const [decision, setDecision] = useState("");
+  const [startAt, setStartAt] = useState("");
+  const [duration, setDuration] = useState<string>("7 days");
+  const [customEnd, setCustomEnd] = useState("");
+  const [target, setTarget] = useState("");
+  const [event, setEvent] = useState(
+    KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "",
+  );
+
+  const endAt =
+    duration === "No end"
+      ? undefined
+      : duration === "Custom"
+        ? customEnd || undefined
+        : startAt
+          ? addDays(startAt, DURATION_DAYS[duration])
+          : undefined;
+
+  const endLine =
+    duration === "No end"
+      ? "Runs until you end it manually."
+      : endAt
+        ? `Voters can submit until ${fmtDate(endAt)}.`
+        : "Voters can submit until the campaign ends.";
+
+  const drafts = campaigns.filter((c) => c.status === "Draft").slice(0, 3);
+
+  const submit = () => {
+    const id = createCampaign({
+      name,
+      decision: decision.trim() || undefined,
+      startAt: startAt || undefined,
+      endAt,
+      target: target.trim() ? Number(target) : undefined,
+      event: event || undefined,
+    });
+    toast("Campaign created as a draft");
+    navigate(`/campaigns/${id}`);
+  };
+
+  return (
+    <DashboardPage
+      actions={
+        <Button variant="secondary" onClick={() => navigate(-1)}>
+          Cancel
+        </Button>
+      }
+    >
+      <SectionGrid>
+        <div className="space-y-4 lg:col-span-8">
+          <DashboardCard title="Campaign details">
+            <div className="space-y-5">
+              <Field label="Campaign name">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={255}
+                    placeholder="Summer launch"
+                  />
+                )}
+              </Field>
+              <Field
+                label="Decision question"
+                helper={
+                  <FieldHelper tone="neutral">
+                    Optional — you can set it later in the campaign&rsquo;s settings.
+                  </FieldHelper>
+                }
+              >
+                {(id) => (
+                  <textarea
+                    id={id}
+                    value={decision}
+                    onChange={(e) => setDecision(e.target.value)}
+                    rows={2}
+                    placeholder="Which flavor should lead retail sell-in?"
+                    className={cn(CONTROL, "h-auto min-h-16 resize-none px-3 py-2.5")}
+                  />
+                )}
+              </Field>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Start date">
+                  {(id) => (
+                    <TextInput
+                      id={id}
+                      type="date"
+                      value={startAt}
+                      onChange={(e) => setStartAt(e.target.value)}
+                    />
+                  )}
+                </Field>
+                <Field label="Voter target">
+                  {(id) => (
+                    <TextInput
+                      id={id}
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      value={target}
+                      onChange={(e) => setTarget(e.target.value)}
+                      placeholder="1,000"
+                    />
+                  )}
+                </Field>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <p className="font-display text-sm font-semibold leading-5 text-text-primary">
+                  How long should it run?
+                </p>
+                <SegmentedControl
+                  tabs={DURATIONS}
+                  active={duration}
+                  onChange={setDuration}
+                  size="form"
+                />
+                {duration === "Custom" ? (
+                  <div className="mt-2 max-w-56">
+                    <TextInput
+                      type="date"
+                      aria-label="End date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                    />
+                  </div>
+                ) : null}
+                <FieldHelper tone="neutral">{endLine}</FieldHelper>
+              </div>
+              <Field label="Key date">
+                {(id) => (
+                  <SelectMenu
+                    id={id}
+                    label="Key date"
+                    value={event}
+                    onValueChange={setEvent}
+                    options={EVENT_OPTIONS}
+                  />
+                )}
+              </Field>
+            </div>
+          </DashboardCard>
+          <div className="flex justify-end">
+            <Button disabled={!name.trim()} onClick={submit}>
+              Create campaign
+            </Button>
+          </div>
+        </div>
+        {drafts.length > 0 ? (
+          <div className="self-start lg:col-span-4">
+            <DashboardCard title="Recent drafts">
+              <div className="-mx-2 space-y-0.5">
+                {drafts.map((c) => (
+                  <Link
+                    key={c.id}
+                    to={`/campaigns/${c.id}`}
+                    className="flex items-center justify-between gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-display text-sm font-semibold text-text-primary">
+                        {c.name}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-text-secondary">
+                        Created {fmtDate(c.createdAt)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-ui font-semibold text-text-accent">Open</span>
+                  </Link>
+                ))}
+              </div>
+            </DashboardCard>
+          </div>
+        ) : null}
+      </SectionGrid>
     </DashboardPage>
   );
 }
 
 /* ── Campaign detail ─────────────────────────────────────────────── */
 
-const DETAIL_TABS = [
-  "Polsts",
-  "Overview",
-  "Details",
-  "Analytics",
-  "Lifecycle",
-] as const;
+const DETAIL_TABS = ["Overview", "Polsts", "Sources", "Settings"] as const;
+type DetailTab = (typeof DETAIL_TABS)[number];
 
-/** Builds the journey funnel: Started → each question → Completed. */
-function funnelSteps(detail: CampaignDetail): FunnelStep[] {
-  return [
-    { label: "Started", count: detail.journey.started },
-    ...detail.chain.map((polst, i) => ({
-      label: `Q${i + 1}: ${polst.question}`,
-      count: polst.responses,
-    })),
-    { label: "Completed", count: detail.journey.completed },
-  ];
+/** Tab state lives in `?tab=` so other pages can deep-link (e.g. Home's
+ *  "Add sources" → /campaigns/{id}?tab=sources). Overview is the default. */
+function useDetailTab(): [DetailTab, (t: DetailTab) => void] {
+  const [params, setParams] = useSearchParams();
+  const raw = (params.get("tab") ?? "").toLowerCase();
+  const active = DETAIL_TABS.find((t) => t.toLowerCase() === raw) ?? "Overview";
+  const set = (t: DetailTab) =>
+    setParams(t === "Overview" ? {} : { tab: t.toLowerCase() }, { replace: true });
+  return [active, set];
 }
 
 export function CampaignDetailPage() {
   const { id } = useParams();
-  const campaign = CAMPAIGNS.find((c) => c.id === id) ?? CAMPAIGNS[0];
-  const detail = CAMPAIGN_DETAILS[campaign.id];
-  const { active, setActive } = useTabs(DETAIL_TABS);
-  const [shareOpen, setShareOpen] = useState(false);
+  const store = useWorkspace();
+  const toast = useToast();
+  const campaign = store.campaignById(id);
+  const [tab, setTab] = useDetailTab();
   const [qrOpen, setQrOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+
+  if (!campaign) return <NotFoundCard kind="campaign" />;
+
+  const sources = campaignSources(store.sources, campaign.id);
+  const canPublish = campaign.chain.length > 0 && !!campaign.startAt;
+  const shareable = campaign.status !== "Draft" && campaign.status !== "Archived";
+
+  const publish = () => {
+    const result = store.publishCampaign(campaign.id);
+    if (result.ok) {
+      toast(
+        campaign.startAt! > TODAY
+          ? `Published — starts ${fmtDate(campaign.startAt!)}`
+          : "Campaign is live",
+      );
+    }
+  };
+
+  const copyLink = () => {
+    copyText(shareUrl("campaign", campaign.id));
+    toast("Share link copied");
+  };
 
   return (
     <DashboardPage
       actions={
         <>
-          <Button variant="secondary" onClick={() => setQrOpen(true)}>
-            <Icon name="qr_code_2" size={18} />
-            QR code
-          </Button>
-          <Button variant="secondary" onClick={() => setShareOpen(true)}>
-            <Icon name="code" size={18} />
-            Share / embed
-          </Button>
-          <Menu
-            label="Add Polst"
-            trigger={({ toggle }) => <Button onClick={toggle}><Icon name="add" size={18} />Add Polst<Icon name="arrow_drop_down" size={18} /></Button>}
-          >
-            <MenuItem icon="edit_square" label="Create new Polst" onClick={() => setActive("Polsts")} />
-            <MenuItem icon="library_add" label="Select from your library" onClick={() => setActive("Polsts")} />
-          </Menu>
+          {shareable ? (
+            <Menu
+              label="Share campaign"
+              trigger={({ toggle }) => (
+                <Button variant="secondary" onClick={toggle}>
+                  <Icon name="share" size={18} />
+                  Share
+                  <Icon name="arrow_drop_down" size={18} />
+                </Button>
+              )}
+            >
+              <MenuItem icon="qr_code_2" label="QR code" onClick={() => setQrOpen(true)} />
+              <MenuItem icon="link" label="Copy share link" onClick={copyLink} />
+              <MenuItem icon="code" label="View embed code" onClick={() => setTab("Sources")} />
+            </Menu>
+          ) : null}
+          {campaign.status === "Draft" ? (
+            <Button
+              disabled={!canPublish}
+              title={
+                canPublish
+                  ? undefined
+                  : campaign.chain.length === 0
+                    ? "Add at least one Polst first"
+                    : "Set a start date first"
+              }
+              onClick={publish}
+            >
+              Publish
+            </Button>
+          ) : null}
+          {campaign.status === "Active" ? (
+            <Button variant="destructive-secondary" onClick={() => setEndOpen(true)}>
+              End campaign
+            </Button>
+          ) : null}
+          {campaign.status === "Ended" ? (
+            <Button onClick={() => setReportOpen(true)}>Export report</Button>
+          ) : null}
         </>
       }
     >
-      <PageTabs tabs={DETAIL_TABS} active={active} onChange={setActive} />
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="min-w-0 font-display text-xl font-semibold leading-7 text-text-primary">
+            {campaign.name}
+          </h1>
+          <StatusBadge status={campaign.status} />
+          {campaign.voters > 0 ? <SignalBadge signal={campaign.signal} /> : null}
+        </div>
+        <PageTabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />
+      </div>
 
-      {active === "Overview" ? (
-        <CampaignOverview campaign={campaign} detail={detail} onGoTo={setActive} />
+      {tab === "Overview" ? (
+        <CampaignOverview
+          campaign={campaign}
+          sources={sources}
+          onGoTo={setTab}
+          onEnd={() => setEndOpen(true)}
+          onReport={() => setReportOpen(true)}
+        />
       ) : null}
-      {active === "Polsts" ? <CampaignPolsts detail={detail} /> : null}
-      {active === "Details" ? <CampaignDetails campaign={campaign} /> : null}
-      {active === "Analytics" ? <CampaignAnalytics campaign={campaign} detail={detail} /> : null}
-      {active === "Lifecycle" ? <CampaignLifecycle campaign={campaign} /> : null}
-      <ShareEmbedModal open={shareOpen} onClose={() => setShareOpen(false)} />
-      <QrCodeModal open={qrOpen} onClose={() => setQrOpen(false)} objectName={campaign.name} url={`https://polst.app/campaign/${campaign.id}?utm_source=qr`} />
+      {tab === "Polsts" ? <CampaignPolsts campaign={campaign} /> : null}
+      {tab === "Sources" ? (
+        <CampaignSources campaign={campaign} sources={sources} onOpenQr={() => setQrOpen(true)} />
+      ) : null}
+      {tab === "Settings" ? <CampaignSettings campaign={campaign} /> : null}
+
+      <QrCodeModal
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        objectName={campaign.name}
+        url={shareUrl("campaign", campaign.id)}
+      />
+      <Modal
+        open={endOpen}
+        onClose={() => setEndOpen(false)}
+        label="End campaign"
+        title="End campaign?"
+        footer={
+          <div className="flex justify-end gap-2 p-4">
+            <Button variant="secondary" onClick={() => setEndOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                store.endCampaign(campaign.id);
+                setEndOpen(false);
+                toast("Campaign ended — voting is closed");
+              }}
+            >
+              End campaign
+            </Button>
+          </div>
+        }
+      >
+        <p className="p-4 text-sm leading-6 text-text-secondary">
+          Voting stops immediately and {campaign.name} becomes read-only. The{" "}
+          {fmtInt(campaign.voters)} voters collected so far are kept.
+        </p>
+      </Modal>
+      <ReportModal
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        campaign={campaign}
+        sources={sources}
+      />
     </DashboardPage>
   );
 }
 
+/* ── Overview tab ────────────────────────────────────────────────── */
+
+const briefHeadline = (c: Campaign): string => {
+  switch (c.signal) {
+    case "Decisive":
+      return c.status === "Ended"
+        ? `Decided: ${winnerLabel(c)}`
+        : `Recommended: ${winnerLabel(c)}`;
+    case "Leading":
+      return `Recommended: ${winnerLabel(c)}`;
+    case "Directional":
+      return `Early read: ${winnerLabel(c)}`;
+    case "Too close":
+      return `Too close to call — ${winnerLabel(c)}`;
+    case "Collecting":
+      return `Collecting — ${winnerLabel(c)} so far`;
+    case "Inconclusive":
+      return "Ended without a clear winner";
+    default:
+      return "No votes yet";
+  }
+};
+
 function CampaignOverview({
   campaign,
-  detail,
+  sources,
   onGoTo,
+  onEnd,
+  onReport,
 }: {
   campaign: Campaign;
-  detail: CampaignDetail;
-  onGoTo: (tab: (typeof DETAIL_TABS)[number]) => void;
+  sources: Source[];
+  onGoTo: (tab: DetailTab) => void;
+  onEnd: () => void;
+  onReport: () => void;
 }) {
-  const hasSignal = (campaign.responses ?? 0) > 0;
-  const [funnelSource, setFunnelSource] = useState<FunnelSource>("All sources");
-  const allSteps = funnelSteps(detail);
-  const steps = allSteps.map((step, i) => ({
-    ...step,
-    count: funnelForSource(allSteps.map((s) => s.count), funnelSource)[i],
-  }));
-  // The remedy line under the funnel names the worst step and where to look.
-  let dropIndex = -1;
-  let dropLoss = 0;
-  steps.forEach((step, i) => {
-    if (i === 0) return;
-    const loss = steps[i - 1].count - step.count;
-    if (loss > dropLoss) {
-      dropLoss = loss;
-      dropIndex = i;
-    }
-  });
-  const dropStep = dropIndex > 0 ? steps[dropIndex] : null;
-  const headline = !hasSignal
-    ? "No signal yet — nothing is collecting responses"
-    : campaign.signal === "Too close"
-      ? `Too close to call — ${winnerLabel(campaign)}`
-      : `Recommended: ${winnerLabel(campaign)}`;
+  if (campaign.voters === 0) {
+    return <LaunchChecklist campaign={campaign} sources={sources} onGoTo={onGoTo} />;
+  }
+
+  const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
+  const daysLeft =
+    campaign.status === "Active" && campaign.endAt ? daysBetween(TODAY, campaign.endAt) : null;
+  const ready =
+    campaign.status === "Active" &&
+    (campaign.signal === "Leading" || campaign.signal === "Decisive");
+
+  const funnelSteps: FunnelStep[] = [
+    { label: "Started", count: campaign.voters },
+    ...campaign.chain.map((q, i) => ({
+      label: `Q${i + 1}: ${q.question}`,
+      count: campaign.votesByQuestion[i] ?? 0,
+    })),
+    { label: "Completed", count: campaign.completed },
+  ];
+
+  const changed = WHAT_CHANGED.filter((w) => w.to === `/campaigns/${campaign.id}`);
+
+  const sourceColumns: Array<DataColumn<Source>> = [
+    {
+      header: "Source",
+      cell: (s) => <span className="font-semibold text-text-primary">{s.name}</span>,
+    },
+    { header: "Channel", cell: (s) => s.channel },
+    { header: "Voters", align: "right", cell: (s) => fmtInt(s.voters) },
+    {
+      header: "Completion",
+      align: "right",
+      cell: (s) => (s.completionRate !== null ? fmtPct(s.completionRate, 0) : "—"),
+    },
+  ];
+
   return (
     <>
       <DecisionBrief
         signal={campaign.signal}
         signalDetail={
-          campaign.confidence !== "—"
-            ? `${campaign.confidence} confidence`
-            : hasSignal
-              ? `${formatNumber(campaign.responses)} responses`
-              : undefined
+          campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined
         }
-        headline={headline}
-        summary={detail.summary}
-        caveat={detail.caveats[0]}
-        evidence={
-          hasSignal
+        headline={briefHeadline(campaign)}
+        summary={campaign.summary}
+        caveat={campaign.caveats[0]}
+        evidence={[
+          {
+            label: campaign.target ? "Voters vs target" : "Voters",
+            value: campaign.target
+              ? `${fmtInt(campaign.voters)} of ${fmtInt(campaign.target)}`
+              : fmtInt(campaign.voters),
+            info: METRIC_INFO.voters,
+          },
+          {
+            label: "Completion",
+            value: pct(campaign.completed, campaign.voters),
+            info: METRIC_INFO.completionRate,
+          },
+          {
+            label: "Top source",
+            value: topSource && topSource.voters > 0 ? topSource.name : "—",
+          },
+          ...(daysLeft !== null
             ? [
                 {
-                  label: "Confidence",
-                  value: campaign.confidence,
-                  info: `Scored from sample size vs target, source diversity, and lead stability. Here: ${campaign.sampleNote}`,
+                  label: "Days left",
+                  value:
+                    daysLeft <= 0 ? "Ends today" : daysLeft === 1 ? "1 day" : `${daysLeft} days`,
                 },
-                {
-                  label: "Responses vs target",
-                  value: `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
-                  info: "Completed votes on this campaign's Polsts, against the response target set at launch.",
-                },
-                {
-                  label: "Completion",
-                  value: campaign.completion ?? "—",
-                  info: "Voters who finished every question ÷ voters who started the sequence.",
-                },
-                { label: "Top source", value: campaign.topSource ?? "—" },
-                { label: "Runs", value: campaign.dates ?? "—" },
               ]
-            : [
-                { label: "Launches", value: campaign.dates ?? "—" },
-                { label: "Polsts ready", value: String(campaign.polsts) },
-                { label: "Sources assigned", value: "0" },
-              ]
+            : campaign.status === "Ended"
+              ? [{ label: "Ran", value: fmtDateRange(campaign.startAt, campaign.endAt) }]
+              : []),
+        ]}
+        primary={
+          campaign.status === "Ended"
+            ? { label: "Export report", onClick: onReport }
+            : ready
+              ? { label: "End campaign & decide", onClick: onEnd }
+              : { label: "View Polst results", onClick: () => onGoTo("Polsts") }
         }
-        primary={{
-          label: campaign.nextAction ?? "Open",
-          onClick: () => onGoTo(hasSignal ? "Analytics" : "Polsts"),
-        }}
         secondary={
-          hasSignal
-            ? { label: "See the evidence", onClick: () => onGoTo("Analytics") }
+          ready || campaign.status === "Ended"
+            ? { label: "View Polst results", onClick: () => onGoTo("Polsts") }
             : undefined
         }
       />
-
       <SectionGrid>
-        <DashboardCard
-          title="Voter journey"
-          className="lg:col-span-7"
-          action={
-            hasSignal ? (
-              <SegmentedControl
-                tabs={FUNNEL_SOURCES}
-                active={funnelSource}
-                onChange={setFunnelSource}
-              />
-            ) : null
-          }
-        >
-          {hasSignal ? (
-            <>
-              <Funnel steps={steps} />
-              {dropStep ? (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-default pt-3">
-                  <p className="min-w-0 text-sm leading-5 text-text-secondary">
-                    Most voters leave at “{dropStep.label}” — switch the source
-                    filter above; if one source drives the drop, fix the source,
-                    not the question.
-                  </p>
-                  <Button variant="secondary" size="sm" onClick={() => onGoTo("Analytics")}>
-                    View analytics
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className="py-6 text-center text-sm text-text-tertiary">
-              The journey appears once the campaign starts collecting responses.
-            </p>
-          )}
+        <DashboardCard title="Voter journey" className="lg:col-span-6">
+          <Funnel steps={funnelSteps} />
         </DashboardCard>
-        <div className="space-y-4 lg:col-span-5">
-          <DashboardCard title="Campaign health">
-            <DetailList
-              items={[
-                ["Status", <StatusBadge key="s" status={campaign.status} />],
-                ["Dates", campaign.dates],
-                ["Event", campaign.event],
-                ["Polsts", String(campaign.polsts)],
-                ["Top source", campaign.topSource],
-              ]}
-            />
+        <div className="space-y-4 lg:col-span-6">
+          <DashboardCard title="Source performance" padded={false}>
+            <DataTable rows={sources} columns={sourceColumns} emptyLabel="No sources assigned" />
+            <p className="border-t border-border-default px-5 py-3 text-xs text-text-secondary">
+              Campaign average completion: {pct(campaign.completed, campaign.voters)}
+            </p>
           </DashboardCard>
-          <DashboardCard title="Source snapshot" padded={false}>
-            <DataTable
-              rows={DISTRIBUTION_SOURCES.slice(0, 3)}
-              columns={[sourceColumns[0], ...sourceColumns.slice(3, 5)]}
-            />
-          </DashboardCard>
+          {changed.length > 0 ? (
+            <DashboardCard title="What changed">
+              <ul className="space-y-2.5">
+                {changed.map((w) => (
+                  <li key={w.id} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="min-w-0 leading-5 text-text-primary">{w.text}</span>
+                    <span className="shrink-0 text-xs text-text-tertiary">
+                      {relativeToToday(w.at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </DashboardCard>
+          ) : null}
         </div>
       </SectionGrid>
     </>
   );
 }
 
-/* ── Influencers tab ─────────────────────────────────────────────── */
+/** Draft / Scheduled (and anything else with zero voters): the same
+ *  launch-readiness pattern Home uses, derived entirely from real state. */
+function LaunchChecklist({
+  campaign,
+  sources,
+  onGoTo,
+}: {
+  campaign: Campaign;
+  sources: Source[];
+  onGoTo: (tab: DetailTab) => void;
+}) {
+  const polstCount = campaign.chain.length;
+  const hasPolsts = polstCount > 0;
+  const hasSources = sources.length > 0;
+  const hasSchedule = !!campaign.startAt;
+  const allDone = hasPolsts && hasSources && hasSchedule;
 
-/** Per-creator tracked-link performance, scoped to this campaign. The
- *  columns come from Distribution's creator table minus the campaign
- *  column — same object, same anatomy, narrower scope. */
-function CampaignInfluencers({ campaign }: { campaign: Campaign }) {
-  const creators = CREATORS.filter((c) => c.campaign === campaign.name);
-  const scopedColumns = creatorColumns.filter((col) => col.header !== "Campaign");
-  const totalClicks = creators.reduce((sum, c) => sum + c.clicks, 0);
-  const totalResponses = creators.reduce((sum, c) => sum + c.responses, 0);
+  const steps: SetupStep[] = [
+    {
+      title: "Add at least one Polst",
+      done: hasPolsts,
+      description: hasPolsts
+        ? `${polstCount} ${polstCount === 1 ? "question" : "questions"} staged — voters answer them in order.`
+        : "The campaign needs at least one question before it can publish.",
+      cta: { label: hasPolsts ? "View Polsts" : "Add Polsts", onClick: () => onGoTo("Polsts") },
+    },
+    {
+      title: "Assign a source",
+      done: hasSources,
+      description: hasSources
+        ? `${sources.length} ${sources.length === 1 ? "source" : "sources"} will collect voters.`
+        : "Nothing collects voters until a QR code, link, or embed points at this campaign.",
+      cta: {
+        label: hasSources ? "View sources" : "Add sources",
+        onClick: () => onGoTo("Sources"),
+      },
+    },
+    {
+      title: "Confirm the schedule",
+      done: hasSchedule,
+      description: hasSchedule
+        ? `Runs ${fmtDateRange(campaign.startAt, campaign.endAt)}.`
+        : "Set a start date so the campaign knows when to go live.",
+      cta: {
+        label: hasSchedule ? "Edit schedule" : "Set the schedule",
+        onClick: () => onGoTo("Settings"),
+      },
+    },
+  ];
+
   return (
-    <>
-      <SectionGrid>
-        <StatTile
-          className="lg:col-span-4"
-          label="Creators"
-          value={String(creators.length)}
+    <SectionGrid className="items-start">
+      <div className="lg:col-span-7">
+        <NextStepsCard
+          title={allDone ? "Ready to launch" : "Get this campaign ready to launch"}
+          intro={
+            campaign.status === "Scheduled" && campaign.startAt
+              ? `Starts ${relativeToToday(campaign.startAt)}.`
+              : undefined
+          }
+          steps={steps}
         />
-        <StatTile
-          className="lg:col-span-4"
-          label="Link clicks"
-          value={totalClicks > 0 ? formatNumber(totalClicks) : "—"}
-        />
-        <StatTile
-          className="lg:col-span-4"
-          label="Responses from creators"
-          value={totalResponses > 0 ? formatNumber(totalResponses) : "—"}
-        />
-      </SectionGrid>
-      <DashboardCard
-        title="Creators on this campaign"
-        padded={false}
-        action={<Button variant="secondary" size="sm">Add creator link</Button>}
-      >
-        <DataTable
-          rows={creators}
-          columns={scopedColumns}
-          emptyLabel="No creators yet — add a tracked link to start attributing"
+      </div>
+      <DashboardCard title="About this campaign" className="lg:col-span-5">
+        <DetailList
+          items={[
+            ["Decision", campaign.decision || "Not set"],
+            ["Dates", fmtDateRange(campaign.startAt, campaign.endAt)],
+            ["Voter target", campaign.target ? fmtInt(campaign.target) : "—"],
+            ["Key date", eventTitle(campaign.event)],
+            ["Created", fmtDate(campaign.createdAt)],
+          ]}
         />
       </DashboardCard>
-    </>
+    </SectionGrid>
   );
 }
 
 /* ── Polsts tab ──────────────────────────────────────────────────── */
 
-function ChainPolstCard({ polst, index }: { polst: ChainPolst; index: number }) {
-  const hasVotes = polst.responses > 0;
+function CampaignPolsts({ campaign }: { campaign: Campaign }) {
+  const { reorderChain } = useWorkspace();
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  // The chain is evidence once voters exist — editable only before launch.
+  const editable = campaign.status === "Draft" || campaign.status === "Scheduled";
+
   return (
-    <DashboardCard>
-      <div className="flex items-start gap-3">
-        <span
-          className="-m-1.5 grid h-9 w-9 shrink-0 cursor-grab place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary"
-          title="Drag to reorder"
-          aria-hidden
-        >
-          <Icon name="drag_indicator" size={20} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-text-secondary">
-                Question {index + 1}
-              </p>
-              <h3 className="mt-1 font-display text-base font-semibold leading-6 text-text-primary">
-                {polst.question}
-              </h3>
-            </div>
-            <span className="shrink-0 text-sm font-semibold tabular-nums text-text-secondary">
-              {hasVotes ? `${formatNumber(polst.responses)} votes` : "No votes yet"}
-            </span>
-          </div>
-          <PollResults className="mt-4" options={polstOptions(polst)} dense />
+    <>
+      {editable ? (
+        <div className="flex justify-end">
+          <Menu
+            label="Add Polst"
+            trigger={({ toggle }) => (
+              <Button variant="secondary" onClick={toggle}>
+                <Icon name="add" size={18} />
+                Add Polst
+                <Icon name="arrow_drop_down" size={18} />
+              </Button>
+            )}
+          >
+            <MenuItem
+              icon="edit_square"
+              label="Create new Polst"
+              onClick={() => setComposerOpen(true)}
+            />
+            <MenuItem
+              icon="library_add"
+              label="Select from library"
+              onClick={() => setLibraryOpen(true)}
+            />
+          </Menu>
         </div>
-      </div>
-    </DashboardCard>
+      ) : null}
+      {campaign.chain.length > 0 ? (
+        <SectionGrid>
+          {campaign.chain.map((q, index) => {
+            const votes = campaign.votesByQuestion[index] ?? 0;
+            return (
+              <div key={q.id} className="lg:col-span-6">
+                <DashboardCard>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-text-secondary">
+                        Question {index + 1} of {campaign.chain.length}
+                      </p>
+                      <h3 className="mt-1 font-display text-base font-semibold leading-6 text-text-primary">
+                        {q.question}
+                      </h3>
+                    </div>
+                    {editable ? (
+                      <div className="flex shrink-0 items-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Move question ${index + 1} up`}
+                          disabled={index === 0}
+                          onClick={() => reorderChain(campaign.id, index, index - 1)}
+                        >
+                          <Icon name="arrow_upward" size={18} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Move question ${index + 1} down`}
+                          disabled={index === campaign.chain.length - 1}
+                          onClick={() => reorderChain(campaign.id, index, index + 1)}
+                        >
+                          <Icon name="arrow_downward" size={18} />
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-text-secondary">
+                        {votes > 0 ? `${fmtInt(votes)} votes` : "No votes yet"}
+                      </span>
+                    )}
+                  </div>
+                  <PollResults
+                    className="mt-4"
+                    options={polstOptions({
+                      id: q.id,
+                      optionA: q.optionA,
+                      optionB: q.optionB,
+                      splitA: q.splitA,
+                      votes,
+                    })}
+                    dense
+                  />
+                </DashboardCard>
+              </div>
+            );
+          })}
+        </SectionGrid>
+      ) : (
+        <DashboardCard>
+          <EmptyState
+            icon="ballot"
+            title="No Polsts yet"
+            hint="Voters answer the chain in order — start with one question."
+            action={
+              editable
+                ? { label: "Create a Polst", onClick: () => setComposerOpen(true) }
+                : undefined
+            }
+          />
+        </DashboardCard>
+      )}
+      <AddPolstModal
+        open={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        campaign={campaign}
+      />
+      <SelectFromLibraryModal
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        campaign={campaign}
+      />
+    </>
   );
 }
 
-function CampaignPolsts({ detail }: { detail: CampaignDetail }) {
-  const [libraryOpen, setLibraryOpen] = useState(false);
+function AddPolstModal({
+  open,
+  onClose,
+  campaign,
+}: {
+  open: boolean;
+  onClose: () => void;
+  campaign: Campaign;
+}) {
+  const { addQuestionToCampaign } = useWorkspace();
+  const toast = useToast();
+  const [question, setQuestion] = useState("");
+  const [optionA, setOptionA] = useState("");
+  const [optionB, setOptionB] = useState("");
+  const complete = question.trim() && optionA.trim() && optionB.trim();
+
+  const add = () => {
+    addQuestionToCampaign(campaign.id, {
+      question: question.trim(),
+      optionA: optionA.trim(),
+      optionB: optionB.trim(),
+    });
+    toast("Polst added to the chain");
+    setQuestion("");
+    setOptionA("");
+    setOptionB("");
+    onClose();
+  };
+
   return (
-    <>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-text-secondary">
-          Voters answer these in order. Drag to rearrange.
-        </p>
-        <Menu
-          label="Add polst"
-          trigger={({ toggle }) => (
-            <Button variant="secondary" size="sm" onClick={toggle}>
-              <Icon name="add" size={18} />
-              Add polst
-            </Button>
+    <Modal
+      open={open}
+      onClose={onClose}
+      label="New Polst"
+      title="New Polst"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!complete} onClick={add}>
+            Add Polst
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 p-4">
+        <Field label="Question">
+          {(id) => (
+            <TextInput
+              id={id}
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="Which hero visual stops the scroll?"
+            />
           )}
-        >
-          <MenuItem icon="edit_square" label="Create new Polst" />
-          <MenuItem
-            icon="library_add"
-            label="Select from your library"
-            onClick={() => setLibraryOpen(true)}
-          />
-        </Menu>
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Option A">
+            {(id) => (
+              <TextInput id={id} value={optionA} onChange={(e) => setOptionA(e.target.value)} />
+            )}
+          </Field>
+          <Field label="Option B">
+            {(id) => (
+              <TextInput id={id} value={optionB} onChange={(e) => setOptionB(e.target.value)} />
+            )}
+          </Field>
+        </div>
       </div>
-      <SectionGrid>
-        {detail.chain.length ? detail.chain.map((polst, index) => (
-          <div key={polst.id} className="lg:col-span-6"><ChainPolstCard polst={polst} index={index} /></div>
-        )) : (
-          <DashboardCard className="lg:col-span-12">
-            <div className="py-8 text-center">
-              <p className="font-display text-sm font-semibold text-text-primary">No Polsts yet</p>
-              <p className="mt-1 text-sm text-text-secondary">Use Add Polst to create one or select from the library.</p>
-            </div>
-          </DashboardCard>
-        )}
-      </SectionGrid>
-      <SelectFromLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />
-    </>
+    </Modal>
   );
 }
 
 function SelectFromLibraryModal({
   open,
   onClose,
+  campaign,
 }: {
   open: boolean;
   onClose: () => void;
+  campaign: Campaign;
 }) {
+  const { polsts, addLibraryPolstToCampaign } = useWorkspace();
+  const toast = useToast();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const candidates = polsts.filter((p) => p.status === "Draft" || p.status === "Active");
+
+  const toggle = (id: string, next: boolean) =>
+    setSelected((prev) => {
+      const set = new Set(prev);
+      if (next) set.add(id);
+      else set.delete(id);
+      return set;
+    });
+
+  const add = () => {
+    for (const id of selected) addLibraryPolstToCampaign(campaign.id, id);
+    toast(
+      selected.size === 1 ? "1 Polst added to the chain" : `${selected.size} Polsts added to the chain`,
+    );
+    setSelected(new Set());
+    onClose();
+  };
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      label="Select existing Polsts"
-      title="Select existing Polsts"
+      label="Select from library"
+      title="Select from library"
       className="lg:max-w-2xl"
       footer={
         <div className="flex justify-end gap-2 p-4">
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={onClose}>Add selected</Button>
+          <Button disabled={selected.size === 0} onClick={add}>
+            {selected.size > 1 ? `Add ${selected.size} Polsts` : "Add Polst"}
+          </Button>
         </div>
       }
     >
-      <div className="scroll-subtle max-h-96 overflow-y-auto p-2">
-        {SINGLE_POLSTS.map((polst) => (
-          <label
-            key={polst.id}
-            className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
-          >
-            <Checkbox label={`Select ${polst.question}`} />
-            <PollThumb options={polstOptions(polst)} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-display text-sm font-semibold text-text-primary">
-                {polst.question}
+      {candidates.length > 0 ? (
+        <div className="scroll-subtle max-h-96 overflow-y-auto p-2">
+          {candidates.map((polst) => (
+            <label
+              key={polst.id}
+              className="flex cursor-pointer items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
+            >
+              <Checkbox
+                label={`Select ${polst.question}`}
+                checked={selected.has(polst.id)}
+                onCheckedChange={(next) => toggle(polst.id, next)}
+              />
+              <PollThumb options={polstOptions(polst)} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-sm font-semibold text-text-primary">
+                  {polst.question}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-text-secondary">
+                  {polst.optionA} vs {polst.optionB}
+                </p>
+              </div>
+              <StatusBadge status={polst.status} />
+            </label>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon="library_add"
+          title="No standalone Polsts to add"
+          hint="Draft and active Polsts from your library appear here."
+        />
+      )}
+    </Modal>
+  );
+}
+
+/* ── Sources tab ─────────────────────────────────────────────────── */
+
+function CampaignSources({
+  campaign,
+  sources,
+  onOpenQr,
+}: {
+  campaign: Campaign;
+  sources: Source[];
+  onOpenQr: () => void;
+}) {
+  const toast = useToast();
+  const [assignOpen, setAssignOpen] = useState(false);
+  const assignable = campaign.status !== "Ended" && campaign.status !== "Archived";
+  const url = shareUrl("campaign", campaign.id);
+
+  const columns: Array<DataColumn<Source>> = [
+    {
+      header: "Source",
+      cell: (s) => (
+        <div className="min-w-0">
+          <p className="font-semibold text-text-primary">{s.name}</p>
+          {s.placement ? (
+            <p className="mt-0.5 truncate text-xs text-text-secondary">{s.placement}</p>
+          ) : null}
+        </div>
+      ),
+    },
+    { header: "Kind", cell: (s) => <Chip>{s.kind}</Chip> },
+    { header: "Channel", cell: (s) => s.channel },
+    { header: "Voters", align: "right", cell: (s) => fmtInt(s.voters) },
+    {
+      header: "Completion",
+      align: "right",
+      cell: (s) => (s.completionRate !== null ? fmtPct(s.completionRate, 0) : "—"),
+    },
+  ];
+
+  return (
+    <>
+      <DashboardCard
+        title="Sources"
+        padded={false}
+        action={
+          assignable ? (
+            <Button variant="secondary" size="sm" onClick={() => setAssignOpen(true)}>
+              <Icon name="add" size={18} />
+              Assign source
+            </Button>
+          ) : null
+        }
+      >
+        {sources.length > 0 ? (
+          <DataTable rows={sources} columns={columns} />
+        ) : (
+          <EmptyState
+            icon="hub"
+            title="No sources yet"
+            hint="Nothing collects voters until a QR code, link, or embed points at this campaign."
+            action={
+              assignable
+                ? { label: "Assign source", onClick: () => setAssignOpen(true) }
+                : undefined
+            }
+          />
+        )}
+      </DashboardCard>
+
+      {campaign.status !== "Draft" ? (
+        <DashboardCard
+          title="Share & embed"
+          action={
+            <Button variant="secondary" size="sm" onClick={onOpenQr}>
+              <Icon name="qr_code_2" size={18} />
+              QR code
+            </Button>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-subtle p-2 pl-3">
+              <p className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary">
+                {url}
               </p>
-              <p className="mt-0.5 truncate text-xs text-text-secondary">
-                {polst.optionA} vs {polst.optionB}
-              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  copyText(url);
+                  toast("Share link copied");
+                }}
+              >
+                <Icon name="content_copy" size={18} />
+                Copy link
+              </Button>
             </div>
-            <StatusBadge status={polst.status} />
-          </label>
-        ))}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <SnippetCard
+                title="iframe embed"
+                description="Drops into any page; the widget adapts to the container width."
+                code={embedIframe(campaign.id)}
+              />
+              <SnippetCard
+                title="JavaScript embed"
+                description="For sites whose content security policy restricts iframes."
+                code={embedScript(campaign.id)}
+              />
+            </div>
+          </div>
+        </DashboardCard>
+      ) : null}
+
+      <AssignSourceModal
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        campaign={campaign}
+      />
+    </>
+  );
+}
+
+const SOURCE_KINDS: Array<Source["kind"]> = ["QR code", "Share link", "Embed", "Tracked link"];
+const CHANNELS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
+
+function AssignSourceModal({
+  open,
+  onClose,
+  campaign,
+}: {
+  open: boolean;
+  onClose: () => void;
+  campaign: Campaign;
+}) {
+  const { sources, assignSource, addSource } = useWorkspace();
+  const toast = useToast();
+  const unlinked = sources.filter((s) => !s.linked);
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<string>("QR code");
+  const [channel, setChannel] = useState<string>("Website");
+
+  const create = () => {
+    addSource({
+      name: name.trim(),
+      kind: kind as Source["kind"],
+      channel: channel as Channel,
+      linked: { type: "campaign", id: campaign.id },
+    });
+    toast(`${name.trim()} created and assigned`);
+    setName("");
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} label="Assign a source" title="Assign a source">
+      <div className="space-y-5 p-4">
+        {unlinked.length > 0 ? (
+          <div>
+            <p className="mb-2 font-display text-sm font-semibold text-text-primary">
+              Unassigned sources
+            </p>
+            <div className="divide-y divide-border-default overflow-hidden rounded-md border border-border-default">
+              {unlinked.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-text-primary">{s.name}</p>
+                    <p className="mt-0.5 text-xs text-text-secondary">
+                      {s.kind} · {s.channel}
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      assignSource(s.id, { type: "campaign", id: campaign.id });
+                      toast(`${s.name} assigned to ${campaign.name}`);
+                      onClose();
+                    }}
+                  >
+                    Assign
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="space-y-4">
+          <p className="font-display text-sm font-semibold text-text-primary">
+            Create a new source
+          </p>
+          <Field label="Name">
+            {(id) => (
+              <TextInput
+                id={id}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="QR — Shelf talker"
+              />
+            )}
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Kind">
+              {(id) => (
+                <SelectMenu
+                  id={id}
+                  label="Kind"
+                  value={kind}
+                  onValueChange={setKind}
+                  options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))}
+                />
+              )}
+            </Field>
+            <Field label="Channel">
+              {(id) => (
+                <SelectMenu
+                  id={id}
+                  label="Channel"
+                  value={channel}
+                  onValueChange={setChannel}
+                  options={CHANNELS.map((c) => ({ value: c, label: c }))}
+                />
+              )}
+            </Field>
+          </div>
+          <div className="flex justify-end">
+            <Button disabled={!name.trim()} onClick={create}>
+              Create &amp; assign
+            </Button>
+          </div>
+        </div>
       </div>
     </Modal>
   );
 }
 
-/* ── Distribution tab ────────────────────────────────────────────── */
+/* ── Settings tab ────────────────────────────────────────────────── */
 
-function CampaignDistribution() {
-  const [shareOpen, setShareOpen] = useState(false);
+function CampaignSettings({ campaign }: { campaign: Campaign }) {
+  const store = useWorkspace();
+  const toast = useToast();
+  const [name, setName] = useState(campaign.name);
+  const [decision, setDecision] = useState(campaign.decision);
+  const [startAt, setStartAt] = useState(campaign.startAt ?? "");
+  const [endAt, setEndAt] = useState(campaign.endAt ?? "");
+  const [target, setTarget] = useState(campaign.target ? String(campaign.target) : "");
+  const [event, setEvent] = useState(campaign.event ?? "");
+  const [confirm, setConfirm] = useState<"unpublish" | "archive" | null>(null);
+
+  const dirty =
+    name !== campaign.name ||
+    decision !== campaign.decision ||
+    startAt !== (campaign.startAt ?? "") ||
+    endAt !== (campaign.endAt ?? "") ||
+    target !== (campaign.target ? String(campaign.target) : "") ||
+    event !== (campaign.event ?? "");
+
+  const save = () => {
+    store.updateCampaign(campaign.id, {
+      name: name.trim(),
+      decision,
+      startAt,
+      endAt,
+      target: target.trim() ? Number(target) : 0,
+      event,
+    });
+    toast("Campaign updated");
+  };
+
+  const live = campaign.status === "Scheduled" || campaign.status === "Active";
+
   return (
-    <>
-      <DashboardCard
-        title="Campaign sources"
-        padded={false}
-        action={
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setShareOpen(true)}>
-              Link &amp; embed code
+    <SectionGrid className="items-start">
+      <DashboardCard title="Campaign settings" className="lg:col-span-7">
+        <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
+          <Field label="Name">
+            {(id) => <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} />}
+          </Field>
+          <Field label="Key date">
+            {(id) => (
+              <SelectMenu
+                id={id}
+                label="Key date"
+                value={event}
+                onValueChange={setEvent}
+                options={EVENT_OPTIONS}
+              />
+            )}
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Decision question">
+              {(id) => (
+                <textarea
+                  id={id}
+                  value={decision}
+                  onChange={(e) => setDecision(e.target.value)}
+                  rows={2}
+                  placeholder="What should this campaign decide?"
+                  className={cn(CONTROL, "h-auto min-h-16 resize-none px-3 py-2.5")}
+                />
+              )}
+            </Field>
+          </div>
+          <Field label="Start date">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="date"
+                value={startAt}
+                onChange={(e) => setStartAt(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field
+            label="End date"
+            helper={<FieldHelper tone="neutral">Voters can submit until this date.</FieldHelper>}
+          >
+            {(id) => (
+              <TextInput
+                id={id}
+                type="date"
+                value={endAt}
+                onChange={(e) => setEndAt(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Voter target">
+            {(id) => (
+              <TextInput
+                id={id}
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder="1,000"
+              />
+            )}
+          </Field>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <Button disabled={!dirty || !name.trim()} onClick={save}>
+            Save changes
+          </Button>
+        </div>
+      </DashboardCard>
+
+      <div className="space-y-4 lg:col-span-5">
+        <DashboardCard title="About">
+          <DetailList
+            items={[
+              ["Status", <StatusBadge key="status" status={campaign.status} />],
+              ["Created", fmtDate(campaign.createdAt)],
+              ["Vertical", campaign.vertical],
+              ["Voters", fmtInt(campaign.voters)],
+              ["Views", fmtInt(campaign.views)],
+            ]}
+          />
+        </DashboardCard>
+        <DashboardCard title="Lifecycle">
+          <div className="flex flex-wrap gap-2">
+            {live ? (
+              <Button variant="secondary" size="sm" onClick={() => setConfirm("unpublish")}>
+                Unpublish to draft
+              </Button>
+            ) : null}
+            {campaign.status === "Draft" || campaign.status === "Ended" ? (
+              <Button
+                variant="destructive-secondary"
+                size="sm"
+                onClick={() => setConfirm("archive")}
+              >
+                Archive campaign
+              </Button>
+            ) : null}
+            {campaign.status === "Archived" ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  store.unpublishCampaign(campaign.id);
+                  toast("Campaign restored as a draft");
+                }}
+              >
+                Restore to draft
+              </Button>
+            ) : null}
+          </div>
+        </DashboardCard>
+      </div>
+
+      <Modal
+        open={confirm !== null}
+        onClose={() => setConfirm(null)}
+        label={confirm === "archive" ? "Archive campaign" : "Unpublish campaign"}
+        title={confirm === "archive" ? "Archive campaign?" : "Unpublish campaign?"}
+        footer={
+          <div className="flex justify-end gap-2 p-4">
+            <Button variant="secondary" onClick={() => setConfirm(null)}>
+              Cancel
             </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to="/distribution">Assign sources</Link>
+            <Button
+              variant={confirm === "archive" ? "destructive" : "primary"}
+              onClick={() => {
+                if (confirm === "archive") {
+                  store.archiveCampaign(campaign.id);
+                  toast("Campaign archived");
+                } else {
+                  store.unpublishCampaign(campaign.id);
+                  toast("Campaign unpublished — back to draft");
+                }
+                setConfirm(null);
+              }}
+            >
+              {confirm === "archive" ? "Archive" : "Unpublish"}
             </Button>
           </div>
         }
       >
-        <DataTable rows={DISTRIBUTION_SOURCES.slice(0, 4)} columns={sourceColumns} />
-      </DashboardCard>
-      <SectionGrid>
-        <div className="lg:col-span-6">
-          <SnippetCard
-            title="iframe embed"
-            description="Drops into any page. The widget adapts to the container width."
-            code={EMBED_IFRAME}
-          />
-        </div>
-        <div className="lg:col-span-6">
-          <SnippetCard
-            title="JavaScript embed"
-            description="For sites that restrict iframes through their content security policy."
-            code={EMBED_SCRIPT}
-          />
-        </div>
-      </SectionGrid>
-      <ShareEmbedModal open={shareOpen} onClose={() => setShareOpen(false)} />
-    </>
+        <p className="p-4 text-sm leading-6 text-text-secondary">
+          {confirm === "archive"
+            ? `${campaign.name} moves out of the active views. Its results are kept.`
+            : `Voters can no longer reach ${campaign.name} until you publish it again. Votes already cast are kept.`}
+        </p>
+      </Modal>
+    </SectionGrid>
   );
 }
 
-/* ── Insights tab ────────────────────────────────────────────────── */
+/* ── Report preview (Ended campaigns) ────────────────────────────── */
 
-function CampaignInsights({
+function ReportModal({
+  open,
+  onClose,
   campaign,
-  detail,
+  sources,
 }: {
+  open: boolean;
+  onClose: () => void;
   campaign: Campaign;
-  detail: CampaignDetail;
+  sources: Source[];
 }) {
-  const hasSignal = (campaign.responses ?? 0) > 0;
-  return (
-    <>
-      <SectionGrid>
-        <DashboardCard title="Recommended decision" className="lg:col-span-7">
-          <div className="space-y-4 text-sm leading-6 text-text-secondary">
-            <h3 className="font-display text-lg font-semibold text-text-primary">
-              {hasSignal ? winnerLabel(campaign) : "No recommendation yet"}
-            </h3>
-            <p>{detail.summary}</p>
-            <p>
-              <span className="font-semibold text-text-primary">Next action:</span>{" "}
-              {detail.nextStep}
-            </p>
-          </div>
-        </DashboardCard>
-        <DashboardCard title="Readiness" className="lg:col-span-5">
-          <DetailList
-            items={[
-              ["Winning direction", winnerLabel(campaign)],
-              ["Signal", <SignalBadge key="sig" signal={campaign.signal} />],
-              ["Confidence", campaign.confidence],
-              [
-                "Responses vs target",
-                `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
-              ],
-              ["Completion", campaign.completion],
-            ]}
-          />
-          {campaign.sampleNote ? (
-            <p className="mt-3 text-sm leading-5 text-text-secondary">
-              <span className="font-semibold text-text-primary">Sample quality:</span>{" "}
-              {campaign.sampleNote}
-            </p>
-          ) : null}
-          <Button className="mt-4 w-full" disabled={!hasSignal}>
-            Lock this decision
-          </Button>
-        </DashboardCard>
-      </SectionGrid>
+  const toast = useToast();
+  const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
 
-      <SectionGrid>
-        <DashboardCard title="Key findings" className="lg:col-span-7">
-          {detail.findings.length ? (
-            <ul className="space-y-3">
-              {detail.findings.map((finding) => (
+  const summaryText = [
+    `${campaign.name} — decision report`,
+    campaign.decision,
+    `Winner: ${winnerLabel(campaign)} · Signal: ${campaign.signal} · Confidence: ${campaign.confidence}`,
+    `Voters: ${fmtInt(campaign.voters)}${campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""} · Completion: ${pct(campaign.completed, campaign.voters)}`,
+    ...(campaign.findings.length ? ["", "Findings:", ...campaign.findings.map((f) => `- ${f}`)] : []),
+    ...(campaign.caveats.length ? ["", "Caveats:", ...campaign.caveats.map((c) => `- ${c}`)] : []),
+  ].join("\n");
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      label="Decision report"
+      title="Decision report"
+      className="lg:max-w-2xl"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              copyText(summaryText);
+              toast("Summary copied");
+            }}
+          >
+            <Icon name="content_copy" size={18} />
+            Copy summary
+          </Button>
+          <Button onClick={onClose}>Done</Button>
+        </div>
+      }
+    >
+      <div className="space-y-5 p-5">
+        <header>
+          <h3 className="font-display text-xl font-semibold leading-7 text-text-primary">
+            {campaign.name}
+          </h3>
+          <p className="mt-1 text-sm text-text-secondary">
+            {campaign.decision} · {fmtDateRange(campaign.startAt, campaign.endAt)}
+          </p>
+        </header>
+        <DetailList
+          items={[
+            ["Winning direction", winnerLabel(campaign)],
+            ["Signal", <SignalBadge key="signal" signal={campaign.signal} />],
+            ["Confidence", campaign.confidence],
+            [
+              "Voters",
+              campaign.target
+                ? `${fmtInt(campaign.voters)} of ${fmtInt(campaign.target)}`
+                : fmtInt(campaign.voters),
+            ],
+            ["Completion", pct(campaign.completed, campaign.voters)],
+            ["Top source", topSource && topSource.voters > 0 ? topSource.name : "—"],
+          ]}
+        />
+        {campaign.findings.length > 0 ? (
+          <section>
+            <h4 className="font-display text-sm font-semibold text-text-secondary">
+              Key findings
+            </h4>
+            <ul className="mt-2 space-y-2">
+              {campaign.findings.map((finding) => (
                 <li key={finding} className="flex items-start gap-2.5 text-sm leading-6">
                   <Icon
                     name="check_circle"
@@ -642,417 +1586,30 @@ function CampaignInsights({
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="py-4 text-center text-sm text-text-tertiary">
-              Findings appear once the campaign collects responses.
-            </p>
-          )}
-        </DashboardCard>
-        <DashboardCard title="Caveats" className="lg:col-span-5">
-          <ul className="space-y-3">
-            {detail.caveats.map((caveat) => (
-              <li key={caveat} className="flex items-start gap-2.5 text-sm leading-6">
-                <Icon
-                  name="error"
-                  size={20}
-                  filled
-                  className="mt-0.5 shrink-0 text-status-danger"
-                />
-                <span className="text-text-secondary">{caveat}</span>
-              </li>
-            ))}
-          </ul>
-        </DashboardCard>
-      </SectionGrid>
-    </>
-  );
-}
-
-/* ── Report tab ──────────────────────────────────────────────────── */
-
-function CampaignReport({
-  campaign,
-  detail,
-}: {
-  campaign: Campaign;
-  detail: CampaignDetail;
-}) {
-  const toast = useToast();
-  const hasSignal = (campaign.responses ?? 0) > 0;
-  return (
-    <DashboardCard
-      title="Report preview"
-      action={
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => toast("Report exported as CSV")}
-          >
-            Export CSV
-          </Button>
-          <Button size="sm" onClick={() => toast("Report exported as PDF")}>
-            Export PDF
-          </Button>
-        </div>
-      }
-    >
-      <article className="mx-auto max-w-2xl space-y-6 py-2">
-        <header className="space-y-2 border-b border-border-default pb-5">
-          <p className="text-xs font-medium text-text-secondary">
-            {WORKSPACE.brand} · Decision report
-          </p>
-          <h3 className="font-display text-2xl font-semibold text-text-primary">
-            {campaign.name}
-          </h3>
-          <p className="text-sm text-text-secondary">
-            {campaign.decision} · {campaign.dates}
-          </p>
-        </header>
-
-        <section>
-          <h4 className="font-display text-sm font-semibold text-text-secondary">
-            Executive summary
-          </h4>
-          <p className="mt-2 text-sm leading-6 text-text-secondary">
-            {hasSignal
-              ? detail.summary
-              : "This campaign has not collected enough signal to summarize."}
-          </p>
-        </section>
-
-        <section>
-          <h4 className="font-display text-sm font-semibold text-text-secondary">
-            Response summary
-          </h4>
-          <div className="mt-2">
-            <DetailList
-              items={[
-                [
-                  "Responses vs target",
-                  `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
-                ],
-                ["Completion", campaign.completion],
-                ["Winning direction", winnerLabel(campaign)],
-                ["Signal", campaign.signal],
-                ["Confidence", campaign.confidence],
-                ["Top source", campaign.topSource],
-              ]}
-            />
-          </div>
-        </section>
-
-        {detail.findings.length ? (
+          </section>
+        ) : null}
+        {campaign.caveats.length > 0 ? (
           <section>
-            <h4 className="font-display text-sm font-semibold text-text-secondary">
-              Key findings
-            </h4>
-            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-text-secondary">
-              {detail.findings.map((finding) => (
-                <li key={finding}>{finding}</li>
+            <h4 className="font-display text-sm font-semibold text-text-secondary">Caveats</h4>
+            <ul className="mt-2 space-y-2">
+              {campaign.caveats.map((caveat) => (
+                <li key={caveat} className="flex items-start gap-2.5 text-sm leading-6">
+                  <Icon
+                    name="error"
+                    size={20}
+                    filled
+                    className="mt-0.5 shrink-0 text-status-warning"
+                  />
+                  <span className="text-text-secondary">{caveat}</span>
+                </li>
               ))}
             </ul>
           </section>
         ) : null}
-
-        {detail.caveats.length ? (
-          <section>
-            <h4 className="font-display text-sm font-semibold text-text-secondary">
-              Caveats
-            </h4>
-            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-text-secondary">
-              {detail.caveats.map((caveat) => (
-                <li key={caveat}>{caveat}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        <section>
-          <h4 className="font-display text-sm font-semibold text-text-secondary">
-            Recommended action
-          </h4>
-          <p className="mt-2 text-sm leading-6 text-text-secondary">{detail.nextStep}</p>
-        </section>
-      </article>
-    </DashboardCard>
-  );
-}
-
-/* ── Settings tab ────────────────────────────────────────────────── */
-
-function CampaignSettings({ campaign }: { campaign: Campaign }) {
-  const toast = useToast();
-  return (
-    <SectionGrid>
-      <div className="space-y-4 lg:col-span-7">
-        <DashboardCard title="Configuration">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Campaign name">
-              {(fieldId) => (
-                <TextInput id={fieldId} defaultValue={campaign.name} />
-              )}
-            </Field>
-            <Field label="Linked event">
-              {(fieldId) => (
-                <SelectMenu
-                  id={fieldId}
-                  label="Linked event"
-                  defaultValue={campaign.event}
-                  options={EVENT_OPTIONS}
-                />
-              )}
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="Decision question">
-                {(fieldId) => (
-                  <TextInput id={fieldId} defaultValue={campaign.decision} />
-                )}
-              </Field>
-            </div>
-            <Field label="Owner">
-              {(fieldId) => (
-                <TextInput id={fieldId} defaultValue={WORKSPACE.owner} readOnly />
-              )}
-            </Field>
-            <Field label="Run dates">
-              {(fieldId) => (
-                <TextInput id={fieldId} defaultValue={campaign.dates} />
-              )}
-            </Field>
-          </div>
-          <div className="mt-5 flex justify-end">
-            <Button size="sm" onClick={() => toast("Campaign settings saved")}>
-              Save changes
-            </Button>
-          </div>
-        </DashboardCard>
-      </div>
-
-      <div className="space-y-4 lg:col-span-5">
-        <DashboardCard title="Lifecycle">
-          <p className="text-sm leading-6 text-text-secondary">
-            Unpublishing hides the campaign from voters — votes already cast are
-            kept, and you can publish again any time. Ending is final: voters
-            can no longer submit, but your analytics stay.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" onClick={() => toast("Campaign unpublished")}>
-              Unpublish
-            </Button>
-            <Button
-              variant="destructive-secondary"
-              size="sm"
-              onClick={() => toast("Campaign ended")}
-            >
-              End campaign
-            </Button>
-          </div>
-        </DashboardCard>
-        <DashboardCard title="Danger zone">
-          <p className="text-sm leading-6 text-text-secondary">
-            Archiving hides this campaign from active views but keeps its
-            report. Deleting is permanent and removes its responses.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" onClick={() => toast("Campaign archived")}>
-              Archive campaign
-            </Button>
-            <Button
-              variant="destructive-secondary"
-              size="sm"
-              onClick={() => toast("Campaign deleted")}
-            >
-              Delete campaign
-            </Button>
-          </div>
-        </DashboardCard>
-      </div>
-    </SectionGrid>
-  );
-}
-
-function CampaignDetails({ campaign }: { campaign: Campaign }) {
-  const toast = useToast();
-  const [endRule, setEndRule] = useState("10 days");
-  return (
-    <DashboardCard>
-      <div className="grid gap-x-8 gap-y-5 lg:grid-cols-[11rem_minmax(0,1fr)]">
-        <div>
-          <p className="font-display text-sm font-semibold text-text-primary">Brand</p>
-          <p className="mt-1 text-xs leading-5 text-text-secondary">Fixed when the campaign is created.</p>
-        </div>
-        <TextInput defaultValue={WORKSPACE.brand} readOnly />
-        <div><p className="font-display text-sm font-semibold text-text-primary">Name</p></div>
-        <div className="flex gap-2">
-          <TextInput defaultValue={campaign.name} />
-          <Button variant="secondary" onClick={() => toast("Campaign name saved")}>Save</Button>
-        </div>
-        <div>
-          <p className="font-display text-sm font-semibold text-text-primary">End date</p>
-          <p className="mt-1 text-xs leading-5 text-text-secondary">Voters can submit until this date.</p>
-        </div>
-        <div>
-          <SegmentedControl tabs={["3 days", "7 days", "10 days", "Custom", "No end"]} active={endRule} onChange={setEndRule} />
-          {endRule === "Custom" ? <TextInput type="datetime-local" className="mt-3 max-w-sm" /> : null}
-        </div>
-      </div>
-    </DashboardCard>
-  );
-}
-
-function CampaignAnalytics({ campaign, detail }: { campaign: Campaign; detail: CampaignDetail }) {
-  const [range, setRange] = useState<DateRangeValue>("30D");
-  const steps = funnelSteps(detail);
-  const columns: Array<DataColumn<ChainPolst>> = [
-    { header: "Polst", cell: (row) => <span className="font-semibold text-text-primary">{row.question}</span> },
-    { header: "Votes", align: "right", cell: (row) => formatNumber(row.responses) },
-    { header: "Split", align: "right", cell: (row) => row.split },
-  ];
-  return (
-    <>
-      <div className="flex justify-end"><DateRangeMenu value={range} onChange={setRange} /></div>
-      <SectionGrid>
-        <StatTile className="lg:col-span-3" label="Started" value={formatNumber(detail.journey.started)} />
-        <StatTile className="lg:col-span-3" label="Completed" value={formatNumber(detail.journey.completed)} />
-        <StatTile className="lg:col-span-3" label="Completion" value={campaign.completion ?? "—"} />
-        <StatTile className="lg:col-span-3" label="Average time" value={campaign.responses ? "14s" : "—"} />
-      </SectionGrid>
-      <DashboardCard title="Conversion funnel"><Funnel steps={steps} /></DashboardCard>
-      <DashboardCard title="Per-Polst results" padded={false}>
-        <DataTable rows={detail.chain} columns={columns} emptyLabel="No Polsts yet" />
-      </DashboardCard>
-    </>
-  );
-}
-
-function CampaignLifecycle({ campaign }: { campaign: Campaign }) {
-  const toast = useToast();
-  const state = campaign.status === "Draft" ? "Draft" : campaign.status === "Ended" ? "Ended" : "Active";
-  return (
-    <>
-      <DashboardCard>
-        <div className="grid grid-cols-3 gap-4">
-          {["Draft", "Active", "Ended"].map((item) => (
-            <div key={item} className="text-center">
-              <span className={cn(
-                "mx-auto grid size-9 place-items-center rounded-pill border",
-                state === item ? "border-border-accent bg-accent-soft text-accent-default" : "border-border-default text-text-tertiary",
-              )}>
-                <Icon name={item === "Draft" ? "draft" : item === "Active" ? "campaign" : "lock"} size={18} />
-              </span>
-              <p className="mt-2 font-display text-sm font-semibold text-text-primary">{item}</p>
-              <p className="mt-0.5 text-xs text-text-secondary">{item === "Draft" ? "Hidden from voters" : item === "Active" ? "Voters can submit" : "Read-only"}</p>
-            </div>
-          ))}
-        </div>
-      </DashboardCard>
-      {state === "Draft" ? (
-        <DashboardCard title="Ready to publish?" action={<Button disabled={campaign.polsts === 0} onClick={() => toast("Campaign published")}>Publish campaign</Button>}>
-          <p className="text-sm text-text-secondary">Add at least one Polst before publishing.</p>
-        </DashboardCard>
-      ) : state === "Active" ? (
-        <div className="space-y-4">
-          <DashboardCard title="Take this campaign offline temporarily" action={<Button variant="secondary" onClick={() => toast("Campaign unpublished")}>Unpublish</Button>}>
-            <p className="text-sm text-text-secondary">Votes already cast are kept. Publish again at any time.</p>
-          </DashboardCard>
-          <DashboardCard title="End this campaign" action={<Button variant="destructive" onClick={() => toast("Campaign ended")}>End campaign</Button>}>
-            <p className="text-sm text-text-secondary">Voting stops and the campaign becomes read-only.</p>
-          </DashboardCard>
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-/* ── Share / Embed modal ─────────────────────────────────────────── */
-
-function ShareEmbedModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const toast = useToast();
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      label="Link and embed code"
-      title="Link &amp; embed code"
-      className="lg:max-w-2xl"
-    >
-      <div className="space-y-4 p-4">
-        <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-subtle p-2 pl-3">
-          <p className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary">
-            {CAMPAIGN_SHARE_URL}
-          </p>
-          <Button variant="secondary" size="sm" onClick={() => toast("Share link copied")}>
-            <Icon name="content_copy" size={16} />
-            Copy link
-          </Button>
-        </div>
-        <SnippetCard
-          title="iframe embed"
-          description="Drops into any page. The widget adapts to the container width (minimum 320px)."
-          code={EMBED_IFRAME}
-        />
-        <SnippetCard
-          title="JavaScript embed"
-          description="For sites that restrict iframes through their content security policy."
-          code={EMBED_SCRIPT}
-        />
+        <p className="text-sm leading-6 text-text-secondary">
+          <span className="font-semibold text-text-primary">Next step:</span> {campaign.nextStep}
+        </p>
       </div>
     </Modal>
-  );
-}
-
-/* ── Create campaign ─────────────────────────────────────────────── */
-
-export function CreateCampaignPage() {
-  const [name, setName] = useState("");
-  const [endRule, setEndRule] = useState("3 days");
-
-  return (
-    <DashboardPage
-      actions={<Button variant="secondary" asChild><Link to="/campaigns">Cancel</Link></Button>}
-    >
-      <SectionGrid>
-        <div className="space-y-4 lg:col-span-8">
-          <DashboardCard title="Campaign details">
-            <div className="space-y-5">
-              <Field label="Campaign name">
-                {(id) => <TextInput id={id} value={name} onChange={(event) => setName(event.target.value)} maxLength={255} placeholder="Summer launch" />}
-              </Field>
-              <div>
-                <p className="mb-2 font-display text-sm font-semibold text-text-primary">How long should this run?</p>
-                <SegmentedControl tabs={["3 days", "7 days", "10 days", "Custom date", "No end"]} active={endRule} onChange={setEndRule} />
-              </div>
-              {endRule === "Custom date" ? (
-                <Field label="End date">{(id) => <TextInput id={id} type="datetime-local" />}</Field>
-              ) : null}
-            </div>
-          </DashboardCard>
-          <div className="flex justify-end">
-            <Button disabled={!name.trim()} asChild={Boolean(name.trim())}>
-              {name.trim() ? <Link to="/campaigns/summer-launch-draft">Create campaign</Link> : <span>Create campaign</span>}
-            </Button>
-          </div>
-        </div>
-        <div className="space-y-4 self-start lg:col-span-4">
-          <DashboardCard title="After creation">
-            <ul className="space-y-2 text-sm leading-5 text-text-secondary">
-              <li>Add new or existing Polsts.</li>
-              <li>Reorder the voting sequence.</li>
-              <li>Publish when the campaign is ready.</li>
-            </ul>
-          </DashboardCard>
-          <DashboardCard title="Recent drafts">
-            <div className="space-y-3">
-              {CAMPAIGNS.filter((campaign) => campaign.status === "Draft").slice(0, 3).map((campaign) => (
-                <Link key={campaign.id} to={`/campaigns/${campaign.id}`} className="flex items-center justify-between gap-3 text-sm font-medium text-text-primary hover:text-text-accent">
-                  <span className="truncate">{campaign.name}</span><span className="text-text-secondary">Open</span>
-                </Link>
-              ))}
-            </div>
-          </DashboardCard>
-        </div>
-      </SectionGrid>
-    </DashboardPage>
   );
 }

@@ -8,7 +8,9 @@ import {
 
 /** Feature-flagged analytics modules. The CEO rule: entire modules toggle
  *  per workspace (pricing tiers, staged rollouts) — when a module is off,
- *  its nav items and tabs simply don't exist. Mock: flags persist locally. */
+ *  its nav items and tabs simply don't exist. Both ship OFF: they only have
+ *  data to show once an external platform is connected, and none are.
+ *  Mock: flags persist locally. */
 
 export type ModuleKey = "acquisition" | "retention";
 
@@ -21,20 +23,20 @@ export const MODULE_INFO: {
     key: "acquisition",
     name: "Acquisition analytics",
     description:
-      "Account creations, cost per account, paid vs organic, and channel economics.",
+      "Spend, reach, and cost per voter by channel. Shows data only after an ad platform is connected — Meta, TikTok, or Google Analytics.",
   },
   {
     key: "retention",
     name: "Retention analytics",
     description:
-      "Weekly cohorts, repeat voting, churn risk, and notification returns.",
+      "Repeat voting and returning voters. Shows data only after a platform that recognizes voters across visits is connected, like Klaviyo.",
   },
 ];
 
 type ModuleState = Record<ModuleKey, boolean>;
 
-const STORAGE_KEY = "polst-modules";
-const DEFAULT_STATE: ModuleState = { acquisition: true, retention: true };
+const STORAGE_KEY = "polst-modules-v2";
+const DEFAULT_STATE: ModuleState = { acquisition: false, retention: false };
 
 function readStored(): ModuleState {
   try {

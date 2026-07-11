@@ -1,30 +1,45 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import {
-  DEFAULT_ANALYTICS_FILTERS,
-  queryAnalytics,
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  ANALYTICS_DEFAULTS,
+  analyticsRows,
   type AnalyticsFilters,
+  type SegmentRow,
 } from "@/lib/analytics";
 
+/** One analytics scope shared across Overview, Insights, and Reports —
+ *  a filter chosen on one page persists on the others. */
 type AnalyticsContextValue = {
   filters: AnalyticsFilters;
   setFilters: (next: AnalyticsFilters) => void;
-  rows: ReturnType<typeof queryAnalytics>;
+  /** Restore the default 30-day, all-channels, all-verticals scope. */
+  resetFilters: () => void;
+  rows: SegmentRow[];
 };
 
 const AnalyticsContext = createContext<AnalyticsContextValue | null>(null);
 
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
-  const [filters, setFilters] = useState(DEFAULT_ANALYTICS_FILTERS);
-  const rows = useMemo(() => queryAnalytics(filters), [filters]);
+  const [filters, setFilters] = useState<AnalyticsFilters>(ANALYTICS_DEFAULTS);
+  const resetFilters = useCallback(() => setFilters(ANALYTICS_DEFAULTS), []);
+  const rows = useMemo(() => analyticsRows(filters), [filters]);
+  const value = useMemo(
+    () => ({ filters, setFilters, resetFilters, rows }),
+    [filters, resetFilters, rows],
+  );
 
   return (
-    <AnalyticsContext.Provider value={{ filters, setFilters, rows }}>
-      {children}
-    </AnalyticsContext.Provider>
+    <AnalyticsContext.Provider value={value}>{children}</AnalyticsContext.Provider>
   );
 }
 
-export function useAnalytics() {
+export function useAnalytics(): AnalyticsContextValue {
   const context = useContext(AnalyticsContext);
   if (!context) throw new Error("useAnalytics must be used inside AnalyticsProvider");
   return context;

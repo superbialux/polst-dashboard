@@ -4,7 +4,6 @@ import {
   confidenceFor,
   daysBetween,
   fmtDate,
-  fmtDateRange,
   fmtInt,
   fmtPct,
   isReadyToDecide,
@@ -107,17 +106,6 @@ export type Campaign = {
   confidence: Confidence;
   completionRate: number | null; // completed/voters*100, 1dp
   sources: Source[]; // back-refs, populated after SOURCES
-  // Legacy page fields (optional so the store can omit them):
-  /** @deprecated pages rebuild on the new fields */
-  polsts?: number;
-  /** @deprecated */ pollsActive?: number;
-  /** @deprecated */ pollsStarted?: number;
-  /** @deprecated */ pollsCompleted?: number;
-  /** @deprecated use `voters` */ responses?: number;
-  /** @deprecated use `completionRate` */ completion?: string;
-  /** @deprecated use `startAt`/`endAt` */ dates?: string;
-  /** @deprecated derive from `sources` */ topSource?: string;
-  /** @deprecated */ nextAction?: string;
 };
 
 export type SinglePolst = {
@@ -139,13 +127,6 @@ export type SinglePolst = {
   views: number;
   engagementRate: number | null; // votes/views*100, 1dp
   sources: Source[]; // back-refs
-  // Legacy page fields (optional so the store can omit them):
-  /** @deprecated use `votes` */ responses?: number;
-  /** @deprecated use `splitA` */ split?: string;
-  /** @deprecated */ completion?: string;
-  /** @deprecated derive from `sources` */ topSource?: string;
-  /** @deprecated */ nextAction?: string;
-  /** @deprecated use `startAt`/`endAt` */ dates?: string;
 };
 
 export type Source = {
@@ -183,8 +164,7 @@ export const KEY_DATES: KeyDate[] = [
 type CampaignSeed = Omit<
   Campaign,
   | "votesByQuestion" | "votes" | "views" | "winner" | "signal" | "confidence"
-  | "completionRate" | "sources" | "polsts" | "pollsActive" | "pollsStarted"
-  | "pollsCompleted" | "responses" | "completion" | "dates" | "topSource" | "nextAction"
+  | "completionRate" | "sources"
 >;
 
 const CAMPAIGN_SEEDS: CampaignSeed[] = [
@@ -475,11 +455,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
 
 /* ── Single Polst seeds ──────────────────────────────────────────── */
 
-type PolstSeed = Omit<
-  SinglePolst,
-  | "views" | "engagementRate" | "sources" | "responses" | "split" | "completion"
-  | "topSource" | "nextAction" | "dates"
->;
+type PolstSeed = Omit<SinglePolst, "views" | "engagementRate" | "sources">;
 
 const POLST_SEEDS: PolstSeed[] = [
   { id: "which-headline-wins", question: "Which headline wins?", optionA: "Fuel your morning", optionB: "Mornings, handled", splitA: 57, status: "Active", createdAt: "2026-06-03", startAt: "2026-06-05", endAt: "2026-06-19", vertical: "Food & drink", votes: 428, viewsFactor: 2.2, interactions: 17 },
@@ -649,39 +625,6 @@ for (const campaign of CAMPAIGNS) {
 }
 for (const polst of SINGLE_POLSTS) {
   polst.sources = SOURCES.filter((s) => s.linked?.type === "polst" && s.linked.id === polst.id);
-}
-
-/* Legacy campaign/polst fields (deprecated — pages rebuild on the new model). */
-const legacyCampaignNextAction = (c: Campaign): string => {
-  if (c.status === "Draft") return c.chain.length ? "Finish setup" : "Add Polsts";
-  if (c.status === "Scheduled") return c.sources.length ? "Review schedule" : "Add sources";
-  if (c.status === "Ended") return "Export report";
-  return isReadyToDecide(c) ? "Review recommendation" : "Keep running";
-};
-
-for (const c of CAMPAIGNS) {
-  const top = [...c.sources].sort((a, b) => b.voters - a.voters)[0];
-  c.polsts = c.chain.length;
-  c.pollsActive = c.status === "Active" ? c.chain.length : 0;
-  c.pollsStarted = c.voters > 0 ? c.chain.length : 0;
-  c.pollsCompleted = c.status === "Ended" ? c.chain.length : 0;
-  c.responses = c.voters;
-  c.completion = c.completionRate !== null ? fmtPct(c.completionRate, 0) : "—";
-  c.dates = fmtDateRange(c.startAt, c.endAt);
-  c.topSource = top && top.voters > 0 ? top.name : "—";
-  c.nextAction = legacyCampaignNextAction(c);
-}
-for (const p of SINGLE_POLSTS) {
-  p.responses = p.votes;
-  p.split = p.votes > 0 ? `${p.splitA} / ${100 - p.splitA}` : "—";
-  p.completion = "—";
-  p.topSource = p.sources[0]?.name ?? "—";
-  p.nextAction =
-    p.status === "Draft" ? "Finish Polst"
-    : p.status === "Scheduled" ? "Add a QR code"
-    : p.status === "Archived" ? "Restore draft"
-    : p.votes > 0 ? "View results" : "Keep running";
-  p.dates = fmtDateRange(p.startAt, p.endAt);
 }
 
 /* ── Daily series (memoized — called in loops everywhere) ────────── */
@@ -1029,7 +972,7 @@ export const ATTENTION_ITEMS: ListItem[] = (() => {
       reason: "No campaign or Polst is attached to this key date yet.",
       tone: "warning",
       action: "Plan a campaign",
-      to: "/campaigns/new",
+      to: `/campaigns/new?event=${uncovered.id}`,
     });
   }
   // d) Draft campaigns with nothing inside them.
@@ -1181,31 +1124,15 @@ export function answerHeat(range: WindowRange): number[][] {
   return heat;
 }
 
-/** @deprecated pages rebuild on answerHeat(range) — 30D snapshot for now. */
-export const TIME_HEATMAP: number[][] = answerHeat("30D");
-
-const hourLabel = (hour: number) => {
-  const h = hour % 24;
-  return h === 0 ? "12" : h > 12 ? `${h - 12}` : `${h}`;
-};
-
-/** Peak answering window, derived from the heat surface — never authored. */
-export const HEATMAP_PEAK = (() => {
-  const dayNames = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
-  let best = { day: 0, slot: 0, value: -1 };
-  TIME_HEATMAP.forEach((row, day) =>
-    row.forEach((value, slot) => {
-      if (value > best.value) best = { day, slot, value };
-    }),
-  );
-  const start = best.slot * 2;
-  const end = start + 2;
-  return `${dayNames[best.day]} ${hourLabel(start)}–${hourLabel(end)}${end >= 12 && end < 24 ? "pm" : "am"}`;
-})();
-
 /* ── Device & platform mix ───────────────────────────────────────── */
 
 export type MixSlice = { label: string; value: number; detail?: string };
+
+/** A labeled A/B pair for the kit's SplitBar. */
+export type Split = {
+  a: { label: string; value: number; detail?: string };
+  b: { label: string; value: number; detail?: string };
+};
 
 const DEVICE_SHARES = [
   { label: "Mobile", value: 64 },
@@ -1229,11 +1156,6 @@ const mixFor = (shares: Array<{ label: string; value: number }>, range: WindowRa
 export const deviceMix = (range: WindowRange): MixSlice[] => mixFor(DEVICE_SHARES, range);
 export const platformMix = (range: WindowRange): MixSlice[] => mixFor(PLATFORM_SHARES, range);
 
-/** @deprecated pages rebuild on deviceMix(range)/platformMix(range). */
-export const DEVICE_MIX: MixSlice[] = deviceMix("30D");
-/** @deprecated */
-export const PLATFORM_MIX: MixSlice[] = platformMix("30D");
-
 /* ── Share links & embed snippets (per object) ───────────────────── */
 
 export const shareUrl = (type: "campaign" | "polst", id: string) =>
@@ -1252,13 +1174,6 @@ export const embedScript = (id: string) => `<div id="polst-campaign"></div>
 /** "Minimal label +16 pts" | "—" — the one string form of a winner. */
 export const winnerLabel = (c: { winner: { option: string; marginPts: number } | null }) =>
   c.winner ? `${c.winner.option} +${c.winner.marginPts} pts` : "—";
-
-/** @deprecated pages rebuild on shareUrl/embedIframe/embedScript per object. */
-export const CAMPAIGN_SHARE_URL = shareUrl("campaign", "packaging-direction");
-/** @deprecated */
-export const EMBED_IFRAME = embedIframe("packaging-direction");
-/** @deprecated */
-export const EMBED_SCRIPT = embedScript("packaging-direction");
 
 /* ── Team & invitations (Settings) ───────────────────────────────── */
 
@@ -1391,475 +1306,7 @@ export const polstOptions = (polst: {
   ];
 };
 
-/* ══════════════════════════════════════════════════════════════════
-   COMPAT LAYER — legacy export names still imported by pages/kit.
-   Everything below derives from the entities above (or is frozen and
-   marked fabricated); it is deleted as each page is rebuilt.
-   ══════════════════════════════════════════════════════════════════ */
+/* ── Shared formatter (kit) ──────────────────────────────────────── */
 
-/** @deprecated legacy formatter; tolerates the optional legacy fields. */
+/** Integer formatter for kit primitives; tolerates undefined counts. */
 export const formatNumber = (n: number | undefined): string => (n ?? 0).toLocaleString("en-US");
-
-/* ── Campaign detail (legacy shape, derived) ─────────────────────── */
-
-/** @deprecated pages rebuild on Campaign.chain/votesByQuestion */
-export type ChainPolst = {
-  id: string;
-  question: string;
-  optionA: string;
-  optionB: string;
-  split: string;
-  responses: number;
-  splitA: number;
-  votes: number;
-};
-
-/** @deprecated pages rebuild on Campaign narrative fields */
-export type CampaignDetail = {
-  summary: string;
-  nextStep: string;
-  journey: { started: number; completed: number };
-  chain: ChainPolst[];
-  findings: string[];
-  caveats: string[];
-};
-
-/** @deprecated derived view of CAMPAIGNS for the current detail page. */
-export const CAMPAIGN_DETAILS: Record<string, CampaignDetail> = Object.fromEntries(
-  CAMPAIGNS.map((c) => [
-    c.id,
-    {
-      summary: c.summary,
-      nextStep: c.nextStep,
-      journey: { started: c.voters, completed: c.completed },
-      chain: c.chain.map((q, i) => ({
-        id: q.id,
-        question: q.question,
-        optionA: q.optionA,
-        optionB: q.optionB,
-        split: q.splitA ? `${q.splitA} / ${100 - q.splitA}` : "—",
-        responses: c.votesByQuestion[i] ?? 0,
-        splitA: q.splitA,
-        votes: c.votesByQuestion[i] ?? 0,
-      })),
-      findings: c.findings,
-      caveats: c.caveats,
-    },
-  ]),
-);
-
-/* ── Distribution rows (legacy shapes, derived from SOURCES) ─────── */
-
-const linkedName = (linked: Source["linked"]) => {
-  if (!linked) return "—";
-  return linked.type === "campaign"
-    ? campaignById.get(linked.id)?.name ?? "—"
-    : polstById.get(linked.id)?.question ?? "—";
-};
-
-const sourceCompletion = (s: Source) => (s.completionRate !== null ? fmtPct(s.completionRate, 0) : "—");
-const sourceStatus = (s: Source): Status => (s.linked ? "Active" : "Draft");
-
-/** @deprecated pages rebuild on SOURCES */
-export type DistributionSource = {
-  id: string;
-  name: string;
-  channel: string;
-  type: string;
-  linkedObject: string;
-  linkedType: "Campaign" | "Standalone Polst" | "—";
-  responses: number;
-  completion: string;
-  status: Status;
-  lastActivity: string;
-  signups: number;
-  bounce: string;
-};
-
-/** @deprecated derived view of SOURCES with the legacy column shape. */
-export const DISTRIBUTION_SOURCES: DistributionSource[] = SOURCES.map((s) => ({
-  id: s.id,
-  name: s.name,
-  channel: s.channel,
-  type: s.kind,
-  linkedObject: linkedName(s.linked),
-  linkedType: !s.linked ? "—" : s.linked.type === "campaign" ? "Campaign" : "Standalone Polst",
-  responses: s.voters,
-  completion: sourceCompletion(s),
-  status: sourceStatus(s),
-  lastActivity: s.lastActivity ? relativeToToday(s.lastActivity) : "—",
-  signups: 0, // fabricated column — zeroed until the page drops it
-  bounce: s.views > 0 ? fmtPct(((s.views - s.voters) / s.views) * 100, 0) : "—",
-}));
-
-/** @deprecated pages rebuild on SOURCES grouped by channel */
-export type ChannelRow = {
-  id: string;
-  name: string;
-  scope: string;
-  campaigns: number;
-  responses: number;
-  completion: string;
-  status: Status;
-};
-
-const CHANNEL_SCOPES: Record<Channel, string> = {
-  Website: "All campaigns",
-  Email: "All campaigns",
-  Instagram: "Per campaign",
-  QR: "Per campaign",
-  Influencer: "Per campaign",
-};
-
-/** @deprecated derived channel rollup of SOURCES. */
-export const CHANNELS: ChannelRow[] = (["Website", "Email", "Instagram", "QR", "Influencer"] as Channel[]).map(
-  (channel) => {
-    const inChannel = SOURCES.filter((s) => s.channel === channel);
-    const voters = inChannel.reduce((a, s) => a + s.voters, 0);
-    const completed = inChannel.reduce((a, s) => a + s.completed, 0);
-    return {
-      id: channel.toLowerCase(),
-      name: channel,
-      scope: CHANNEL_SCOPES[channel],
-      campaigns: new Set(inChannel.filter((s) => s.linked?.type === "campaign").map((s) => s.linked!.id)).size,
-      responses: voters,
-      completion: voters > 0 ? fmtPct((completed / voters) * 100, 0) : "—",
-      status: "Active" as Status,
-    };
-  },
-);
-
-/** @deprecated pages rebuild on SOURCES */
-export type QrAsset = {
-  id: string;
-  name: string;
-  placement: string;
-  linkedObject: string;
-  scans: number;
-  responses: number;
-  completion: string;
-  status: Status;
-  created: string;
-};
-
-/** @deprecated derived view of the QR sources. */
-export const QR_CODES: QrAsset[] = SOURCES.filter((s) => s.kind === "QR code").map((s) => ({
-  id: s.id,
-  name: s.name,
-  placement: s.placement ?? "—",
-  linkedObject: linkedName(s.linked),
-  scans: s.views,
-  responses: s.voters,
-  completion: sourceCompletion(s),
-  status: sourceStatus(s),
-  created: fmtDate(s.createdAt),
-}));
-
-/** @deprecated pages rebuild on SOURCES */
-export type LinkAsset = {
-  id: string;
-  name: string;
-  type: "Share link" | "Embed";
-  linkedObject: string;
-  responses: number;
-  completion: string;
-  lastCopied: string;
-  status: Status;
-};
-
-/** @deprecated derived view of the link + embed sources. */
-export const LINK_ASSETS: LinkAsset[] = SOURCES.filter(
-  (s): s is Source & { kind: "Share link" | "Embed" } => s.kind === "Share link" || s.kind === "Embed",
-).map((s) => ({
-  id: s.id,
-  name: s.name,
-  type: s.kind,
-  linkedObject: linkedName(s.linked),
-  responses: s.voters,
-  completion: sourceCompletion(s),
-  lastCopied: s.lastActivity ? relativeToToday(s.lastActivity) : "—",
-  status: sourceStatus(s),
-}));
-
-/* ── Frozen fabricated blocks (still imported; die with page rebuilds) ── */
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const TOP_INTERESTS: MixSlice[] = [
-  { label: "Snacking & treats", value: 34 },
-  { label: "Cooking at home", value: 27 },
-  { label: "Health & wellness", value: 18 },
-  { label: "Grocery deals", value: 13 },
-  { label: "Entertaining", value: 8 },
-];
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const AUDIENCE_STATS = [
-  { label: "Followers", value: "3,204", detail: "+186 this month", trend: "up" as const },
-  { label: "Previous respondents", value: "1,842", detail: "have voted before", trend: "flat" as const },
-  { label: "Response reach", value: "12,400", detail: "unique viewers", trend: "up" as const },
-];
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const AGE_MIX: MixSlice[] = [
-  { label: "18–24", value: 14 },
-  { label: "25–34", value: 33 },
-  { label: "35–44", value: 28 },
-  { label: "45–54", value: 16 },
-  { label: "55+", value: 9 },
-];
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const AUDIENCE_TREND = [182, 210, 195, 244, 236, 268, 301, 287, 322, 348, 361, 394];
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const NEW_VS_RETURNING = { new: 62, returning: 38 };
-
-export type Split = {
-  a: { label: string; value: number; detail?: string };
-  b: { label: string; value: number; detail?: string };
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const US_SPLIT: Split = {
-  a: { label: "United States", value: 71, detail: "1,896 respondents" },
-  b: { label: "International", value: 29, detail: "774 respondents" },
-};
-
-/** @deprecated fabricated — the retention module dies with page rebuilds */
-export type Cohort = {
-  label: string;
-  size: number;
-  d1: number;
-  d7: number | null;
-  d14: number | null;
-  d30: number | null;
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export type VerticalPerformance = {
-  id: string;
-  vertical: string;
-  responses: number;
-  completion: string;
-  dropOff: string;
-  timeToVote: string;
-  shareRate: string;
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export type ChurnRisk = {
-  id: string;
-  segment: string;
-  detail: string;
-  size: number;
-  action: string;
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export type Finding = {
-  id: string;
-  title: string;
-  body: string;
-  confidence: "High confidence" | "Medium confidence" | "Early signal";
-};
-
-/** @deprecated legacy report row shape used by the Analytics page only;
- *  the model's reports live in REPORTS (WorkspaceReport). */
-export type Report = {
-  id: string;
-  name: string;
-  linkedObject: string;
-  status: "Ready" | "Draft";
-  updated: string;
-  primaryAction: string;
-};
-
-/* ── Campaign funnel by source (legacy heuristic) ────────────────── */
-
-/** @deprecated fabricated shape math — deleted with page rebuilds */
-export const FUNNEL_SOURCES = ["All sources", "QR", "Website", "Email"] as const;
-export type FunnelSource = (typeof FUNNEL_SOURCES)[number];
-
-const FUNNEL_SHAPES: Record<Exclude<FunnelSource, "All sources">, { share: number; decay: number }> = {
-  QR: { share: 0.24, decay: 0.82 },
-  Website: { share: 0.46, decay: 0.97 },
-  Email: { share: 0.3, decay: 0.93 },
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export function funnelForSource(counts: number[], source: FunnelSource): number[] {
-  if (source === "All sources") return counts;
-  const { share, decay } = FUNNEL_SHAPES[source];
-  return counts.map((count, step) => Math.round(count * share * decay ** step));
-}
-
-/* ── Email channel detail (fabricated, frozen) ───────────────────── */
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const EMAIL_STATS: Stat[] = [
-  { label: "List size", value: "8,412", delta: "+4.6%", trend: "up", spark: [7.4, 7.6, 7.7, 7.9, 8.1, 8.2, 8.4] },
-  { label: "Open rate", value: "41%", delta: "+2.2 pts", trend: "up", spark: [36, 37, 38, 38, 39, 40, 41] },
-  { label: "Click-to-vote", value: "9.4%", delta: "+0.6 pts", trend: "up", spark: [8.1, 8.3, 8.6, 8.8, 9.0, 9.2, 9.4] },
-  { label: "Unsubscribe", value: "0.31%", delta: "-0.04 pts", trend: "up", spark: [0.42, 0.4, 0.38, 0.36, 0.34, 0.32, 0.31] },
-];
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export type EmailPerformance = {
-  id: string;
-  type: string;
-  audience: string;
-  sends: number;
-  openRate: string;
-  ctr: string;
-  clickToVote: string;
-  unsub: string;
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const EMAIL_PERFORMANCE: EmailPerformance[] = [
-  { id: "em-recap", type: "Decision recap", audience: "Previous respondents", sends: 1842, openRate: "52%", ctr: "14.1%", clickToVote: "11.8%", unsub: "0.18%" },
-  { id: "em-launch", type: "Product drop", audience: "Full list", sends: 8106, openRate: "44%", ctr: "9.8%", clickToVote: "8.2%", unsub: "0.29%" },
-  { id: "em-digest", type: "Weekly digest", audience: "Full list", sends: 8032, openRate: "38%", ctr: "7.2%", clickToVote: "5.9%", unsub: "0.34%" },
-  { id: "em-nudge", type: "Re-ask nudge", audience: "Gone-quiet segment", sends: 214, openRate: "31%", ctr: "6.1%", clickToVote: "5.2%", unsub: "0.62%" },
-];
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const LIST_GROWTH = {
-  series: [6.8, 7.0, 7.1, 7.3, 7.4, 7.4, 7.6, 7.7, 7.9, 8.1, 8.2, 8.4],
-  previous: [6.1, 6.2, 6.2, 6.3, 6.4, 6.5, 6.5, 6.6, 6.7, 6.7, 6.8, 6.8],
-  xTicks: ["12 weeks ago", "6 weeks ago", "This week"],
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const CHANNEL_TRENDS: Record<string, { series: number[]; previous: number[] }> = {
-  website: { series: [28, 31, 30, 34, 36, 33, 38, 40, 37, 42, 44, 41, 46, 48], previous: [22, 24, 23, 26, 27, 26, 29, 30, 28, 31, 33, 31, 34, 35] },
-  email: { series: [11, 12, 14, 13, 15, 16, 15, 17, 18, 17, 19, 20, 19, 21], previous: [9, 10, 10, 11, 12, 11, 13, 13, 12, 14, 15, 14, 15, 16] },
-  instagram: { series: [14, 16, 15, 18, 17, 19, 21, 20, 22, 21, 23, 25, 24, 26], previous: [12, 13, 12, 14, 15, 14, 16, 17, 16, 18, 17, 19, 20, 19] },
-  qr: { series: [6, 7, 8, 7, 9, 8, 10, 9, 11, 10, 9, 11, 12, 11], previous: [5, 6, 5, 7, 6, 8, 7, 8, 9, 8, 9, 8, 10, 9] },
-  influencer: { series: [3, 4, 5, 4, 6, 7, 6, 8, 9, 8, 10, 11, 10, 12], previous: [2, 3, 3, 4, 3, 5, 4, 5, 6, 5, 7, 6, 8, 7] },
-};
-
-/* ── Creators (fabricated, frozen) ───────────────────────────────── */
-
-export type CreatorTier = "10–25k" | "25–50k" | "50–75k";
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export type Creator = {
-  id: string;
-  name: string;
-  handle: string;
-  followers: string;
-  tier: CreatorTier;
-  status: Status;
-  clicks: number;
-  ctr: string;
-  ecpc: string;
-  storyViews: number;
-  responses: number;
-  completion: string;
-  split: string;
-  campaign: string;
-  clickTrend: number[];
-  links: { id: string; name: string; linkedObject: string; clicks: number; responses: number; ctr: string }[];
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const CREATORS: Creator[] = [
-  {
-    id: "cr-morningfeed",
-    name: "The Morning Feed",
-    handle: "@themorningfeed",
-    followers: "48k",
-    tier: "25–50k",
-    status: "Active",
-    clicks: 1462,
-    ctr: "3.0%",
-    ecpc: "$0.41",
-    storyViews: 12400,
-    responses: 134,
-    completion: "61%",
-    split: "60 / 40",
-    campaign: "Packaging Direction Test",
-    clickTrend: [86, 102, 94, 118, 131, 124, 142, 156, 149, 168, 181, 174],
-    links: [
-      { id: "lk-mf-story", name: "Story swipe-up", linkedObject: "Packaging Direction Test", clicks: 918, responses: 84, ctr: "3.4%" },
-      { id: "lk-mf-bio", name: "Link in bio", linkedObject: "Packaging Direction Test", clicks: 544, responses: 50, ctr: "2.4%" },
-    ],
-  },
-  {
-    id: "cr-snackreview",
-    name: "Snack Review Daily",
-    handle: "@snackreviewdaily",
-    followers: "22k",
-    tier: "10–25k",
-    status: "Active",
-    clicks: 806,
-    ctr: "4.2%",
-    ecpc: "$0.29",
-    storyViews: 6800,
-    responses: 71,
-    completion: "68%",
-    split: "54 / 46",
-    campaign: "Summer Flavor Lineup",
-    clickTrend: [42, 51, 48, 60, 66, 62, 71, 78, 74, 83, 88, 92],
-    links: [
-      { id: "lk-sr-story", name: "Story swipe-up", linkedObject: "Summer Flavor Lineup", clicks: 806, responses: 71, ctr: "4.2%" },
-    ],
-  },
-  {
-    id: "cr-pantrynotes",
-    name: "Pantry Notes",
-    handle: "@pantrynotes",
-    followers: "61k",
-    tier: "50–75k",
-    status: "Active",
-    clicks: 1120,
-    ctr: "1.9%",
-    ecpc: "$0.66",
-    storyViews: 18200,
-    responses: 96,
-    completion: "57%",
-    split: "48 / 52",
-    campaign: "Flavor Launch Recap",
-    clickTrend: [74, 81, 78, 88, 92, 86, 96, 104, 98, 108, 112, 118],
-    links: [
-      { id: "lk-pn-story", name: "Story swipe-up", linkedObject: "Flavor Launch Recap", clicks: 692, responses: 58, ctr: "2.1%" },
-      { id: "lk-pn-reel", name: "Reel caption link", linkedObject: "Flavor Launch Recap", clicks: 428, responses: 38, ctr: "1.6%" },
-    ],
-  },
-  {
-    id: "cr-weeknight",
-    name: "Weeknight Table",
-    handle: "@weeknighttable",
-    followers: "14k",
-    tier: "10–25k",
-    status: "Draft",
-    clicks: 0,
-    ctr: "—",
-    ecpc: "—",
-    storyViews: 0,
-    responses: 0,
-    completion: "—",
-    split: "—",
-    campaign: "—",
-    clickTrend: [],
-    links: [],
-  },
-];
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export type TierBenchmark = {
-  id: string;
-  tier: CreatorTier;
-  creators: number;
-  avgCtr: string;
-  avgEcpc: string;
-  ctrValue: number;
-};
-
-/** @deprecated fabricated — deleted with page rebuilds */
-export const TIER_BENCHMARKS: TierBenchmark[] = [
-  { id: "tier-small", tier: "10–25k", creators: 2, avgCtr: "4.2%", avgEcpc: "$0.29", ctrValue: 42 },
-  { id: "tier-mid", tier: "25–50k", creators: 1, avgCtr: "3.0%", avgEcpc: "$0.41", ctrValue: 30 },
-  { id: "tier-large", tier: "50–75k", creators: 1, avgCtr: "1.9%", avgEcpc: "$0.66", ctrValue: 19 },
-];

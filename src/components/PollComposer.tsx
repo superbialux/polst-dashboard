@@ -181,24 +181,50 @@ function ChoiceTile({
  *  disc. */
 export type ComposerState = {
   question: string;
+  optionA: string;
+  optionB: string;
+  /** First selected category — stores persist it as the vertical. */
+  category: string | null;
   optionsSet: boolean;
   imagesSet: boolean;
 };
 
+/** Prefill for editing an existing draft. */
+export type ComposerInitial = {
+  question?: string;
+  optionA?: string;
+  optionB?: string;
+  imageA?: string;
+  imageB?: string;
+  categories?: string[];
+};
+
 export function PollComposer({
   categories,
+  initial,
   onChange,
   className,
 }: {
   /** Category choices for the select (e.g. workspace verticals). */
   categories: string[];
+  /** Starting values when editing an existing draft. */
+  initial?: ComposerInitial;
   /** Fires on every edit so rails can reflect real readiness. */
   onChange?: (state: ComposerState) => void;
   className?: string;
 }) {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [question, setQuestion] = useState("");
-  const [choices, setChoices] = useState<[Choice, Choice]>(EMPTY_CHOICES);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    initial?.categories ?? [],
+  );
+  const [question, setQuestion] = useState(initial?.question ?? "");
+  const [choices, setChoices] = useState<[Choice, Choice]>(() =>
+    initial
+      ? [
+          { label: initial.optionA ?? "", image: initial.imageA ?? null },
+          { label: initial.optionB ?? "", image: initial.imageB ?? null },
+        ]
+      : EMPTY_CHOICES,
+  );
   const [tags, setTags] = useState<string[]>([]);
   const [tagDraft, setTagDraft] = useState("");
   const questionShake = useLimitShake(question, QUESTION_LIMIT);
@@ -206,10 +232,13 @@ export function PollComposer({
   useEffect(() => {
     onChange?.({
       question: question.trim(),
+      optionA: choices[0].label.trim(),
+      optionB: choices[1].label.trim(),
+      category: selectedCategories[0] ?? null,
       optionsSet: choices.every((c) => c.label.trim() !== ""),
       imagesSet: choices.every((c) => c.image !== null),
     });
-  }, [question, choices, onChange]);
+  }, [question, choices, selectedCategories, onChange]);
 
   const setChoice = (i: 0 | 1, patch: Partial<Choice>) =>
     setChoices((cur) => {

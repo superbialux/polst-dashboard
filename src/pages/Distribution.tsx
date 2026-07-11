@@ -1,384 +1,398 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { Modal } from "@/components/Modal";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { QrCodeModal, SocialShareModal } from "@/components/DistributionActions";
-import { Checkbox, Field, TextInput } from "@/components/Field";
+import { Modal } from "@/components/Modal";
+import { QrCodeModal } from "@/components/DistributionActions";
+import { Field, SelectMenu, TextInput, type SelectOption } from "@/components/Field";
 import {
+  Chip,
+  ConnectCard,
   DashboardCard,
   DashboardPage,
   DataTable,
-  DetailList,
-  MixBars,
-  PageTabs,
+  EmptyState,
+  LockedCard,
   SectionGrid,
   SnippetCard,
   StatTile,
-  StatsStrip,
-  StatusBadge,
-  TrendChart,
-  useTabs,
   type DataColumn,
 } from "@/components/dashboard";
+import { useWorkspace } from "@/lib/store";
+import { METRIC_INFO, fmtInt, fmtPct, relativeToToday } from "@/lib/canon";
+import { windowDelta } from "@/lib/engine";
 import {
-  CHANNELS,
-  CAMPAIGNS,
-  CAMPAIGN_SHARE_URL,
-  CHANNEL_TRENDS,
-  CREATORS,
-  DISTRIBUTION_SOURCES,
-  EMAIL_PERFORMANCE,
-  EMAIL_STATS,
-  EMBED_IFRAME,
-  EMBED_SCRIPT,
-  LINK_ASSETS,
-  LIST_GROWTH,
-  QR_CODES,
-  SINGLE_POLSTS,
-  TIER_BENCHMARKS,
-  formatNumber,
-  type ChannelRow,
-  type Creator,
-  type DistributionSource,
-  type EmailPerformance,
-  type LinkAsset,
-  type QrAsset,
-  type TierBenchmark,
+  INTEGRATIONS,
+  embedIframe,
+  shareUrl,
+  workspaceWindow,
+  type Channel,
+  type Source,
+  type Status,
 } from "@/lib/workspace";
 
-/** Shared source columns — the full set; detail pages slice what they need. */
-export const sourceColumns: Array<DataColumn<DistributionSource>> = [
-  {
-    header: "Source",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.name}</p>
-    ),
-  },
-  {
-    header: "Channel",
-    cell: (row) => <span className="text-text-secondary">{row.channel}</span>,
-  },
-  {
-    header: "Feeds",
-    cell: (row) =>
-      row.linkedObject === "—" ? (
-        <span className="text-text-tertiary">Nothing — responses go unattributed</span>
-      ) : (
-        <span className="min-w-0">
-          <span className="block truncate text-text-primary">{row.linkedObject}</span>
-          <span className="block text-xs text-text-tertiary">{row.linkedType}</span>
-        </span>
-      ),
-  },
-  {
-    header: "Responses",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
-  },
-  {
-    header: "Completion",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.completion}</span>,
-  },
-  {
-    header: "Signups",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.signups}</span>,
-  },
-  {
-    header: "Bounce",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.bounce}</span>,
-  },
-  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  {
-    header: "Last activity",
-    cell: (row) => <span className="text-text-secondary">{row.lastActivity}</span>,
-  },
-];
+/* ── The Sources library ────────────────────────────────────────────
+   Distribution owns the concrete assets that collect voters — QR codes,
+   share links, embeds, tracked links. "Source" is the asset; "channel"
+   is its family. Content itself lives on /polsts and /campaigns. */
 
-const channelColumns: Array<DataColumn<ChannelRow>> = [
-  {
-    header: "Channel",
-    cell: (row) => (
-      <Link
-        to={`/distribution/channels/${row.id}`}
-        className="font-display font-semibold text-text-primary hover:text-text-accent"
-      >
-        {row.name}
-      </Link>
-    ),
-  },
-  {
-    header: "Scope",
-    cell: (row) => <span className="text-text-secondary">{row.scope}</span>,
-  },
-  { header: "Campaigns", align: "right", cell: (row) => row.campaigns },
-  {
-    header: "Responses",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
-  },
-  {
-    header: "Completion",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.completion}</span>,
-  },
-  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  {
-    header: "",
-    align: "right",
-    cell: (row) => (
-      <Button variant="secondary" size="sm" asChild>
-        <Link to={`/distribution/channels/${row.id}`}>Open</Link>
-      </Button>
-    ),
-  },
-];
+/** What a source feeds, resolved through the store so renames follow. */
+type LinkedMeta = {
+  type: "campaign" | "polst";
+  id: string;
+  name: string;
+  status: Status;
+  to: string;
+};
 
-const linkColumns: Array<DataColumn<LinkAsset>> = [
-  {
-    header: "Asset",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.name}</p>
-    ),
-  },
-  {
-    header: "Type",
-    cell: (row) => <span className="text-text-secondary">{row.type}</span>,
-  },
-  {
-    header: "Feeds",
-    cell: (row) =>
-      row.linkedObject === "—" ? (
-        <span className="text-text-tertiary">Nothing — responses go unattributed</span>
-      ) : (
-        <span className="text-text-secondary">{row.linkedObject}</span>
-      ),
-  },
-  {
-    header: "Responses",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
-  },
-  {
-    header: "Completion",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.completion}</span>,
-  },
-  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  {
-    header: "Last copied",
-    cell: (row) => <span className="text-text-secondary">{row.lastCopied}</span>,
-  },
-];
+const KIND_OPTIONS: Array<Source["kind"]> = ["QR code", "Share link", "Embed", "Tracked link"];
+const CHANNEL_OPTIONS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
+const LIVE_STATUSES: Status[] = ["Active", "Scheduled"];
 
-export const creatorColumns: Array<DataColumn<Creator>> = [
-  {
-    header: "Creator",
-    cell: (row) => (
-      <div className="min-w-0">
-        <Link
-          to={`/distribution/creators/${row.id}`}
-          className="font-display font-semibold text-text-primary hover:text-text-accent"
-        >
-          {row.name}
-        </Link>
-        <p className="mt-0.5 truncate text-xs text-text-secondary">
-          {row.handle} · {row.followers} followers
-        </p>
-      </div>
-    ),
-  },
-  {
-    header: "Tier",
-    cell: (row) => <span className="text-text-secondary">{row.tier}</span>,
-  },
-  {
-    header: "Campaign",
-    cell: (row) => <span className="text-text-secondary">{row.campaign}</span>,
-  },
-  {
-    header: "Clicks",
-    align: "right",
-    cell: (row) => (
-      <span className="tabular-nums">{row.clicks > 0 ? formatNumber(row.clicks) : "—"}</span>
-    ),
-  },
-  {
-    header: "CTR",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.ctr}</span>,
-  },
-  {
-    header: "Eff. CPC",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.ecpc}</span>,
-  },
-  {
-    header: "Responses",
-    align: "right",
-    cell: (row) => (
-      <span className="tabular-nums">{row.responses > 0 ? formatNumber(row.responses) : "—"}</span>
-    ),
-  },
-  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-];
-
-const tierColumns: Array<DataColumn<TierBenchmark>> = [
-  {
-    header: "Follower tier",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.tier}</p>
-    ),
-  },
-  { header: "Creators", align: "right", cell: (row) => row.creators },
-  {
-    header: "Avg. CTR",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.avgCtr}</span>,
-  },
-  {
-    header: "Avg. eff. CPC",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.avgEcpc}</span>,
-  },
-];
-
-const TABS = ["Polsts", "Campaigns", "Embed code"] as const;
-
-/** Health before inventory: the four questions a marketer actually asks of
- *  distribution — is everything covered, what's eroding, what's collecting
- *  without attribution, and can I trust the numbers. */
-const SUMMARY: Array<{
-  label: string;
-  value: string;
-  detail: string;
-  trend?: "up" | "down" | "flat";
-  info: string;
-}> = [
-  {
-    label: "Campaign coverage",
-    value: "5 of 6",
-    detail: "Game Day Creative Test has no sources",
-    trend: "down",
-    info: "Active and scheduled campaigns with at least one assigned source collecting responses.",
-  },
-  {
-    label: "Sources need attention",
-    value: "1",
-    detail: "Conference Booth QR — 41% completion",
-    trend: "down",
-    info: "Sources whose completion rate fell more than 15 points below the workspace average.",
-  },
-  {
-    label: "Unassigned sources",
-    value: "1",
-    detail: "Instagram Story Link is collecting unattributed",
-    info: "Sources with traffic but no campaign or Polst assignment — their responses can't inform a decision.",
-  },
-  {
-    label: "Attribution quality",
-    value: "94%",
-    detail: "+2.1% vs prev. 30 days",
-    trend: "up",
-    info: "Share of responses that arrived through a named source, May 17 – Jun 15 vs Apr 17 – May 16.",
-  },
-];
+/** Share links get the source id appended so every visit stays attributed. */
+const attributedUrl = (meta: LinkedMeta, sourceId: string) =>
+  `${shareUrl(meta.type, meta.id)}?src=${sourceId}`;
 
 export function DistributionPage() {
-  const { active, setActive } = useTabs(TABS);
-  const [sharePolst, setSharePolst] = useState<(typeof SINGLE_POLSTS)[number] | null>(null);
-  const [qrTarget, setQrTarget] = useState<{ name: string; id: string; kind: "p" | "campaign" } | null>(null);
-  const [embedOpen, setEmbedOpen] = useState(false);
-  const polstColumns: Array<DataColumn<(typeof SINGLE_POLSTS)[number]>> = [
-    { header: "Polst", cell: (row) => <div><p className="font-display font-semibold text-text-primary">{row.question}</p><p className="mt-0.5 text-xs text-text-secondary">{row.optionA} vs {row.optionB}</p></div> },
-    { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-    { header: "Votes", align: "right", cell: (row) => formatNumber(row.responses) },
-    { header: "", align: "right", cell: (row) => <div className="flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setSharePolst(row)}>Distribute</Button><Button variant="secondary" size="sm" onClick={() => setQrTarget({ name: row.question, id: row.id, kind: "p" })}>QR code</Button></div> },
-  ];
-  const campaignColumns: Array<DataColumn<(typeof CAMPAIGNS)[number]>> = [
-    { header: "Campaign", cell: (row) => <div><p className="font-display font-semibold text-text-primary">{row.name}</p><p className="mt-0.5 text-xs text-text-secondary">{row.polsts} Polsts</p></div> },
-    { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-    { header: "Voters", align: "right", cell: (row) => formatNumber(row.responses) },
-    { header: "", align: "right", cell: (row) => <div className="flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setEmbedOpen(true)}>Share / embed</Button><Button variant="secondary" size="sm" onClick={() => setQrTarget({ name: row.name, id: row.id, kind: "campaign" })}>QR code</Button></div> },
+  const toast = useToast();
+  const { campaigns, polsts, sources, addSource, assignSource, campaignById, polstById } =
+    useWorkspace();
+  const [addOpen, setAddOpen] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<Source | null>(null);
+  const [qrTarget, setQrTarget] = useState<{ source: Source; linked: LinkedMeta } | null>(null);
+
+  const metaFor = (s: Source): LinkedMeta | null => {
+    if (!s.linked) return null;
+    if (s.linked.type === "campaign") {
+      const c = campaignById(s.linked.id);
+      return c
+        ? { type: "campaign", id: c.id, name: c.name, status: c.status, to: `/campaigns/${c.id}` }
+        : null;
+    }
+    const p = polstById(s.linked.id);
+    return p
+      ? { type: "polst", id: p.id, name: p.question, status: p.status, to: `/polsts/${p.id}` }
+      : null;
+  };
+
+  /* Worst completion first (the eroding source Home points at), then the
+     silent sources — newest on top so a just-created one is visible. */
+  const rows = useMemo(() => {
+    const measured = sources
+      .filter((s) => s.completionRate !== null)
+      .sort((a, b) => a.completionRate! - b.completionRate!);
+    const silent = sources
+      .filter((s) => s.completionRate === null)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...measured, ...silent];
+  }, [sources]);
+
+  const window30 = workspaceWindow("30D");
+  const votersDelta = window30.prev ? windowDelta(window30.voters, window30.prev.voters) : null;
+  const activeCount = sources.filter((s) => {
+    const m = metaFor(s);
+    return m !== null && LIVE_STATUSES.includes(m.status);
+  }).length;
+  const unassignedCount = sources.filter((s) => !s.linked).length;
+  /* Single-question Polsts complete by definition (100%), so only sources
+     feeding multi-question campaigns can be ranked on completion. */
+  const rankable = rows.filter(
+    (s) => s.completionRate !== null && s.linked?.type === "campaign",
+  );
+  const worst = rankable[0];
+  const best = rankable[rankable.length - 1];
+  const completionScope = `${METRIC_INFO.completionRate} Ranked across campaign sources — a single-question Polst always completes.`;
+
+  const columns: Array<DataColumn<Source>> = [
+    {
+      header: "Source",
+      cell: (s) => (
+        <div className="min-w-0">
+          <p className="font-display font-semibold text-text-primary">{s.name}</p>
+          {s.placement ? (
+            <p className="mt-0.5 text-xs text-text-secondary">{s.placement}</p>
+          ) : null}
+        </div>
+      ),
+    },
+    { header: "Kind", cell: (s) => <Chip>{s.kind}</Chip> },
+    { header: "Channel", cell: (s) => <span className="text-text-secondary">{s.channel}</span> },
+    {
+      header: "Linked to",
+      cell: (s) => {
+        const m = metaFor(s);
+        return m ? (
+          <span className="block min-w-0">
+            <Link to={m.to} className="block truncate text-text-primary hover:text-text-accent">
+              {m.name}
+            </Link>
+            <span className="block text-xs text-text-tertiary">
+              {m.type === "campaign" ? "Campaign" : "Polst"}
+            </span>
+          </span>
+        ) : (
+          <span className="text-text-tertiary">Unassigned</span>
+        );
+      },
+    },
+    {
+      header: "Voters",
+      align: "right",
+      cell: (s) => (
+        <span className="tabular-nums">{s.voters > 0 ? fmtInt(s.voters) : "—"}</span>
+      ),
+    },
+    {
+      header: "Completion",
+      align: "right",
+      cell: (s) => (
+        <span className="tabular-nums">
+          {s.completionRate !== null ? fmtPct(s.completionRate, 0) : "—"}
+        </span>
+      ),
+    },
+    {
+      header: "Last activity",
+      cell: (s) => (
+        <span className="text-text-secondary">
+          {s.lastActivity ? relativeToToday(s.lastActivity) : "—"}
+        </span>
+      ),
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (s) =>
+        s.linked ? null : (
+          <Button variant="secondary" size="sm" onClick={() => setAssignTarget(s)}>
+            Assign
+          </Button>
+        ),
+    },
   ];
 
+  const qrSources = sources.filter((s) => s.kind === "QR code");
+  const liveMeta = (s: Source) => {
+    const m = metaFor(s);
+    return m && LIVE_STATUSES.includes(m.status) ? m : null;
+  };
+  const linkAssets = sources.filter(
+    (s) => (s.kind === "Share link" || s.kind === "Tracked link") && liveMeta(s),
+  );
+  const embedAssets = sources.filter((s) => s.kind === "Embed" && liveMeta(s));
+  const klaviyo = INTEGRATIONS.find((i) => i.id === "int-klaviyo");
+
   return (
-    <DashboardPage>
-      <PageTabs tabs={TABS} active={active} onChange={setActive} />
-      {active === "Polsts" ? <DashboardCard padded={false}><DataTable rows={SINGLE_POLSTS.filter((polst) => polst.status !== "Draft" && polst.status !== "Archived")} columns={polstColumns} /></DashboardCard> : null}
-      {active === "Campaigns" ? <DashboardCard padded={false}><DataTable rows={CAMPAIGNS} columns={campaignColumns} /></DashboardCard> : null}
-      {active === "Embed code" ? (
-        <>
-          <DashboardCard title="Public campaign link">
-            <div className="flex items-center gap-2 rounded-md bg-surface-subtle p-2 pl-3">
-              <p className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary">{CAMPAIGN_SHARE_URL}</p>
-              <Button variant="secondary" size="sm">Copy link</Button>
-            </div>
-          </DashboardCard>
-          <SectionGrid>
-            <div className="lg:col-span-6">
-              <SnippetCard
-                title="iframe embed"
-                description="Drops into any page. The widget adapts to the container width (minimum 320px)."
-                code={EMBED_IFRAME}
-              />
-            </div>
-            <div className="lg:col-span-6">
-              <SnippetCard
-                title="JavaScript embed"
-                description="For sites that restrict iframes through their content security policy."
-                code={EMBED_SCRIPT}
-              />
-            </div>
-          </SectionGrid>
-        </>
-      ) : null}
-      <SocialShareModal open={Boolean(sharePolst)} onClose={() => setSharePolst(null)} objectName={sharePolst?.question ?? "this Polst"} />
-      <QrCodeModal open={Boolean(qrTarget)} onClose={() => setQrTarget(null)} objectName={qrTarget?.name ?? "this item"} url={`https://polst.app/${qrTarget?.kind ?? "p"}/${qrTarget?.id ?? "item"}?utm_source=qr`} />
-      <Modal open={embedOpen} onClose={() => setEmbedOpen(false)} label="Share and embed campaign" title="Share / embed campaign">
-        <div className="space-y-4 p-4"><SnippetCard title="iframe embed" code={EMBED_IFRAME} /><SnippetCard title="JavaScript embed" code={EMBED_SCRIPT} /></div>
-      </Modal>
+    <DashboardPage
+      actions={
+        <Button onClick={() => setAddOpen(true)}>
+          <Icon name="add" size={18} />
+          Add source
+        </Button>
+      }
+    >
+      <SectionGrid>
+        <StatTile
+          className="lg:col-span-3"
+          label="Active sources"
+          value={fmtInt(activeCount)}
+          detail={unassignedCount > 0 ? `${fmtInt(unassignedCount)} unassigned` : undefined}
+          info="Sources assigned to a campaign or Polst that is live or scheduled."
+        />
+        <StatTile
+          className="lg:col-span-3"
+          label="Voters · last 30 days"
+          value={fmtInt(window30.voters)}
+          detail={
+            votersDelta === null || !window30.compareLabel
+              ? window30.label
+              : `${Math.abs(votersDelta)}% ${window30.compareLabel}`
+          }
+          trend={
+            votersDelta === null || votersDelta === 0 ? "flat" : votersDelta > 0 ? "up" : "down"
+          }
+          info={METRIC_INFO.voters}
+        />
+        <StatTile
+          className="lg:col-span-3"
+          label="Best completion"
+          value={best?.completionRate != null ? fmtPct(best.completionRate, 0) : "—"}
+          detail={best?.name}
+          info={completionScope}
+        />
+        <StatTile
+          className="lg:col-span-3"
+          label="Lowest completion"
+          value={worst?.completionRate != null ? fmtPct(worst.completionRate, 0) : "—"}
+          detail={worst?.name}
+          info={completionScope}
+        />
+      </SectionGrid>
+
+      <DashboardCard padded={false}>
+        <DataTable
+          rows={rows}
+          columns={columns}
+          emptyLabel="No sources yet — add one to start attributing voters"
+        />
+      </DashboardCard>
+
+      <DashboardCard title="QR codes">
+        {qrSources.length ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {qrSources.map((s) => {
+              const m = metaFor(s);
+              return (
+                <QrTile
+                  key={s.id}
+                  source={s}
+                  linked={m}
+                  onOpen={m ? () => setQrTarget({ source: s, linked: m }) : undefined}
+                  onAssign={() => setAssignTarget(s)}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState
+            icon="qr_code_2"
+            title="No QR codes yet"
+            hint="Print one per placement so every scan stays attributed."
+            action={{ label: "Add source", onClick: () => setAddOpen(true) }}
+          />
+        )}
+      </DashboardCard>
+
+      <DashboardCard
+        title="Links & embeds"
+        description="Copy-ready assets for runs that are live or scheduled."
+      >
+        {linkAssets.length + embedAssets.length ? (
+          <div className="space-y-3">
+            {linkAssets.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {linkAssets.map((s) => {
+                  const m = liveMeta(s)!;
+                  return (
+                    <SnippetCard
+                      key={s.id}
+                      title={s.name}
+                      description={`Feeds ${m.name}`}
+                      code={attributedUrl(m, s.id)}
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
+            {embedAssets.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {embedAssets.map((s) => {
+                  const m = liveMeta(s)!;
+                  return (
+                    <SnippetCard
+                      key={s.id}
+                      title={s.name}
+                      description={`Feeds ${m.name}`}
+                      code={embedIframe(m.id)}
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyState
+            icon="link"
+            title="No live links yet"
+            hint="Share links and embeds appear here while their campaign or Polst is live."
+            action={{ label: "Add source", onClick: () => setAddOpen(true) }}
+          />
+        )}
+      </DashboardCard>
+
+      <DashboardCard title="Email & influencer platforms">
+        <div className="grid gap-3 lg:grid-cols-2">
+          {klaviyo ? <ConnectCard integration={klaviyo} /> : null}
+          <LockedCard
+            title="Influencer tracking"
+            chip="Not connected"
+            description="Creator benchmarks and story views arrive once a creator platform is connected."
+          />
+        </div>
+      </DashboardCard>
+
+      <AddSourceModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        targets={targetOptions(campaigns, polsts)}
+        onCreate={(input) => {
+          addSource(input);
+          setAddOpen(false);
+          toast(`${input.name} added`);
+        }}
+      />
+      <AssignSourceModal
+        source={assignTarget}
+        onClose={() => setAssignTarget(null)}
+        targets={targetOptions(campaigns, polsts)}
+        onAssign={(source, linked, targetName) => {
+          assignSource(source.id, linked);
+          setAssignTarget(null);
+          toast(`${source.name} assigned to ${targetName}`);
+        }}
+      />
+      <QrCodeModal
+        open={Boolean(qrTarget)}
+        onClose={() => setQrTarget(null)}
+        objectName={qrTarget?.linked.name ?? "this source"}
+        url={qrTarget ? attributedUrl(qrTarget.linked, qrTarget.source.id) : ""}
+      />
     </DashboardPage>
   );
 }
 
-/* ── QR codes ────────────────────────────────────────────────────── */
+/* ── QR tile ─────────────────────────────────────────────────────── */
 
-/** One QR asset: a code placeholder beside its identity and funnel numbers.
- *  Downloads only raise a toast in this mockup. */
-function QrCard({ qr }: { qr: QrAsset }) {
-  const toast = useToast();
+function QrTile({
+  source,
+  linked,
+  onOpen,
+  onAssign,
+}: {
+  source: Source;
+  linked: LinkedMeta | null;
+  onOpen?: () => void;
+  onAssign: () => void;
+}) {
   return (
-    <DashboardCard className="lg:col-span-4">
-      <div className="flex items-start gap-4">
-        <span className="grid h-20 w-20 shrink-0 place-items-center rounded-md border border-border-default bg-surface-raised text-icon-primary">
-          <Icon name="qr_code_2" size={56} />
+    <div className="flex flex-col rounded-md border border-border-default p-4">
+      <div className="flex items-start gap-3">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-primary">
+          <Icon name="qr_code_2" size={32} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-display text-sm font-semibold text-text-primary">{qr.name}</p>
-            <StatusBadge status={qr.status} />
-          </div>
-          <p className="mt-0.5 text-xs text-text-secondary">{qr.placement}</p>
-          <p className="mt-0.5 truncate text-xs text-text-secondary">
-            {qr.linkedObject === "—" ? (
-              <span className="text-text-tertiary">Feeds nothing — scans go unattributed</span>
+          <p className="font-display text-sm font-semibold text-text-primary">{source.name}</p>
+          {source.placement ? (
+            <p className="mt-0.5 text-xs text-text-secondary">{source.placement}</p>
+          ) : null}
+          <p className="mt-0.5 truncate text-xs">
+            {linked ? (
+              <Link to={linked.to} className="text-text-secondary hover:text-text-accent">
+                Feeds {linked.name}
+              </Link>
             ) : (
-              `Feeds ${qr.linkedObject}`
+              <span className="text-text-tertiary">Unassigned</span>
             )}
           </p>
         </div>
       </div>
-      <dl className="mt-4 grid grid-cols-3 gap-2 rounded-md bg-surface-subtle p-3 text-center">
+      <dl className="mt-3 grid grid-cols-3 gap-2 rounded-md bg-surface-subtle p-2.5 text-center">
         {(
           [
-            ["Scans", qr.scans > 0 ? formatNumber(qr.scans) : "—"],
-            ["Responses", qr.responses > 0 ? formatNumber(qr.responses) : "—"],
-            ["Completion", qr.completion],
+            ["Scans", source.views > 0 ? fmtInt(source.views) : "—"],
+            ["Voters", source.voters > 0 ? fmtInt(source.voters) : "—"],
+            ["Completion", source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—"],
           ] as const
         ).map(([label, value]) => (
           <div key={label}>
@@ -389,387 +403,245 @@ function QrCard({ qr }: { qr: QrAsset }) {
           </div>
         ))}
       </dl>
-      <div className="mt-4 flex gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => toast(`${qr.name} downloaded as PNG`)}
-        >
-          <Icon name="download" size={16} />
-          PNG
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => toast(`${qr.name} downloaded as SVG`)}
-        >
-          <Icon name="download" size={16} />
-          SVG
-        </Button>
+      <div className="mt-3 flex gap-2">
+        {onOpen ? (
+          <Button variant="secondary" size="sm" onClick={onOpen}>
+            <Icon name="qr_code_2" size={18} />
+            QR code
+          </Button>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={onAssign}>
+            Assign
+          </Button>
+        )}
       </div>
-    </DashboardCard>
+    </div>
   );
 }
 
-function QrCodesSection() {
-  return (
-    <>
-      <SectionGrid>
-        {QR_CODES.map((qr) => (
-          <QrCard key={qr.id} qr={qr} />
-        ))}
-      </SectionGrid>
-      <DashboardCard title="Why multiple QR codes?">
-        <p className="max-w-3xl text-sm leading-6 text-text-secondary">
-          Print a different code for each placement — packaging, booth banner,
-          retail poster — and every scan stays attributed to where it happened.
-          When the booth outperforms the poster, you'll know, not guess.
-        </p>
-      </DashboardCard>
-    </>
-  );
+/* ── Assign / create targets ─────────────────────────────────────── */
+
+type TargetOption = SelectOption & { linked: NonNullable<Source["linked"]> };
+
+/** Campaigns and Polsts a source can feed — nothing ended or archived. */
+function targetOptions(
+  campaigns: Array<{ id: string; name: string; status: Status }>,
+  polsts: Array<{ id: string; question: string; status: Status }>,
+): TargetOption[] {
+  const open = (status: Status) => status !== "Ended" && status !== "Archived";
+  return [
+    ...campaigns
+      .filter((c) => open(c.status))
+      .map((c) => ({
+        value: `campaign:${c.id}`,
+        label: c.name,
+        icon: "campaign",
+        linked: { type: "campaign" as const, id: c.id },
+      })),
+    ...polsts
+      .filter((p) => open(p.status))
+      .map((p) => ({
+        value: `polst:${p.id}`,
+        label: p.question,
+        icon: "ballot",
+        linked: { type: "polst" as const, id: p.id },
+      })),
+  ];
 }
 
-/* ── Assign sources ──────────────────────────────────────────────── */
+/* ── Add source ──────────────────────────────────────────────────── */
 
-function AssignSourcesModal({
+function AddSourceModal({
   open,
   onClose,
+  targets,
+  onCreate,
 }: {
   open: boolean;
   onClose: () => void;
+  targets: TargetOption[];
+  onCreate: (input: {
+    name: string;
+    kind: Source["kind"];
+    channel: Channel;
+    linked?: Source["linked"];
+  }) => void;
 }) {
-  const columns: Array<DataColumn<DistributionSource>> = [
-    {
-      header: "",
-      className: "w-10",
-      cell: (row) => <Checkbox label={`Select ${row.name}`} />,
-    },
-    ...sourceColumns.slice(0, 4),
-    { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  ];
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState("");
+  const [channel, setChannel] = useState("");
+  const [target, setTarget] = useState("");
+
+  const reset = () => {
+    setName("");
+    setKind("");
+    setChannel("");
+    setTarget("");
+  };
+  const close = () => {
+    reset();
+    onClose();
+  };
+  const canSubmit = name.trim().length > 0 && kind !== "" && channel !== "";
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      label="Assign sources"
-      title="Assign sources"
-      className="lg:max-w-3xl"
+      onClose={close}
+      label="Add source"
+      title="Add source"
       footer={
         <div className="flex justify-end gap-2 p-4">
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={close}>
             Cancel
           </Button>
-          <Button onClick={onClose}>Save selection</Button>
+          <Button
+            disabled={!canSubmit}
+            onClick={() => {
+              onCreate({
+                name: name.trim(),
+                kind: kind as Source["kind"],
+                channel: channel as Channel,
+                linked: targets.find((t) => t.value === target)?.linked ?? null,
+              });
+              reset();
+            }}
+          >
+            Add source
+          </Button>
         </div>
       }
     >
-      <div className="p-4">
-        <p className="mb-3 text-sm text-text-secondary">
-          Attach existing tracked sources to a campaign so every response it
-          collects is attributed from the first scan or click.
-        </p>
-        <div className="overflow-hidden rounded-md border border-border-default">
-          <DataTable rows={DISTRIBUTION_SOURCES} columns={columns} />
+      <div className="space-y-4 p-4">
+        <Field label="Name">
+          {(id) => (
+            <TextInput
+              id={id}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="QR — Farmers market booth"
+            />
+          )}
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Kind">
+            {(id) => (
+              <SelectMenu
+                id={id}
+                label="Kind"
+                options={KIND_OPTIONS.map((k) => ({ value: k, label: k }))}
+                value={kind}
+                onValueChange={setKind}
+              />
+            )}
+          </Field>
+          <Field label="Channel">
+            {(id) => (
+              <SelectMenu
+                id={id}
+                label="Channel"
+                options={CHANNEL_OPTIONS.map((c) => ({ value: c, label: c }))}
+                value={channel}
+                onValueChange={setChannel}
+              />
+            )}
+          </Field>
         </div>
+        <Field
+          label="Link to"
+          helper={
+            <p className="text-xs leading-4 text-text-secondary">
+              Unassigned sources collect without attribution — you can assign one later.
+            </p>
+          }
+        >
+          {(id) => (
+            <SelectMenu
+              id={id}
+              label="Link to"
+              placeholder="Not linked yet"
+              options={targets}
+              value={target}
+              onValueChange={setTarget}
+            />
+          )}
+        </Field>
       </div>
     </Modal>
   );
 }
 
-/* ── Channel detail ──────────────────────────────────────────────── */
+/* ── Assign an existing source ───────────────────────────────────── */
 
-const emailColumns: Array<DataColumn<EmailPerformance>> = [
-  {
-    header: "Email type",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.type}</p>
-    ),
-  },
-  {
-    header: "Audience",
-    cell: (row) => <span className="text-text-secondary">{row.audience}</span>,
-  },
-  {
-    header: "Sends",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.sends)}</span>,
-  },
-  {
-    header: "Open rate",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.openRate}</span>,
-  },
-  {
-    header: "CTR",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.ctr}</span>,
-  },
-  {
-    header: "Click-to-vote",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.clickToVote}</span>,
-  },
-  {
-    header: "Unsubscribe",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.unsub}</span>,
-  },
-];
+function AssignSourceModal({
+  source,
+  onClose,
+  targets,
+  onAssign,
+}: {
+  source: Source | null;
+  onClose: () => void;
+  targets: TargetOption[];
+  onAssign: (
+    source: Source,
+    linked: NonNullable<Source["linked"]>,
+    targetName: string,
+  ) => void;
+}) {
+  const [target, setTarget] = useState("");
+  const close = () => {
+    setTarget("");
+    onClose();
+  };
+  const chosen = targets.find((t) => t.value === target);
 
-const SEND_WINDOWS = ["Wed 6–8pm", "Sun 11am–1pm", "Thu 7–9pm"];
-
-/** Email gets the full treatment — the template every channel detail
- *  will grow into (paid, QR, embeds reuse this shape). */
-function EmailChannelSections() {
   return (
-    <>
-      <StatsStrip stats={EMAIL_STATS} xTicks={LIST_GROWTH.xTicks} />
-      <DashboardCard title="Performance by email type" padded={false}>
-        <DataTable rows={EMAIL_PERFORMANCE} columns={emailColumns} />
-      </DashboardCard>
-      <SectionGrid>
-        <DashboardCard
-          title="List growth"
-          description="Subscribers in thousands, trailing 12 weeks vs the 12 before."
-          className="lg:col-span-8"
-        >
-          <TrendChart
-            series={LIST_GROWTH.series}
-            previous={LIST_GROWTH.previous}
-            xTicks={LIST_GROWTH.xTicks}
-            format={(v) => `${v.toFixed(1)}k`}
-          />
-        </DashboardCard>
-        <DashboardCard title="Best send windows" className="lg:col-span-4">
-          <ul className="space-y-2">
-            {SEND_WINDOWS.map((window, index) => (
-              <li
-                key={window}
-                className="flex items-center gap-3 rounded-md bg-surface-subtle px-3 py-2.5"
-              >
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-accent-soft font-display text-xs font-semibold text-accent-default">
-                  {index + 1}
-                </span>
-                <span className="font-display text-sm font-semibold text-text-primary">
-                  {window}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </DashboardCard>
-      </SectionGrid>
-    </>
-  );
-}
-
-export function ChannelDetailPage() {
-  const { id } = useParams();
-  const channel = CHANNELS.find((c) => c.id === id) ?? CHANNELS[0];
-  const trend = CHANNEL_TRENDS[channel.id];
-  const sources = DISTRIBUTION_SOURCES.filter((s) => s.channel === channel.name);
-  return (
-    <DashboardPage
-      actions={<Button variant="secondary">Create source</Button>}
-    >
-      <SectionGrid>
-        <StatTile
-          className="lg:col-span-3"
-          label="Responses"
-          value={formatNumber(channel.responses)}
-          detail={`across ${channel.campaigns} campaign${channel.campaigns === 1 ? "" : "s"}`}
-        />
-        <StatTile className="lg:col-span-3" label="Completion" value={channel.completion} />
-        <StatTile className="lg:col-span-3" label="Scope" value={channel.scope} />
-        <StatTile className="lg:col-span-3" label="Status" value={channel.status} />
-      </SectionGrid>
-
-      {channel.id === "email" ? <EmailChannelSections /> : null}
-
-      {trend ? (
-        <DashboardCard
-          title="Responses"
-          description="Daily responses through this channel, vs the previous two weeks."
-        >
-          <TrendChart
-            series={trend.series}
-            previous={trend.previous}
-            xTicks={["14 days ago", "7 days ago", "Today"]}
-          />
-        </DashboardCard>
-      ) : null}
-
-      <DashboardCard title="Sources in this channel" padded={false}>
-        <DataTable
-          rows={sources}
-          columns={sourceColumns}
-          emptyLabel="No sources yet — create one to start attributing responses"
-        />
-      </DashboardCard>
-    </DashboardPage>
-  );
-}
-
-/* ── Creator detail ──────────────────────────────────────────────── */
-
-const creatorLinkColumns: Array<DataColumn<Creator["links"][number]>> = [
-  {
-    header: "Link",
-    cell: (row) => (
-      <p className="font-display font-semibold text-text-primary">{row.name}</p>
-    ),
-  },
-  {
-    header: "Feeds",
-    cell: (row) =>
-      row.linkedObject === "—" ? (
-        <span className="text-text-tertiary">Nothing — clicks go unattributed</span>
-      ) : (
-        <span className="text-text-secondary">{row.linkedObject}</span>
-      ),
-  },
-  {
-    header: "Clicks",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.clicks)}</span>,
-  },
-  {
-    header: "Responses",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.responses)}</span>,
-  },
-  {
-    header: "CTR",
-    align: "right",
-    cell: (row) => <span className="tabular-nums">{row.ctr}</span>,
-  },
-];
-
-/** Story views come from screenshots, not APIs — the one number in the
- *  product a human types in. */
-function StoryViewsCard({ creator }: { creator: Creator }) {
-  const toast = useToast();
-  const [views, setViews] = useState(String(creator.storyViews || ""));
-  return (
-    <DashboardCard title="Story views">
-      <Field label="Reported by creator" helper="Manual entry — story analytics have no API.">
-        {(fieldId) => (
-          <div className="flex gap-2">
-            <TextInput
-              id={fieldId}
-              type="number"
-              inputMode="numeric"
-              value={views}
-              onChange={(e) => setViews(e.target.value)}
-              placeholder="0"
-            />
-            <Button
-              variant="secondary"
-              onClick={() => toast("Story views updated")}
-            >
-              Save
-            </Button>
-          </div>
-        )}
-      </Field>
-    </DashboardCard>
-  );
-}
-
-export function CreatorDetailPage() {
-  const { id } = useParams();
-  const toast = useToast();
-  const creator = CREATORS.find((c) => c.id === id) ?? CREATORS[0];
-  const benchmark = TIER_BENCHMARKS.find((t) => t.tier === creator.tier);
-  return (
-    <DashboardPage
-      actions={
-        <Button
-          variant="secondary"
-          onClick={() => toast("Tracked link copied")}
-        >
-          <Icon name="link" size={18} />
-          Copy tracked link
-        </Button>
+    <Modal
+      open={Boolean(source)}
+      onClose={close}
+      label="Assign source"
+      title="Assign source"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={close}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!chosen}
+            onClick={() => {
+              if (source && chosen) {
+                onAssign(source, chosen.linked, chosen.label);
+                setTarget("");
+              }
+            }}
+          >
+            Assign
+          </Button>
+        </div>
       }
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="grid h-11 w-11 place-items-center rounded-pill bg-avatar-bg font-display text-sm font-semibold text-text-inverse">
-          {creator.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-text-primary">
-            {creator.handle}
-            <span className="ml-2 font-normal text-text-secondary">
-              {creator.followers} followers
-            </span>
-          </p>
-          <p className="mt-0.5 text-xs text-text-secondary">{creator.campaign}</p>
-        </div>
-        <span className="rounded-pill bg-surface-subtle px-2.5 py-1 font-display text-xs font-semibold text-text-secondary">
-          {creator.tier} tier
-        </span>
-        <StatusBadge status={creator.status} />
-      </div>
-
-      <SectionGrid>
-        <StatTile
-          className="lg:col-span-3"
-          label="Clicks"
-          value={creator.clicks > 0 ? formatNumber(creator.clicks) : "—"}
-        />
-        <StatTile className="lg:col-span-3" label="CTR" value={creator.ctr} />
-        <StatTile className="lg:col-span-3" label="Effective CPC" value={creator.ecpc} />
-        <StatTile
-          className="lg:col-span-3"
-          label="Responses"
-          value={creator.responses > 0 ? formatNumber(creator.responses) : "—"}
-          detail={creator.completion === "—" ? undefined : `${creator.completion} completion`}
-        />
-      </SectionGrid>
-
-      <SectionGrid>
-        <DashboardCard
-          title="Clicks"
-          description="Weekly clicks on this creator's tracked links."
-          className="lg:col-span-8"
-        >
-          {creator.clickTrend.length > 1 ? (
-            <TrendChart
-              series={creator.clickTrend}
-              xTicks={["12 weeks ago", "6 weeks ago", "This week"]}
-            />
-          ) : (
-            <p className="py-12 text-center text-sm text-text-secondary">
-              No clicks yet — share the tracked link to start measuring.
+      <div className="space-y-4 p-4">
+        <p className="truncate text-sm text-text-secondary">{source?.name}</p>
+        <Field
+          label="Assign to"
+          helper={
+            <p className="text-xs leading-4 text-text-secondary">
+              From the first scan or click, every voter it collects is attributed here.
             </p>
+          }
+        >
+          {(id) => (
+            <SelectMenu
+              id={id}
+              label="Assign to"
+              placeholder="Pick a campaign or Polst"
+              options={targets}
+              value={target}
+              onValueChange={setTarget}
+            />
           )}
-        </DashboardCard>
-        <div className="space-y-4 lg:col-span-4">
-          <StoryViewsCard creator={creator} />
-          {benchmark ? (
-            <DashboardCard title={`Vs the ${creator.tier} tier`}>
-              <DetailList
-                items={[
-                  ["This creator CTR", creator.ctr],
-                  ["Tier average CTR", benchmark.avgCtr],
-                  ["This creator eff. CPC", creator.ecpc],
-                  ["Tier average eff. CPC", benchmark.avgEcpc],
-                ]}
-              />
-            </DashboardCard>
-          ) : null}
-        </div>
-      </SectionGrid>
-
-      <DashboardCard title="Tracked links" padded={false}>
-        <DataTable
-          rows={creator.links}
-          columns={creatorLinkColumns}
-          emptyLabel="No tracked links yet"
-        />
-      </DashboardCard>
-    </DashboardPage>
+        </Field>
+      </div>
+    </Modal>
   );
 }

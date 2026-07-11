@@ -10,16 +10,15 @@ import { voteShares, type PollOption } from "@/lib/poll";
 import { SelectMenu, TextInput } from "@/components/Field";
 import { HeaderActions } from "./Shell";
 import { STATUS_TONE, type StatusTone } from "@/lib/canon";
-import type { AnalyticsFilters, AnalyticsRange } from "@/lib/analytics";
+import type { AnalyticsFilters } from "@/lib/analytics";
 import {
   formatNumber,
-  type Campaign,
-  type Cohort,
   type DecisionSignal,
   type Integration,
   type Split,
   type Stat,
   type Status,
+  type WindowRange,
 } from "@/lib/workspace";
 
 /* ══════════════════════════════════════════════════════════════════
@@ -240,7 +239,7 @@ export function DecisionBrief({
   summary: string;
   /** What could invalidate the read. */
   caveat?: string;
-  /** The numbers behind the call: responses vs target, sources, lead. */
+  /** The numbers behind the call: voters vs target, sources, lead. */
   evidence?: Array<{ label: string; value: string; info?: string }>;
   primary?: Cta;
   secondary?: Cta;
@@ -1147,46 +1146,6 @@ export function PollThumb({ options }: { options: [PollOption, PollOption] }) {
   );
 }
 
-/** A dot separator between inline stats. */
-const StatDot = () => (
-  <span aria-hidden className="text-border-strong">
-    ·
-  </span>
-);
-
-/** An active campaign summary for Home: signal, response progress, and live Polsts. */
-export function CampaignRow({ campaign }: { campaign: Campaign }) {
-  return (
-    <Link
-      to={`/campaigns/${campaign.id}`}
-      className="block rounded-md p-2 transition-colors hover:bg-surface-subtle"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
-          {campaign.name}
-        </p>
-        <SignalBadge signal={campaign.signal} />
-      </div>
-      <p className="mt-0.5 text-xs text-text-secondary">{campaign.dates}</p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-text-secondary">
-        <span className="inline-flex items-center gap-1">
-          <span className="font-semibold tabular-nums text-text-primary">
-            {formatNumber(campaign.responses)} / {formatNumber(campaign.target)}
-          </span>
-          responses
-        </span>
-        <StatDot />
-        <span>
-          <span className="font-semibold tabular-nums text-text-primary">
-            {campaign.pollsActive}
-          </span>{" "}
-          Polsts live
-        </span>
-      </div>
-    </Link>
-  );
-}
-
 /* ── Recommendations & setup (Home) ──────────────────────────────── */
 
 /** A checkbox for a setup step: solid check when done, dashed ring when not. */
@@ -1636,71 +1595,6 @@ export function SplitBar({ split, className }: { split: Split; className?: strin
   );
 }
 
-/* ── Cohort grid ─────────────────────────────────────────────────── */
-
-/** Retention triangle: weekly cohorts down, return checkpoints across,
- *  cells shaded by percent returning. Cells the cohort hasn't reached yet
- *  render as quiet dashes — maturing, not missing.
- *  NOTE (page agent): this component's workspace data source was removed as
- *  fabricated — Analytics.tsx currently synthesizes `cohorts` locally. When
- *  the Retention page is rebuilt without it, delete CohortGrid (and the
- *  `Cohort` type import above) with it. */
-export function CohortGrid({ cohorts, className }: { cohorts: Cohort[]; className?: string }) {
-  const columns = ["Day 1", "Day 7", "Day 14", "Day 30"] as const;
-  const keys = ["d1", "d7", "d14", "d30"] as const;
-  return (
-    <div className={className}>
-      <div className="grid grid-cols-[minmax(76px,1fr)_minmax(76px,1fr)_repeat(4,minmax(0,1.4fr))] gap-1">
-        <span className="pb-1 text-xs font-medium text-text-secondary">Cohort</span>
-        <span className="pb-1 text-right text-xs font-medium tabular-nums text-text-secondary">
-          Voters
-        </span>
-        {columns.map((col) => (
-          <span key={col} className="pb-1 text-center text-xs font-medium text-text-secondary">
-            {col}
-          </span>
-        ))}
-        {cohorts.map((cohort) => (
-          <div key={cohort.label} className="contents">
-            <span className="flex h-9 items-center text-sm font-semibold text-text-primary">
-              {cohort.label}
-            </span>
-            <span className="flex h-9 items-center justify-end text-sm tabular-nums text-text-secondary">
-              {formatNumber(cohort.size)}
-            </span>
-            {keys.map((key, i) => {
-              const value = cohort[key];
-              return value === null ? (
-                <span
-                  key={key}
-                  className="grid h-9 place-items-center rounded-sm bg-surface-subtle text-sm text-text-tertiary"
-                  title={`${cohort.label} · ${columns[i]}: not reached yet`}
-                >
-                  —
-                </span>
-              ) : (
-                <span
-                  key={key}
-                  tabIndex={0}
-                  role="img"
-                  aria-label={`${cohort.label} cohort, ${columns[i]}: ${value}% returned`}
-                  title={`${cohort.label} · ${columns[i]}: ${value}%`}
-                  className="grid h-9 place-items-center rounded-sm text-sm font-semibold tabular-nums text-text-primary transition-[filter] duration-150 hover:brightness-90 focus-visible:brightness-90"
-                  style={{
-                    backgroundColor: `color-mix(in srgb, var(--accent-default) ${Math.round(value * 0.65)}%, var(--surface-subtle))`,
-                  }}
-                >
-                  {value}%
-                </span>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ── Time heatmap ────────────────────────────────────────────────── */
 
 /** Day × time-of-day density in a single hue — accent strength is the
@@ -1728,8 +1622,8 @@ export function TimeHeatmap({
                 key={b}
                 tabIndex={0}
                 role="img"
-                aria-label={`${days[d]} ${buckets[b]} — ${formatNumber(value)} responses`}
-                title={`${days[d]} ${buckets[b]} — ${formatNumber(value)} responses`}
+                aria-label={`${days[d]} ${buckets[b]} — ${formatNumber(value)} votes`}
+                title={`${days[d]} ${buckets[b]} — ${formatNumber(value)} votes`}
                 className="h-6 min-w-0 flex-1 rounded-sm transition-[filter] duration-150 hover:brightness-90 focus-visible:brightness-90"
                 style={{
                   backgroundColor: `color-mix(in srgb, var(--accent-default) ${Math.round((value / max) * 82)}%, var(--surface-subtle))`,
@@ -1851,7 +1745,7 @@ export function ConnectCard({ integration }: { integration: Integration }) {
 
 /* ── Filter bar ──────────────────────────────────────────────────── */
 
-export type DateRangeValue = AnalyticsRange;
+export type DateRangeValue = WindowRange;
 
 const DATE_RANGE_OPTIONS: Array<{ value: DateRangeValue; label: string }> = [
   { value: "7D", label: "Last 7 days" },
@@ -1887,14 +1781,12 @@ export function FilterBar({
   onChange,
   verticals,
   channels,
-  utms,
   className,
 }: {
   filters: AnalyticsFilters;
   onChange: (next: AnalyticsFilters) => void;
   verticals?: string[];
   channels?: string[];
-  utms?: string[];
   className?: string;
 }) {
   return (
@@ -1918,15 +1810,6 @@ export function FilterBar({
           value={filters.vertical}
           onValueChange={(vertical) => onChange({ ...filters, vertical })}
           options={["All verticals", ...verticals].map((name) => ({ value: name, label: name }))}
-          compact
-        />
-      ) : null}
-      {utms?.length ? (
-        <SelectMenu
-          label="UTM group"
-          value={filters.utm}
-          onValueChange={(utm) => onChange({ ...filters, utm })}
-          options={["All UTM groups", ...utms].map((name) => ({ value: name, label: name }))}
           align="end"
           compact
         />

@@ -20,7 +20,7 @@ export function SocialShareModal({
   return (
     <Modal open={open} onClose={onClose} label="Distribute to channels" title="Distribute to channels">
       <div className="space-y-2 p-4">
-        <p className="pb-1 text-sm text-text-secondary">Share {objectName} through a social channel.</p>
+        <p className="truncate pb-1 text-sm text-text-secondary">{objectName}</p>
         {SOCIAL_CHANNELS.map((channel) => (
           <Button
             key={channel}
