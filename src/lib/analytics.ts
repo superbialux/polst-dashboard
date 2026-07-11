@@ -100,22 +100,26 @@ function objectRows(
   }));
 }
 
-const rowsCache = new Map<WindowRange, SegmentRow[]>();
+const rowsCache = new Map<string, SegmentRow[]>();
 
-const rowsForRange = (range: WindowRange): SegmentRow[] => {
-  const hit = rowsCache.get(range);
+const rowsForRange = (range: WindowRange, offset = 0): SegmentRow[] => {
+  const key = `${range}:${offset}`;
+  const hit = rowsCache.get(key);
   if (hit) return hit;
-  const [start, end] = windowBounds(range);
+  const [start, end] = windowBounds(range, offset);
   const rows = [
     ...CAMPAIGNS.flatMap((c) => objectRows(c, "campaign", c.name, c.vertical, start, end)),
     ...SINGLE_POLSTS.flatMap((p) => objectRows(p, "polst", p.question, p.vertical, start, end)),
   ];
-  rowsCache.set(range, rows);
+  rowsCache.set(key, rows);
   return rows;
 };
 
-export function analyticsRows(filters: AnalyticsFilters): SegmentRow[] {
-  return rowsForRange(filters.range).filter(
+/** Filtered segment rows for the window; `offset: 1` yields the previous
+ *  window of equal length under the SAME channel/vertical filter, so
+ *  vs-previous deltas stay honest even on a filtered view. */
+export function analyticsRows(filters: AnalyticsFilters, offset = 0): SegmentRow[] {
+  return rowsForRange(filters.range, offset).filter(
     (row) =>
       (filters.channel === "All channels" || row.channel === filters.channel) &&
       (filters.vertical === "All verticals" || row.vertical === filters.vertical),

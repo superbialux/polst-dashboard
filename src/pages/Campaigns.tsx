@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
@@ -26,6 +26,7 @@ import {
   EmptyState,
   Funnel,
   durationEnd,
+  durationPresetFor,
   NextStepsCard,
   NotFoundCard,
   PageTabs,
@@ -35,9 +36,9 @@ import {
   SearchAndFilters,
   SectionGrid,
   SegmentedControl,
-  SignalBadge,
   SnippetCard,
   StatusBadge,
+  ThumbStrip,
   filterByStatus,
   type DataColumn,
   type DurationPreset,
@@ -63,6 +64,7 @@ import {
   embedScript,
   polstOptions,
   shareUrl,
+  verdictLabel,
   winnerLabel,
   type Campaign,
   type Channel,
@@ -108,8 +110,7 @@ const listColumns: Array<DataColumn<Campaign>> = [
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  { header: "Signal", cell: (row) => <SignalBadge signal={row.signal} /> },
-  { header: "Polsts", align: "right", cell: (row) => row.chain.length },
+  { header: "Polsts", cell: (row) => <ThumbStrip ids={row.chain.map((q) => q.id)} /> },
   {
     header: "Voters",
     align: "right",
@@ -121,6 +122,10 @@ const listColumns: Array<DataColumn<Campaign>> = [
     ),
   },
   { header: "Completion", align: "right", cell: (row) => pct(row.completed, row.voters) },
+  {
+    header: "Result so far",
+    cell: (row) => <span className="text-text-secondary">{verdictLabel(row)}</span>,
+  },
 ];
 
 export function CampaignsPage() {
@@ -492,7 +497,6 @@ export function CampaignDetailPage() {
             {campaign.name}
           </h1>
           <StatusBadge status={campaign.status} />
-          {campaign.voters > 0 ? <SignalBadge signal={campaign.signal} /> : null}
         </div>
         <PageTabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />
       </div>
@@ -579,6 +583,21 @@ const briefHeadline = (c: Campaign): string => {
   }
 };
 
+/** The brief's plain-language eyebrow: the decision state plus its evidence
+ *  volume — canon's verdict vocabulary, never a raw signal label. */
+const briefEyebrow = (c: Campaign): ReactNode => {
+  if (isReadyToDecide(c)) {
+    return (
+      <span className="text-status-success">
+        Ready to decide{c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}
+      </span>
+    );
+  }
+  return `${verdictLabel(c)} — ${fmtInt(c.voters)}${
+    c.target ? ` of ${fmtInt(c.target)}` : ""
+  } voters`;
+};
+
 function CampaignOverview({
   campaign,
   sources,
@@ -629,10 +648,7 @@ function CampaignOverview({
   return (
     <>
       <DecisionBrief
-        signal={campaign.signal}
-        signalDetail={
-          campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined
-        }
+        eyebrow={briefEyebrow(campaign)}
         headline={briefHeadline(campaign)}
         summary={campaign.summary}
         caveat={campaign.caveats[0]}
@@ -678,7 +694,9 @@ function CampaignOverview({
             : undefined
         }
       />
-      <SectionGrid>
+      {/* items-start, like this page's other grids — the journey card keeps
+          its own height instead of stretching to the right column's. */}
+      <SectionGrid className="items-start">
         <DashboardCard title="Voter journey" className="lg:col-span-6">
           <Funnel steps={funnelSteps} />
         </DashboardCard>
@@ -742,7 +760,9 @@ function LaunchChecklist({
         ? `${sources.length} ${sources.length === 1 ? "source" : "sources"} will collect voters.`
         : "Nothing collects voters until a QR code, link, or embed points at this campaign.",
       cta: {
-        label: hasSources ? "View sources" : "Add sources",
+        // "Assign" is the verb of the control this lands on (the Sources
+        // tab's "Assign source" action).
+        label: hasSources ? "View sources" : "Assign sources",
         onClick: () => onGoTo("Sources"),
       },
     },
@@ -798,38 +818,43 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
 
   return (
     <>
-      {editable ? (
-        <div className="flex justify-end">
-          <Menu
-            label="Add Polst"
-            trigger={({ toggle }) => (
-              <Button variant="secondary" onClick={toggle}>
-                <Icon name="add" size={18} />
-                Add Polst
-                <Icon name="arrow_drop_down" size={18} />
-              </Button>
-            )}
-          >
-            <MenuItem
-              icon="edit_square"
-              label="Create new Polst"
-              onClick={() => setComposerOpen(true)}
-            />
-            <MenuItem
-              icon="library_add"
-              label="Select from library"
-              onClick={() => setLibraryOpen(true)}
-            />
-          </Menu>
-        </div>
-      ) : null}
-      {campaign.chain.length > 0 ? (
-        <SectionGrid>
-          {campaign.chain.map((q, index) => {
-            const votes = campaign.votesByQuestion[index] ?? 0;
-            return (
-              <div key={q.id} className="lg:col-span-6">
-                <DashboardCard>
+      {/* Same anatomy as the Sources tab: one titled card whose header
+          action slot owns the tab's primary action — never a detached menu. */}
+      <DashboardCard
+        title="Polsts"
+        padded={campaign.chain.length > 0}
+        action={
+          editable ? (
+            <Menu
+              label="Add Polst"
+              trigger={({ toggle }) => (
+                <Button variant="secondary" size="sm" onClick={toggle}>
+                  <Icon name="add" size={18} />
+                  Add Polst
+                  <Icon name="arrow_drop_down" size={18} />
+                </Button>
+              )}
+            >
+              <MenuItem
+                icon="edit_square"
+                label="Create new Polst"
+                onClick={() => setComposerOpen(true)}
+              />
+              <MenuItem
+                icon="library_add"
+                label="Select from library"
+                onClick={() => setLibraryOpen(true)}
+              />
+            </Menu>
+          ) : null
+        }
+      >
+        {campaign.chain.length > 0 ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {campaign.chain.map((q, index) => {
+              const votes = campaign.votesByQuestion[index] ?? 0;
+              return (
+                <div key={q.id} className="rounded-md border border-border-default p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-text-secondary">
@@ -877,13 +902,11 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
                     })}
                     dense
                   />
-                </DashboardCard>
-              </div>
-            );
-          })}
-        </SectionGrid>
-      ) : (
-        <DashboardCard>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
           <EmptyState
             icon="ballot"
             title="No Polsts yet"
@@ -894,8 +917,8 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
                 : undefined
             }
           />
-        </DashboardCard>
-      )}
+        )}
+      </DashboardCard>
       <AddPolstModal
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
@@ -1324,19 +1347,27 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
   const [name, setName] = useState(campaign.name);
   const [decision, setDecision] = useState(campaign.decision);
   const [startAt, setStartAt] = useState(campaign.startAt ?? "");
-  const [endAt, setEndAt] = useState(campaign.endAt ?? "");
+  // The schedule speaks the same DurationField vocabulary as both create
+  // flows — a saved run round-trips to its preset exactly.
+  const [duration, setDuration] = useState<DurationPreset>(() =>
+    durationPresetFor(campaign.startAt, campaign.endAt),
+  );
+  const [customEnd, setCustomEnd] = useState(campaign.endAt ?? "");
   const [target, setTarget] = useState(campaign.target ? String(campaign.target) : "");
   const [event, setEvent] = useState(campaign.event ?? "");
   const [confirm, setConfirm] = useState<"unpublish" | "archive" | null>(null);
+
+  const endAt = durationEnd(duration, startAt, customEnd);
 
   const dirty =
     name !== campaign.name ||
     decision !== campaign.decision ||
     startAt !== (campaign.startAt ?? "") ||
-    endAt !== (campaign.endAt ?? "") ||
+    (endAt ?? "") !== (campaign.endAt ?? "") ||
     target !== (campaign.target ? String(campaign.target) : "") ||
     event !== (campaign.event ?? "");
 
+  // Only a Custom duration can invert the range — refuse it at the source.
   const invalidRange = Boolean(startAt && endAt && endAt < startAt);
 
   const save = () => {
@@ -1344,7 +1375,7 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
       name: name.trim(),
       decision,
       startAt,
-      endAt,
+      endAt: endAt ?? "",
       target: target.trim() ? Number(target) : 0,
       event,
     });
@@ -1416,25 +1447,6 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
                 />
               )}
             </Field>
-            <Field
-              label="End date"
-              helper={
-                invalidRange ? (
-                  <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
-                ) : (
-                  <FieldHelper tone="neutral">Voters can submit until this date.</FieldHelper>
-                )
-              }
-            >
-              {(id) => (
-                <TextInput
-                  id={id}
-                  type="date"
-                  value={endAt}
-                  onChange={(e) => setEndAt(e.target.value)}
-                />
-              )}
-            </Field>
             <Field label="Voter target">
               {(id) => (
                 <TextInput
@@ -1448,6 +1460,19 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
                 />
               )}
             </Field>
+            <div className="space-y-1.5 sm:col-span-2">
+              <DurationField
+                value={duration}
+                onChange={setDuration}
+                customEnd={customEnd}
+                onCustomEndChange={setCustomEnd}
+                startAt={startAt}
+                subject="campaign"
+              />
+              {invalidRange ? (
+                <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
+              ) : null}
+            </div>
           </div>
           <div className="mt-5 flex justify-end">
             <Button

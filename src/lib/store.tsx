@@ -19,12 +19,14 @@ import {
   CAMPAIGNS,
   SINGLE_POLSTS,
   SOURCES,
+  TEAM,
   WORKSPACE_NOTIFICATIONS,
   type Campaign,
   type ChainQuestion,
   type Channel,
   type SinglePolst,
   type Source,
+  type TeamMember,
   type WorkspaceNotification,
 } from "@/lib/workspace";
 
@@ -166,6 +168,10 @@ type WorkspaceStore = {
   addSource: (input: AddSourceInput) => string;
   assignSource: (sourceId: string, linked: NonNullable<Source["linked"]>) => void;
 
+  members: TeamMember[];
+  /** Provisions a brand-only Manager account; "joined" fills at first sign-in. */
+  addMember: (name: string, email: string) => void;
+
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   unreadCount: number;
@@ -179,6 +185,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>(CAMPAIGNS);
   const [polsts, setPolsts] = useState<SinglePolst[]>(SINGLE_POLSTS);
   const [sources, setSources] = useState<Source[]>(SOURCES);
+  const [members, setMembers] = useState<TeamMember[]>(TEAM);
   const [notifications, setNotifications] = useState<WorkspaceNotification[]>(
     WORKSPACE_NOTIFICATIONS,
   );
@@ -240,8 +247,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           ...c,
           name: patch.name?.trim() || c.name,
           decision: patch.decision !== undefined ? patch.decision.trim() : c.decision,
-          startAt: patch.startAt !== undefined ? patch.startAt : c.startAt,
-          endAt: patch.endAt !== undefined ? patch.endAt : c.endAt,
+          // "" (a cleared date / "No end") normalizes to undefined, so every
+          // truthiness guard downstream keeps working on updated campaigns.
+          startAt: patch.startAt !== undefined ? patch.startAt || undefined : c.startAt,
+          endAt: patch.endAt !== undefined ? patch.endAt || undefined : c.endAt,
           target: patch.target !== undefined ? patch.target : c.target,
           event: patch.event !== undefined ? patch.event : c.event,
           vertical: patch.vertical ?? c.vertical,
@@ -428,13 +437,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           all.map((s) => (s.id === sourceId ? { ...s, linked } : s)),
         ),
 
+      members,
+      // Members live in the store like every other in-session creation, so
+      // an added row survives navigating away from Team & access.
+      addMember: (name, email) =>
+        setMembers((all) => [
+          ...all,
+          {
+            id: uniqueId(name, new Set(all.map((m) => m.id))),
+            name: name.trim(),
+            email: email.trim(),
+            role: "Manager",
+          },
+        ]),
+
       markNotificationRead: (id) =>
         setNotifications((all) => all.map((n) => (n.id === id ? { ...n, read: true } : n))),
       markAllNotificationsRead: () =>
         setNotifications((all) => all.map((n) => ({ ...n, read: true }))),
       unreadCount: notifications.filter((n) => !n.read).length,
     }),
-    [campaigns, polsts, sources, notifications, createCampaign, createPolst, patchCampaign, patchPolst],
+    [campaigns, polsts, sources, members, notifications, createCampaign, createPolst, patchCampaign, patchPolst],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

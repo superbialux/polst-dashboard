@@ -13,19 +13,20 @@ import { useToast } from "@/components/Toast";
 import { fmtDateRange, fmtInt, fmtPct, pct } from "@/lib/canon";
 import {
   polstOptions,
+  verdictLabel,
   winnerLabel,
   type Campaign,
   type SinglePolst,
   type Source,
 } from "@/lib/workspace";
-import { DetailList, Funnel, PollResults, SignalBadge, type FunnelStep } from "./kit";
+import { DetailList, Funnel, PollResults, type FunnelStep } from "./kit";
 
 const campaignSummary = (c: Campaign, sources: Source[]): string => {
   const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
   return [
     `${c.name} — decision report`,
     ...(c.decision ? [c.decision] : []),
-    `Winner: ${winnerLabel(c)} · Signal: ${c.signal} · Confidence: ${c.confidence}`,
+    `Result: ${verdictLabel(c)}${c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}`,
     `Voters: ${fmtInt(c.voters)}${c.target ? ` of ${fmtInt(c.target)} target` : ""} · Completion: ${pct(c.completed, c.voters)}`,
     ...(topSource && topSource.voters > 0 ? [`Top source: ${topSource.name}`] : []),
     ...(c.findings.length ? ["", "Findings:", ...c.findings.map((f) => `- ${f}`)] : []),
@@ -59,10 +60,14 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
   return (
     <>
       <header>
-        <SignalBadge
-          signal={campaign.signal}
-          detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
-        />
+        {/* Plain-language verdict — the report speaks to the same
+            non-technical reader as every other campaign surface. */}
+        <p className="text-sm font-semibold text-text-primary">
+          {verdictLabel(campaign)}
+          {campaign.confidence !== "—" ? (
+            <span className="font-medium text-text-secondary"> · {campaign.confidence} confidence</span>
+          ) : null}
+        </p>
         <h3 className="mt-2 font-display text-lg font-semibold leading-6 text-text-primary">
           {winnerLabel(campaign)}
         </h3>

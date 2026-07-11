@@ -14,6 +14,7 @@ import { addDays } from "@/lib/engine";
 import type { AnalyticsFilters } from "@/lib/analytics";
 import {
   formatNumber,
+  polstImage,
   type DecisionSignal,
   type Integration,
   type Split,
@@ -151,48 +152,10 @@ export function StatusBadge({ status }: { status: Status | string }) {
 /* ── Decision signal ─────────────────────────────────────────────── */
 
 /** The decision-signal vocabulary — how sure the evidence is, which is a
- *  different question from where the object sits in its lifecycle. Signals
- *  render as icon + ink (no pill fill) so the two families never blur.
- *  The union itself lives in workspace.ts with the campaign data. */
+ *  different question from where the object sits in its lifecycle. The
+ *  taxonomy is internal (it drives readiness, attention, and phrasing);
+ *  every surface speaks `verdictLabel` plain language instead. */
 export type { DecisionSignal } from "@/lib/workspace";
-
-const SIGNAL_META: Record<DecisionSignal, { icon: string; className: string }> = {
-  Decisive: { icon: "verified", className: "text-status-success" },
-  Leading: { icon: "trending_up", className: "text-status-success" },
-  Directional: { icon: "trending_up", className: "text-text-secondary" },
-  "Too close": { icon: "balance", className: "text-status-warning" },
-  Inconclusive: { icon: "help", className: "text-text-secondary" },
-  Collecting: { icon: "hourglass_top", className: "text-text-secondary" },
-  "Not started": { icon: "schedule", className: "text-text-tertiary" },
-};
-
-/** Evidence state, not lifecycle state: `StatusBadge` says where a campaign
- *  is; `SignalBadge` says whether its result can be trusted yet. */
-export function SignalBadge({
-  signal,
-  detail,
-  className,
-}: {
-  signal: DecisionSignal;
-  /** Optional evidence qualifier, e.g. "+18 pts" or "n too small". */
-  detail?: string;
-  className?: string;
-}) {
-  const meta = SIGNAL_META[signal];
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold",
-        meta.className,
-        className,
-      )}
-    >
-      <Icon name={meta.icon} size={16} />
-      {signal}
-      {detail ? <span className="font-medium text-text-secondary">· {detail}</span> : null}
-    </span>
-  );
-}
 
 /* ── Info hint ───────────────────────────────────────────────────── */
 
@@ -218,13 +181,12 @@ export function InfoHint({ text, label = "Definition" }: { text: string; label?:
 
 /* ── Decision brief ──────────────────────────────────────────────── */
 
-/** The Decision Narrative, as one reusable object: signal → headline →
- *  what changed and why → caveat → evidence → the next action. Anywhere a
- *  result is summarized (campaign overview, Home briefing, analytics),
- *  this pattern speaks — charts sit under it as supporting evidence. */
+/** The Decision Narrative, as one reusable object: verdict eyebrow →
+ *  headline → what changed and why → caveat → evidence → the next action.
+ *  Anywhere a result is summarized (campaign overview, Home briefing,
+ *  analytics), this pattern speaks — charts sit under it as evidence. */
 export function DecisionBrief({
-  signal,
-  signalDetail,
+  eyebrow,
   headline,
   summary,
   caveat,
@@ -233,8 +195,10 @@ export function DecisionBrief({
   secondary,
   className,
 }: {
-  signal: DecisionSignal;
-  signalDetail?: string;
+  /** The plain-language read above the headline — "Ready to decide · High
+   *  confidence", or verdict + progress ("Collecting votes — 640 of 1,200
+   *  voters"). Never a raw DecisionSignal taxonomy label. */
+  eyebrow: ReactNode;
   headline: string;
   /** What changed and the likely cause, in plain words. */
   summary: string;
@@ -253,9 +217,7 @@ export function DecisionBrief({
         className,
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <SignalBadge signal={signal} detail={signalDetail} />
-      </div>
+      <p className="text-xs font-semibold text-text-secondary">{eyebrow}</p>
       <h2 className="mt-2 font-display text-xl font-semibold leading-7 text-text-primary">
         {headline}
       </h2>
@@ -1228,6 +1190,37 @@ export function PollThumb({ options }: { options: [PollOption, PollOption] }) {
       <span className="absolute left-1/2 top-1/2 grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill bg-surface-raised font-display text-micro font-semibold text-text-primary shadow-sm">
         OR
       </span>
+    </div>
+  );
+}
+
+/** A campaign's chain at a glance: the first three Polsts as split A/B
+ *  minis, slightly overlapping like an avatar stack, then a "+N" chip for
+ *  the rest. Every image resolves through `polstImage`, the same assigner
+ *  the full-size thumbs use. Row-height (h-8) for lists and tables. */
+export function ThumbStrip({ ids, className }: { ids: string[]; className?: string }) {
+  if (!ids.length) return <span className="text-sm text-text-tertiary">—</span>;
+  const shown = ids.slice(0, 3);
+  const more = ids.length - shown.length;
+  return (
+    <div className={cn("flex items-center", className)} aria-label={`${ids.length} Polsts`}>
+      {shown.map((id, i) => (
+        <span
+          key={id}
+          className={cn(
+            "grid h-8 w-8 shrink-0 grid-cols-2 overflow-hidden rounded-md bg-surface-strong ring-2 ring-surface-raised",
+            i > 0 && "-ml-2",
+          )}
+        >
+          <img src={polstImage(id, "a", 120, 160)} alt="" className="h-full w-full object-cover" />
+          <img src={polstImage(id, "b", 120, 160)} alt="" className="h-full w-full object-cover" />
+        </span>
+      ))}
+      {more > 0 ? (
+        <span className="-ml-2 grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle font-display text-xs font-semibold text-text-secondary ring-2 ring-surface-raised">
+          +{more}
+        </span>
+      ) : null}
     </div>
   );
 }

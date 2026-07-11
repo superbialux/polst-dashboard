@@ -11,8 +11,8 @@ import {
   SectionGrid,
   SegmentedControl,
   type SetupStep,
-  SignalBadge,
   StatsStrip,
+  ThumbStrip,
   WorkspaceCalendar,
 } from "@/components/dashboard";
 import { cn } from "@/lib/utils";
@@ -92,7 +92,9 @@ function AttentionRow({ item }: { item: ListItem }) {
 function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more: number }) {
   return (
     <DashboardCard title="Ready to decide" className="lg:col-span-4">
-      <SignalBadge signal={campaign.signal} detail={`${campaign.confidence} confidence`} />
+      <p className="text-sm font-semibold text-status-success">
+        Ready to decide · {campaign.confidence} confidence
+      </p>
       <Link
         to={`/campaigns/${campaign.id}`}
         className="mt-2 block font-display text-base font-semibold leading-6 text-text-primary hover:text-text-accent"
@@ -140,7 +142,8 @@ function HomeCampaignRow({ campaign, sourceCount }: { campaign: Campaign; source
         <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
           {campaign.name}
         </p>
-        <SignalBadge signal={campaign.signal} />
+        {/* The chain itself, in miniature — what's running, at a glance. */}
+        <ThumbStrip ids={campaign.chain.map((q) => q.id)} className="shrink-0" />
       </div>
       <p className="mt-0.5 text-xs text-text-secondary">
         {fmtDateRange(campaign.startAt, campaign.endAt)}
@@ -218,7 +221,9 @@ function launchSteps(campaign: Campaign, sourceCount: number): SetupStep[] {
           ? `${sourceCount} ${sourceCount === 1 ? "source is" : "sources are"} attached.`
           : "Nothing is attached to collect voters — add a QR code, share link, or embed.",
       cta: {
-        label: sourceCount > 0 ? "Review sources" : "Add sources",
+        // "Assign" is the verb of the control this lands on (the Sources
+        // tab's "Assign source"); "Add source" means create-new (Distribution).
+        label: sourceCount > 0 ? "Review sources" : "Assign sources",
         to: `/campaigns/${campaign.id}?tab=sources`,
       },
     },
@@ -252,7 +257,7 @@ function KeyDateCard({ date, coverage }: { date: KeyDate; coverage: KeyDateCover
     primary =
       sourceCount > 0
         ? { label: "View campaign", to: `/campaigns/${campaign.id}` }
-        : { label: "Add sources", to: `/campaigns/${campaign.id}?tab=sources` };
+        : { label: "Assign sources", to: `/campaigns/${campaign.id}?tab=sources` };
   } else if (coverage?.kind === "polst") {
     const { polst, sourceCount } = coverage;
     reason =
@@ -260,7 +265,7 @@ function KeyDateCard({ date, coverage }: { date: KeyDate; coverage: KeyDateCover
         ? `"${polst.question}" is ${polst.status.toLowerCase()} — runs ${fmtDateRange(polst.startAt, polst.endAt)}.`
         : `"${polst.question}" is ${polst.status.toLowerCase()} — no source yet.`;
     primary = {
-      label: sourceCount > 0 ? "View Polst" : "Add a source",
+      label: sourceCount > 0 ? "View Polst" : "Assign a source",
       to: `/polsts/${polst.id}`,
     };
   } else {
@@ -428,7 +433,7 @@ export function HomePage() {
         ) : (
           <EmptyState
             icon="campaign"
-            title={campaignView === "Active" ? "No active campaigns." : "Nothing is scheduled."}
+            title={campaignView === "Active" ? "No active campaigns" : "Nothing is scheduled"}
             action={{ label: "Create campaign", to: "/campaigns/new" }}
           />
         )}

@@ -510,7 +510,8 @@ in `lib/canon.ts`: **Draft, Scheduled, Active, Ended, Archived**.
   Violet because it is the interactive, "you can act on this" state.
 - **Neutral** (`surface-subtle`/`text-secondary`) — *Draft, Ended, Archived*:
   parked, not wrong. **Ended is neutral by design** — finishing a run is a
-  fact, not a verdict; `SignalBadge` carries the verdict.
+  fact, not a verdict; the plain-language verdict (`verdictLabel`) carries
+  the verdict.
 - **Danger ink** (`status-danger` on `-soft`) — a real gap that blocks a
   launch or a decision. Never for "losing" or "low", and never a lifecycle
   status of its own.
@@ -518,16 +519,23 @@ in `lib/canon.ts`: **Draft, Scheduled, Active, Ended, Archived**.
   source losing voters, a caveat on a read. Amber ink (`--color-yellow-ink`),
   AA-dark on white. A tone for caveats, never a status.
 
-**Decision signal** (`SignalBadge` — icon + ink, **no pill fill**) says
-whether the *evidence* can be trusted yet: *Decisive, Leading, Directional,
-Too close, Inconclusive, Collecting, Not started* (`DecisionSignal` in
-`canon.ts`). Signal thresholds live in one place — `signalFor` /
-`confidenceFor` / `isReadyToDecide` in canon — no page restates a margin or
-volume cutoff. Campaign tables carry **both** columns — Status and Signal —
-never one string mixing the two.
+**Decision verdict** says whether the *evidence* can be trusted yet. The
+taxonomy (`DecisionSignal` — *Decisive, Leading, Directional, Too close,
+Inconclusive, Collecting, Not started*) is **internal vocabulary**: its
+thresholds live in one place — `signalFor` / `confidenceFor` /
+`isReadyToDecide` in canon — and no page restates a margin or volume cutoff,
+but its raw labels never reach the dashboard UI. Surfaces speak the
+plain-language translation, `verdictLabel` in `workspace.ts` ("Minimal label
++16 pts", "Too close to call", "Collecting votes", "No clear winner"), plus
+"Ready to decide · {confidence} confidence" where `isReadyToDecide` holds.
+Campaign tables carry **both** columns — Status and **"Result so far"**
+(the verdict) — never one string mixing the two. The chain itself previews
+as a **`ThumbStrip`** (first three split A/B minis + a "+N" chip). No
+surface speaks the raw taxonomy: the decision report leads with the same
+plain verdict + confidence line as the DecisionBrief.
 
-`StatusBadge` and `SignalBadge` own their mappings in one place; pages pass a
-string and get the right treatment for free.
+`StatusBadge` and `verdictLabel` own their mappings in one place; pages pass
+the entity and get the right treatment for free.
 
 ## The model: canon, engine, store
 
@@ -568,7 +576,9 @@ fork. New surface area should feel assembled, not authored:
   no chrome of its own — the header breadcrumbs own page identity and the
   content does the explaining.
 - **`DecisionBrief`** — the **Decision Narrative** as one reusable object:
-  `SignalBadge` + updated stamp → a 20px headline (the call) → what changed
+  a plain-language **verdict eyebrow** ("Ready to decide · High confidence",
+  or `verdictLabel` + progress — "Collecting votes — 640 of 1,200 voters") →
+  a 20px headline (the call) → what changed
   and why → an amber **caveat** line → an **evidence strip** (label/value
   pairs, each with an optional `InfoHint` definition) → one primary action.
   Within a decision context — primarily the campaign overview — this pattern
@@ -578,7 +588,8 @@ fork. New surface area should feel assembled, not authored:
   destructive-secondary "End campaign" appears only while a campaign is
   active but not yet ready. Home uses a smaller structured ready-to-decide
   card instead of generating a full narrative per campaign.
-- **`SignalBadge`** — the decision-signal vocabulary (see "Status is a tone").
+- **`verdictLabel` + `ThumbStrip`** — the decision-verdict vocabulary and the
+  chain-preview mini-thumbs (see "Status is a tone"); the badge form is gone.
   **`InfoHint`** — a hoverable ⓘ that reveals a metric's definition (formula +
   denominator); the inspectable data contract behind every number.
 - **Create flows are single-page forms** — no wizard, no step chrome. Create
@@ -587,8 +598,9 @@ fork. New surface area should feel assembled, not authored:
   working Save draft / Publish. Saving is quiet and never a primary moment.
   **`DurationField`** is the one run-length control (`DURATION_PRESETS` =
   3/7/10 days · No end · Custom, plus `durationEnd` / `durationPresetFor`),
-  shared by both create flows; "No end" is an explicit preset, never
-  Custom-with-an-empty-end.
+  shared by both create flows **and the campaign Settings schedule** — a
+  saved run round-trips to its preset exactly; "No end" is an explicit
+  preset, never Custom-with-an-empty-end.
 - **`DashboardCard`** — section container (optional header row with title,
   description, action). The atom every panel sits in. **No header rule** — the
   title sits flush above the body; cards read flat.
@@ -792,8 +804,9 @@ The load-bearing facts a builder must not re-invent:
   `InfoHint` definitions from `METRIC_INFO`), and the same metric reconciles
   across Home, Analytics, and campaign pages — by derivation from the engine,
   never by hand. A delta without a stated baseline is decoration.
-- Separate lifecycle from decision signal — `StatusBadge` and `SignalBadge`
-  are different questions, different components, different columns.
+- Separate lifecycle from decision verdict — `StatusBadge` and the
+  `verdictLabel` "Result so far" column are different questions, different
+  treatments, different columns.
 
 **Don't**
 

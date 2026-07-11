@@ -20,7 +20,6 @@ import {
   MixBars,
   ReportPreview,
   SectionGrid,
-  SignalBadge,
   StatTile,
   StatusBadge,
   TrendChart,
@@ -34,12 +33,10 @@ import {
   isReadyToDecide,
   pct,
   relativeToToday,
-  type DecisionSignal,
   type Status,
 } from "@/lib/canon";
-import { allocate, dateSpan, windowBounds, type WindowRange } from "@/lib/engine";
+import { allocate, dateSpan, windowBounds, windowDelta, type WindowRange } from "@/lib/engine";
 import {
-  ATTENTION_ITEMS,
   CAMPAIGNS,
   INTEGRATIONS,
   REPORTS,
@@ -47,8 +44,10 @@ import {
   STAT_XTICKS,
   WHAT_CHANGED,
   WORKSPACE,
+  attentionItems,
   campaignSeries,
   polstSeries,
+  verdictLabel,
   winnerLabel,
   type Campaign,
   type SinglePolst,
@@ -57,6 +56,7 @@ import {
 import {
   ANALYTICS_CHANNELS,
   ANALYTICS_VERTICALS,
+  analyticsRows,
   mixBy,
   segmentTotal,
   verticalRows,
@@ -151,8 +151,8 @@ const OBJECTS = new Map<string, { kind: "campaign" | "polst"; object: Campaign |
   ...SINGLE_POLSTS.map((p) => [p.id, { kind: "polst" as const, object: p }] as const),
 ]);
 
-function scopedDailyVotes(rows: SegmentRow[], range: WindowRange): number[] {
-  const [start, end] = windowBounds(range);
+function scopedDailyVotes(rows: SegmentRow[], range: WindowRange, offset = 0): number[] {
+  const [start, end] = windowBounds(range, offset);
   const days = dateSpan(start, end);
   const totals = days.map(() => 0);
   const votesByObject = new Map<string, number>();
@@ -185,10 +185,9 @@ type CampaignPerfRow = {
   id: string;
   name: string;
   status: Status;
-  signal: DecisionSignal;
   voters: number;
   completed: number;
-  winner: string;
+  verdict: string;
 };
 
 function buildCampaignPerf(rows: SegmentRow[], campaigns: Campaign[]): CampaignPerfRow[] {
@@ -209,10 +208,9 @@ function buildCampaignPerf(rows: SegmentRow[], campaigns: Campaign[]): CampaignP
           id,
           name: campaign.name,
           status: campaign.status,
-          signal: campaign.signal,
           voters: m.voters,
           completed: m.completed,
-          winner: winnerLabel(campaign),
+          verdict: verdictLabel(campaign),
         },
       ];
     })
@@ -232,7 +230,6 @@ const campaignPerfColumns: Array<DataColumn<CampaignPerfRow>> = [
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  { header: "Signal", cell: (row) => <SignalBadge signal={row.signal} /> },
   {
     header: "Voters",
     align: "right",
@@ -244,8 +241,8 @@ const campaignPerfColumns: Array<DataColumn<CampaignPerfRow>> = [
     cell: (row) => <span className="tabular-nums">{pct(row.completed, row.voters)}</span>,
   },
   {
-    header: "Winner",
-    cell: (row) => <span className="text-text-secondary">{row.winner}</span>,
+    header: "Result so far",
+    cell: (row) => <span className="text-text-secondary">{row.verdict}</span>,
   },
 ];
 
@@ -311,16 +308,20 @@ const verticalColumns: Array<DataColumn<VerticalRow>> = [
     cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
   },
   {
+    // Tables speak whole percents (the campaigns list, campaign sources,
+    // Distribution); one decimal is reserved for the rate stat tiles.
     header: "Completion",
     align: "right",
     cell: (row) => (
       <span className="tabular-nums">
-        {row.completionRate !== null ? fmtPct(row.completionRate, 1) : "—"}
+        {row.completionRate !== null ? fmtPct(row.completionRate, 0) : "—"}
       </span>
     ),
   },
   {
-    header: "Votes / view",
+    // An aggregate across every content in the vertical — canon's
+    // "engagement rate", not the per-content "votes / view".
+    header: "Engagement",
     align: "right",
     cell: (row) => (
       <span className="tabular-nums">
@@ -352,10 +353,10 @@ function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
             </p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-            <SignalBadge
-              signal={campaign.signal}
-              detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
-            />
+            <span className="whitespace-nowrap text-sm font-semibold text-status-success">
+              Ready to decide
+              {campaign.confidence !== "—" ? ` · ${campaign.confidence} confidence` : ""}
+            </span>
             <Button variant="secondary" size="sm" asChild>
               <Link to={`/campaigns/${campaign.id}`}>Review decision</Link>
             </Button>
@@ -376,12 +377,49 @@ export function AnalyticsOverviewPage() {
   const completed = segmentTotal(rows, "completed");
   const shares = segmentTotal(rows, "shares");
 
+  /* The previous window of equal length under the same filters — the same
+     vs-previous contract Home's stat strip states for these four metrics. */
+  const prevRows = useMemo(
+    () => (filters.range === "All" ? null : analyticsRows(filters, 1)),
+    [filters],
+  );
+  const [prevStart, prevEnd] = windowBounds(filters.range, 1);
+  const compareLabel =
+    filters.range === "All" ? null : `vs ${fmtDate(prevStart)} – ${fmtDate(prevEnd)}`;
+  const prev = prevRows
+    ? {
+        views: segmentTotal(prevRows, "views"),
+        votes: segmentTotal(prevRows, "votes"),
+        voters: segmentTotal(prevRows, "voters"),
+        completed: segmentTotal(prevRows, "completed"),
+      }
+    : null;
+  /** Trend + "12% vs May 13 – Jun 11" for a tile; {} when the previous
+   *  window is too small for an honest comparison (windowDelta's rule). */
+  const tileDelta = (current: number, previous: number | null | undefined) => {
+    const d = previous == null || !compareLabel ? null : windowDelta(current, previous);
+    if (d === null) return {};
+    return {
+      detail: `${Math.abs(d)}% ${compareLabel}`,
+      trend: (d === 0 ? "flat" : d > 0 ? "up" : "down") as "up" | "down" | "flat",
+    };
+  };
+  const rate = (numer: number, denom: number) => (denom > 0 ? (numer / denom) * 100 : null);
+  const engagement = rate(votes, views);
+  const prevEngagement = prev ? rate(prev.votes, prev.views) : null;
+  const completion = rate(completed, voters);
+  const prevCompletion = prev ? rate(prev.completed, prev.voters) : null;
+
   const ready = useMemo(() => {
     const inScope = new Set(rows.filter((r) => r.kind === "campaign").map((r) => r.objectId));
     return campaigns.filter((c) => isReadyToDecide(c) && inScope.has(c.id));
   }, [rows, campaigns]);
 
   const trend = useMemo(() => scopedDailyVotes(rows, filters.range), [rows, filters.range]);
+  const prevTrend = useMemo(
+    () => (prevRows ? scopedDailyVotes(prevRows, filters.range, 1) : undefined),
+    [prevRows, filters.range],
+  );
   const sourceMix = useMemo(() => mixBy(rows, (row) => row.channel, "voters"), [rows]);
   const verticals = useMemo(() => verticalRows(rows), [rows]);
   const campaignPerf = useMemo(() => buildCampaignPerf(rows, campaigns), [rows, campaigns]);
@@ -426,7 +464,7 @@ export function AnalyticsOverviewPage() {
         ) : (
           <EmptyState
             title="No campaigns are ready to decide"
-            hint="Campaigns appear here once their signal reaches Leading or Decisive."
+            hint="Campaigns appear here once a clear leader emerges on enough voters."
             action={{ label: "View campaigns", to: "/campaigns" }}
           />
         )}
@@ -438,30 +476,42 @@ export function AnalyticsOverviewPage() {
           label="Total views"
           value={fmtInt(views)}
           info={METRIC_INFO.views}
+          {...tileDelta(views, prev?.views)}
         />
         <StatTile
           className="lg:col-span-3"
           label="Total votes"
           value={fmtInt(votes)}
           info={METRIC_INFO.votes}
+          {...tileDelta(votes, prev?.votes)}
         />
         <StatTile
           className="lg:col-span-3"
           label="Engagement rate"
           value={pct(votes, views, 1)}
           info={METRIC_INFO.engagementRate}
+          {...tileDelta(engagement ?? 0, prevEngagement)}
         />
         <StatTile
           className="lg:col-span-3"
           label="Completion rate"
           value={pct(completed, voters, 1)}
           info={METRIC_INFO.completionRate}
+          {...tileDelta(completion ?? 0, prevCompletion)}
         />
       </SectionGrid>
 
       <SectionGrid>
-        <DashboardCard title="Votes per day" className="lg:col-span-8">
-          <TrendChart series={trend} xTicks={STAT_XTICKS[filters.range]} />
+        <DashboardCard
+          title="Votes per day"
+          className="lg:col-span-8"
+          action={
+            compareLabel ? (
+              <span className="text-xs text-text-tertiary">{compareLabel}</span>
+            ) : undefined
+          }
+        >
+          <TrendChart series={trend} previous={prevTrend} xTicks={STAT_XTICKS[filters.range]} />
         </DashboardCard>
         <DashboardCard
           title="Source mix"
@@ -501,7 +551,7 @@ export function AnalyticsOverviewPage() {
           title="Verticals"
           className="lg:col-span-7"
           padded={false}
-          action={<InfoHint label="Votes / view" text={METRIC_INFO.votesPerView} />}
+          action={<InfoHint label="Engagement" text={METRIC_INFO.engagementRate} />}
         >
           <DataTable rows={verticals} columns={verticalColumns} />
         </DashboardCard>
@@ -515,7 +565,7 @@ export function AnalyticsOverviewPage() {
         />
         {campaignPerf.length ? (
           <p className="border-t border-border-default px-5 py-3 text-xs text-text-secondary">
-            Voters and completion are scoped to the selected window; status, signal, and winner
+            Voters and completion are scoped to the selected window; status and the result
             reflect the whole run.
           </p>
         ) : null}
@@ -606,8 +656,14 @@ const TONE_DOT: Record<"danger" | "warning" | "neutral", string> = {
 };
 
 export function AnalyticsInsightsPage() {
-  const { campaigns } = useWorkspace();
+  const { campaigns, polsts, sources } = useWorkspace();
   const ready = campaigns.filter(isReadyToDecide);
+  /* Derived from the LIVE store, like Home and the sidebar nag — fixing an
+     item (assigning a source, finishing a draft) clears it here too. */
+  const attention = useMemo(
+    () => attentionItems(campaigns, polsts, sources),
+    [campaigns, polsts, sources],
+  );
 
   const summary = () =>
     [
@@ -616,7 +672,7 @@ export function AnalyticsInsightsPage() {
         (c) =>
           `Ready to decide: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
       ),
-      ...ATTENTION_ITEMS.map((item) => `Needs attention: ${item.title}`),
+      ...attention.map((item) => `Needs attention: ${item.title}`),
       ...WHAT_CHANGED.map((item) => `${fmtDate(item.at)} — ${item.text}`),
     ].join("\n");
 
@@ -631,7 +687,6 @@ export function AnalyticsInsightsPage() {
               eyebrow="Ready to decide"
               title={campaign.name}
               reason={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters · ${campaign.confidence} confidence`}
-              meta={<SignalBadge signal={campaign.signal} />}
               primary={{ label: "Review decision", to: `/campaigns/${campaign.id}` }}
             />
           ))}
@@ -640,25 +695,29 @@ export function AnalyticsInsightsPage() {
 
       <SectionGrid>
         <DashboardCard title="Needs attention" className="lg:col-span-7" bodyClassName="pt-2">
-          <ul className="divide-y divide-border-default">
-            {ATTENTION_ITEMS.map((item) => (
-              <li key={item.id} className="flex items-start gap-3 py-3 first:pt-1">
-                <span
-                  aria-hidden
-                  className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-pill", TONE_DOT[item.tone])}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-display text-sm font-semibold text-text-primary">
-                    {item.title}
-                  </p>
-                  <p className="mt-0.5 text-sm leading-5 text-text-secondary">{item.reason}</p>
-                </div>
-                <Button variant="secondary" size="sm" className="shrink-0" asChild>
-                  <Link to={item.to}>{item.action}</Link>
-                </Button>
-              </li>
-            ))}
-          </ul>
+          {attention.length ? (
+            <ul className="divide-y divide-border-default">
+              {attention.map((item) => (
+                <li key={item.id} className="flex items-start gap-3 py-3 first:pt-1">
+                  <span
+                    aria-hidden
+                    className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-pill", TONE_DOT[item.tone])}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-sm font-semibold text-text-primary">
+                      {item.title}
+                    </p>
+                    <p className="mt-0.5 text-sm leading-5 text-text-secondary">{item.reason}</p>
+                  </div>
+                  <Button variant="secondary" size="sm" className="shrink-0" asChild>
+                    <Link to={item.to}>{item.action}</Link>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState icon="verified" title="Nothing needs attention right now" />
+          )}
         </DashboardCard>
         <DashboardCard title="What changed" className="lg:col-span-5" bodyClassName="pt-2">
           <ul className="divide-y divide-border-default">

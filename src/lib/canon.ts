@@ -19,7 +19,7 @@ export const STATUSES: Status[] = ["Draft", "Scheduled", "Active", "Ended", "Arc
 export type StatusTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
 /** The single status → tone mapping. Ended is neutral by design: finishing
- *  a run is a fact, not a verdict — SignalBadge carries the verdict. */
+ *  a run is a fact, not a verdict — verdictLabel carries the verdict. */
 export const STATUS_TONE: Record<Status, StatusTone> = {
   Draft: "neutral",
   Scheduled: "accent",

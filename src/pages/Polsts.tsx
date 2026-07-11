@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Link,
   Navigate,
@@ -9,7 +9,8 @@ import {
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Field, FieldHelper, TextInput } from "@/components/Field";
+import { Modal } from "@/components/Modal";
+import { Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
 import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
 import { PollCard } from "@/components/PollCard";
 import { PollComposer, type ComposerState } from "@/components/PollComposer";
@@ -47,14 +48,18 @@ import {
   fmtInt,
   fmtPct,
   relativeToToday,
+  signalFor,
 } from "@/lib/canon";
 import {
   WORKSPACE,
   polstImage,
   polstOptions,
   shareUrl,
+  verdictLabel,
   voteVelocity,
+  type Channel,
   type SinglePolst,
+  type Source,
   type Vertical,
 } from "@/lib/workspace";
 import { publishedStatus, useWorkspace } from "@/lib/store";
@@ -294,7 +299,7 @@ export function PolstsPage() {
   }, [polsts, active, query]);
 
   const emptyTitle = query.trim()
-    ? `No Polsts match "${query.trim()}"`
+    ? `No Polsts match “${query.trim()}”`
     : active === "All"
       ? "No Polsts yet"
       : active === "Drafts"
@@ -380,6 +385,7 @@ export function PolstDetailPage() {
   const toast = useToast();
   const [shareOpen, setShareOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const polst = polstById(id);
   if (!polst) return <NotFoundCard kind="Polst" />;
 
@@ -424,6 +430,23 @@ export function PolstDetailPage() {
   /* votes/hr over the trailing 1h / 6h / 24h — Active runs with votes
    *  only; a zero-vote run has no pace to report. */
   const velocity = voteVelocity(polst);
+
+  /* The quiet answer to "is this result good?": lead option, margin, and
+   * the evidence volume — canon's verdict vocabulary (signalFor), one line
+   * in the Results header, no new card. */
+  const resultVerdict = (() => {
+    if (polst.votes === 0) return null;
+    const marginPts = Math.abs(2 * polst.splitA - 100);
+    const winner = {
+      option: polst.splitA >= 50 ? polst.optionA : polst.optionB,
+      marginPts,
+    };
+    const signal = signalFor({ status: polst.status, voters: polst.votes, marginPts });
+    return `${verdictLabel({ signal, winner })} · ${fmtInt(polst.votes)} votes`;
+  })();
+  const verdictLine = resultVerdict ? (
+    <span className="text-sm font-medium tabular-nums text-text-secondary">{resultVerdict}</span>
+  ) : undefined;
 
   /* Voter preview facts. The like/repost counts split the polst's real
    *  interactions total, so the card reconciles with the tile above. */
@@ -519,7 +542,9 @@ export function PolstDetailPage() {
         <ActionCard
           title={`Starts ${relativeToToday(polst.startAt)} with no sources`}
           reason="Attach a QR code, share link, or embed so it collects votes from day one."
-          primary={{ label: "Add a source", to: "/distribution" }}
+          // The action completes right here — the same in-context assign
+          // flow the campaign Sources tab has, never a hop to Distribution.
+          primary={{ label: "Assign source", onClick: () => setAssignOpen(true) }}
         />
       ) : null}
 
@@ -556,7 +581,7 @@ export function PolstDetailPage() {
         <SectionGrid>
           <div className="space-y-4 lg:col-span-7">
             {polst.votes > 0 ? (
-              <DashboardCard title="Results">
+              <DashboardCard title="Results" action={verdictLine}>
                 <PollResults options={polstOptions(polst)} />
               </DashboardCard>
             ) : null}
@@ -609,7 +634,7 @@ export function PolstDetailPage() {
       ) : (
         <SectionGrid>
           {polst.votes > 0 ? (
-            <DashboardCard title="Results" className="lg:col-span-7">
+            <DashboardCard title="Results" className="lg:col-span-7" action={verdictLine}>
               <PollResults options={polstOptions(polst)} />
             </DashboardCard>
           ) : null}
@@ -634,7 +659,138 @@ export function PolstDetailPage() {
         objectName={polst.question}
         url={qrUrl(polst)}
       />
+      <AssignSourceModal
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        polst={polst}
+      />
     </DashboardPage>
+  );
+}
+
+/* ── Assign a source (scheduled runs) ─────────────────────────────────
+   The campaign Sources tab's assign flow, scoped to this Polst — the
+   attention card's CTA finishes the job in place instead of landing one
+   click short on Distribution. "Assign" links; "Add" (Distribution)
+   creates. */
+
+const SOURCE_KINDS: Array<Source["kind"]> = ["QR code", "Share link", "Embed", "Tracked link"];
+const CHANNELS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
+
+function AssignSourceModal({
+  open,
+  onClose,
+  polst,
+}: {
+  open: boolean;
+  onClose: () => void;
+  polst: SinglePolst;
+}) {
+  const { sources, assignSource, addSource } = useWorkspace();
+  const toast = useToast();
+  const unlinked = sources.filter((s) => !s.linked);
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<string>("QR code");
+  const [channel, setChannel] = useState<string>("Website");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) setSubmitting(false);
+  }, [open]);
+
+  const create = () => {
+    if (submitting) return; // a double-click must not mint a duplicate source
+    setSubmitting(true);
+    addSource({
+      name: name.trim(),
+      kind: kind as Source["kind"],
+      channel: channel as Channel,
+      linked: { type: "polst", id: polst.id },
+    });
+    toast(`${name.trim()} created and assigned`);
+    setName("");
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} label="Assign a source" title="Assign a source">
+      <div className="space-y-5 p-4">
+        {unlinked.length > 0 ? (
+          <div>
+            <p className="mb-2 font-display text-sm font-semibold text-text-primary">
+              Unassigned sources
+            </p>
+            <div className="divide-y divide-border-default overflow-hidden rounded-md border border-border-default">
+              {unlinked.map((s) => (
+                <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-text-primary">{s.name}</p>
+                    <p className="mt-0.5 text-xs text-text-secondary">
+                      {s.kind} · {s.channel}
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      assignSource(s.id, { type: "polst", id: polst.id });
+                      toast(`${s.name} assigned to this Polst`);
+                      onClose();
+                    }}
+                  >
+                    Assign
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="space-y-4">
+          <p className="font-display text-sm font-semibold text-text-primary">
+            Create a new source
+          </p>
+          <Field label="Name">
+            {(fieldId) => (
+              <TextInput
+                id={fieldId}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="QR — Shelf talker"
+              />
+            )}
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Kind">
+              {(fieldId) => (
+                <SelectMenu
+                  id={fieldId}
+                  label="Kind"
+                  value={kind}
+                  onValueChange={setKind}
+                  options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))}
+                />
+              )}
+            </Field>
+            <Field label="Channel">
+              {(fieldId) => (
+                <SelectMenu
+                  id={fieldId}
+                  label="Channel"
+                  value={channel}
+                  onValueChange={setChannel}
+                  options={CHANNELS.map((c) => ({ value: c, label: c }))}
+                />
+              )}
+            </Field>
+          </div>
+          <div className="flex justify-end">
+            <Button disabled={!name.trim() || submitting} onClick={create}>
+              Create &amp; assign
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

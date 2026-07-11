@@ -25,7 +25,6 @@ import { METRIC_INFO, fmtDate, fmtInt } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import {
   INTEGRATIONS,
-  TEAM,
   USAGE,
   WORKSPACE,
   polstOptions,
@@ -55,7 +54,9 @@ const fieldLabelClass =
   "font-display text-sm font-semibold leading-5 text-text-primary";
 
 /** The public brand identity: what voters see on embeds and the brand
- *  page. Avatar changes are real (local object URL); Save is a mock. */
+ *  page. Avatar changes are real (local object URL); the profile fields
+ *  save nowhere (the rail wordmark reads the WORKSPACE constant), so the
+ *  toast says so — toasts never claim what the store didn't do. */
 function BrandProfileCard() {
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -65,7 +66,10 @@ function BrandProfileCard() {
     <DashboardCard
       title="Brand profile"
       action={
-        <Button size="sm" onClick={() => toast("Brand profile saved")}>
+        <Button
+          size="sm"
+          onClick={() => toast("Saving the brand profile is disabled in this demo workspace")}
+        >
           Save changes
         </Button>
       }
@@ -142,11 +146,12 @@ function BrandProfileCard() {
 /* ── Team & access ───────────────────────────────────────────────── */
 
 /** The team model: members are provisioned brand-only accounts — no
- *  invite emails — and everyone besides the owner is a Manager. Adding
- *  a member appends a real row; "Joined" fills in at first sign-in. */
+ *  invite emails — and everyone besides the owner is a Manager. Members
+ *  live in the workspace store like every other in-session creation, so
+ *  an added row survives navigating away; "Joined" fills at first sign-in. */
 function TeamSection() {
   const toast = useToast();
-  const [members, setMembers] = useState<TeamMember[]>(TEAM);
+  const { members, addMember } = useWorkspace();
   const [addOpen, setAddOpen] = useState(false);
 
   const memberColumns: Array<DataColumn<TeamMember>> = [
@@ -213,10 +218,7 @@ function TeamSection() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onAdd={(name, email) => {
-          setMembers((all) => [
-            ...all,
-            { id: `member-${Date.now()}`, name, email, role: "Manager" },
-          ]);
+          addMember(name, email);
           toast(`Account created — ${email} can sign in now`);
         }}
       />

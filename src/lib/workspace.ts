@@ -1054,7 +1054,9 @@ export function attentionItems(
   return items.slice(0, 5);
 }
 
-/** Seed-time snapshot of the queue (verify-model and static consumers). */
+/** Seed-time snapshot of the queue. scripts/verify-model.ts asserts against
+ *  it (invariants 9 & 17); no page reads it — every UI surface derives the
+ *  queue live from the store via attentionItems(...). */
 export const ATTENTION_ITEMS: ListItem[] = attentionItems(CAMPAIGNS, SINGLE_POLSTS, SOURCES);
 
 /* ── Calendar (Home) ─────────────────────────────────────────────── */
