@@ -988,7 +988,9 @@ export function attentionItems(
         title: `${c.name} starts ${relativeToToday(c.startAt)} with no sources`,
         reason: `Nothing is set up to collect voters before the ${fmtDate(c.startAt)} start. Add a QR code, link, or embed.`,
         tone: "danger",
-        action: "Add sources",
+        // "Assign" is the verb of the control this lands on (the Sources
+        // tab's "Assign source"); "Add source" means create-new (Distribution).
+        action: "Assign sources",
         to: `/campaigns/${c.id}?tab=sources`,
       });
     }
@@ -1311,6 +1313,31 @@ export const embedScript = (id: string) => `<div id="polst-campaign"></div>
 /** "Minimal label +16 pts" | "—" — the one string form of a winner. */
 export const winnerLabel = (c: { winner: { option: string; marginPts: number } | null }) =>
   c.winner ? `${c.winner.option} +${c.winner.marginPts} pts` : "—";
+
+/** The plain-language verdict campaign-facing surfaces speak — "Result so
+ *  far" columns, brief eyebrows, ready strips. The internal `DecisionSignal`
+ *  taxonomy (canon's signalFor) still drives it, but its raw labels never
+ *  reach the UI (the exported report is the one deliberate exception). */
+export const verdictLabel = (c: {
+  signal: DecisionSignal;
+  winner: { option: string; marginPts: number } | null;
+}): string => {
+  switch (c.signal) {
+    case "Decisive":
+    case "Leading":
+      return winnerLabel(c);
+    case "Directional":
+      return c.winner ? `${c.winner.option} slightly ahead` : "—";
+    case "Too close":
+      return "Too close to call";
+    case "Collecting":
+      return "Collecting votes";
+    case "Inconclusive":
+      return "No clear winner";
+    default:
+      return "—";
+  }
+};
 
 /* ── Team (Settings) ─────────────────────────────────────────────────
    Staging's model: members are provisioned brand-only accounts (no
