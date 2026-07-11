@@ -681,7 +681,8 @@ export type WorkspaceWindow = WindowTotals & {
   end: string;
   /** "Jun 9 – Jun 15" — the exact window behind the numbers. */
   label: string;
-  /** "vs Jun 2 – Jun 8", or null when there is no previous window. */
+  /** "vs Jun 2 – Jun 8" — null when there is no previous window, or when the
+   *  previous window has too little traffic for any honest comparison. */
   compareLabel: string | null;
   engagementRate: number | null; // votes/views*100, 1dp
   completionRate: number | null; // completed/voters*100, 1dp
@@ -704,12 +705,17 @@ export function workspaceWindow(range: WindowRange): WorkspaceWindow {
   const current = totals(start, end);
   const [prevStart, prevEnd] = windowBounds(range, 1);
   const prev = range === "All" ? null : totals(prevStart, prevEnd);
+  // A stated baseline needs something to compare: views bound every other
+  // metric, so when the previous window's views fall under windowDelta's
+  // honesty floor no delta anywhere can survive — the comparison label is
+  // then withheld instead of decorating suppressed numbers.
+  const comparable = prev !== null && windowDelta(current.views, prev.views) !== null;
   const result: WorkspaceWindow = {
     range,
     start,
     end,
     label: `${fmtDate(start)} – ${fmtDate(end)}`,
-    compareLabel: range === "All" ? null : `vs ${fmtDate(prevStart)} – ${fmtDate(prevEnd)}`,
+    compareLabel: comparable ? `vs ${fmtDate(prevStart)} – ${fmtDate(prevEnd)}` : null,
     ...current,
     engagementRate: current.views > 0 ? round1((current.votes / current.views) * 100) : null,
     completionRate: current.voters > 0 ? round1((current.completed / current.voters) * 100) : null,
@@ -814,12 +820,24 @@ const uncoveredScheduledFor = (campaigns: Campaign[], sources: Source[]) =>
   );
 
 const trendLine = (subject: string, stat: Stat, range: StatRange) => {
+  if (range === "All") return `${subject} reached ${stat.value} since launch.`;
+  // A suppressed delta ("—", windowDelta's honesty floor) is not "held
+  // steady" — there is nothing to compare against, and the line says so.
+  if (stat.delta === "—")
+    return `${subject} reached ${stat.value} — no comparable previous period yet.`;
   const movement = stat.trend === "down" ? "fell" : stat.trend === "up" ? "rose" : "held steady";
-  const change = stat.delta === "—" ? "" : ` ${stat.delta}`;
-  return range === "All"
-    ? `${subject} reached ${stat.value} since launch.`
-    : `${subject} ${movement}${change} versus the previous period.`;
+  const change = stat.trend === "flat" ? "" : ` ${stat.delta}`;
+  return `${subject} ${movement}${change} versus the previous period.`;
 };
+
+/** The trend insight's tone: neutral (accent) when there is no comparison,
+ *  danger on a real fall, success otherwise. */
+const trendTone = (stat: Stat, range: StatRange): "success" | "danger" | "accent" =>
+  range !== "All" && stat.delta === "—"
+    ? "accent"
+    : stat.trend === "down"
+      ? "danger"
+      : "success";
 
 const buildStats = (
   range: StatRange,
@@ -865,57 +883,61 @@ const buildStats = (
     : null;
   const prevEngagement = w.prev && w.prev.views > 0 ? round1((w.prev.votes / w.prev.views) * 100) : null;
   const prevCompletion = w.prev && w.prev.voters > 0 ? round1((w.prev.completed / w.prev.voters) * 100) : null;
+  // The dashed previous-period line follows the comparison label: a previous
+  // window with no comparable traffic draws nothing (a flat-zero dashed line
+  // would decorate a comparison every tile honestly suppresses).
+  const comparable = prev !== null && w.compareLabel !== null;
 
   const views: Stat = {
     label: "Total views",
     value: fmtInt(w.views),
     ...deltaParts(w.views, w.prev?.views ?? null),
     spark: downsampleCounts(cur.views),
-    ...(prev ? { previous: downsampleCounts(prev.views) } : {}),
+    ...(comparable ? { previous: downsampleCounts(prev!.views) } : {}),
   };
   const votes: Stat = {
     label: "Total votes",
     value: fmtInt(w.votes),
     ...deltaParts(w.votes, w.prev?.votes ?? null),
     spark: downsampleCounts(cur.votes),
-    ...(prev ? { previous: downsampleCounts(prev.votes) } : {}),
+    ...(comparable ? { previous: downsampleCounts(prev!.votes) } : {}),
   };
   const engagement: Stat = {
     label: "Engagement rate",
     value: w.engagementRate !== null ? fmtPct(w.engagementRate, 1) : "—",
     ...deltaParts(w.engagementRate ?? 0, prevEngagement),
     spark: downsampleRate(cur.votes, cur.views),
-    ...(prev ? { previous: downsampleRate(prev.votes, prev.views) } : {}),
+    ...(comparable ? { previous: downsampleRate(prev!.votes, prev!.views) } : {}),
   };
   const completion: Stat = {
     label: "Completion rate",
     value: w.completionRate !== null ? fmtPct(w.completionRate, 1) : "—",
     ...deltaParts(w.completionRate ?? 0, prevCompletion),
     spark: downsampleRate(cur.completed, cur.voters),
-    ...(prev ? { previous: downsampleRate(prev.completed, prev.voters) } : {}),
+    ...(comparable ? { previous: downsampleRate(prev!.completed, prev!.voters) } : {}),
   };
 
   views.insights = [
-    { text: trendLine("Views", views, range), to: "/analytics", tone: views.trend === "down" ? "danger" : "success" },
+    { text: trendLine("Views", views, range), to: "/analytics", tone: trendTone(views, range) },
     { text: `${channelVoters.topChannel} delivers ${channelVoters.topShare}% of all voters.`, to: "/distribution", tone: "success" },
     ...(uncoveredScheduled
       ? [{ text: `${uncoveredScheduled.name} starts ${relativeToToday(uncoveredScheduled.startAt!)} with no sources.`, to: `/campaigns/${uncoveredScheduled.id}`, tone: "danger" as const }]
       : []),
   ];
   votes.insights = [
-    { text: trendLine("Votes", votes, range), to: "/analytics", tone: votes.trend === "down" ? "danger" : "success" },
+    { text: trendLine("Votes", votes, range), to: "/analytics", tone: trendTone(votes, range) },
     ...(biggestShortfall
       ? [{ text: `${biggestShortfall.name} is ${fmtInt(biggestShortfall.target! - biggestShortfall.voters)} voters short of its ${fmtInt(biggestShortfall.target!)} target.`, to: `/campaigns/${biggestShortfall.id}`, tone: "warning" as const }]
       : []),
   ];
   engagement.insights = [
-    { text: trendLine("Engagement", engagement, range), to: "/analytics", tone: engagement.trend === "down" ? "danger" : "success" },
+    { text: trendLine("Engagement", engagement, range), to: "/analytics", tone: trendTone(engagement, range) },
     ...(bestEngagementCampaign
       ? [{ text: `${bestEngagementCampaign.name} converts ${fmtPct((bestEngagementCampaign.votes / bestEngagementCampaign.views) * 100, 0)} of views into votes — the strongest live campaign.`, to: `/campaigns/${bestEngagementCampaign.id}`, tone: "success" as const }]
       : []),
   ];
   completion.insights = [
-    { text: trendLine("Completion", completion, range), to: "/analytics", tone: completion.trend === "down" ? "danger" : "success" },
+    { text: trendLine("Completion", completion, range), to: "/analytics", tone: trendTone(completion, range) },
     ...(lowestCompletionActive
       ? [{ text: `${lowestCompletionActive.name} completes at ${fmtPct(lowestCompletionActive.completionRate!, 0)} — the lowest of any active campaign.`, to: `/campaigns/${lowestCompletionActive.id}`, tone: "warning" as const }]
       : []),
@@ -1118,6 +1140,22 @@ export const WHAT_CHANGED: WhatChanged[] = byMostRecent([
   { id: "wc-summer-2k", text: "Summer Flavor Lineup passed 2,000 voters", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup" },
 ]);
 
+/** Drop feed entries a run's own record now contradicts: when a schedule
+ *  edit or an in-session ending moves a campaign's end earlier, milestones
+ *  stamped after the new end can no longer have happened ("passed 2,000
+ *  voters · today" under "Voting closed Jun 10"). Pass the LIVE campaigns;
+ *  entries that don't point at a campaign pass through untouched. */
+export const clipToRun = <T extends { at: string; to: string }>(
+  items: T[],
+  campaigns: Array<Pick<Campaign, "id" | "endAt">>,
+): T[] =>
+  items.filter((item) => {
+    const id = item.to.match(/^\/campaigns\/([^/?#]+)/)?.[1];
+    if (!id) return true;
+    const campaign = campaigns.find((c) => c.id === id);
+    return !campaign || !campaign.endAt || item.at <= campaign.endAt;
+  });
+
 export type WorkspaceNotification = {
   id: string;
   title: string;
@@ -1319,8 +1357,10 @@ export const winnerLabel = (c: { winner: { option: string; marginPts: number } |
 /** The plain-language verdict campaign-facing surfaces speak — "Result so
  *  far" columns, brief eyebrows, ready strips. The internal `DecisionSignal`
  *  taxonomy (canon's signalFor) still drives it, but its raw labels never
- *  reach the UI (the exported report is the one deliberate exception). */
+ *  reach the UI (the exported report is the one deliberate exception).
+ *  Ended runs speak past voice — nothing is "ahead" in a closed race. */
 export const verdictLabel = (c: {
+  status: Status;
   signal: DecisionSignal;
   winner: { option: string; marginPts: number } | null;
 }): string => {
@@ -1329,9 +1369,12 @@ export const verdictLabel = (c: {
     case "Leading":
       return winnerLabel(c);
     case "Directional":
-      return c.winner ? `${c.winner.option} slightly ahead` : "—";
+      if (!c.winner) return "—";
+      return c.status === "Ended"
+        ? `${c.winner.option} finished slightly ahead`
+        : `${c.winner.option} slightly ahead`;
     case "Too close":
-      return "Too close to call";
+      return c.status === "Ended" ? "Ended too close to call" : "Too close to call";
     case "Collecting":
       return "Collecting votes";
     case "Inconclusive":
@@ -1343,7 +1386,9 @@ export const verdictLabel = (c: {
 
 /** The one headline framing of the call — the DecisionBrief and the decision
  *  report speak the same words ("Decided: Trio Box +10 pts"), so the report
- *  never prints the raw lead label twice (eyebrow verdict + headline call). */
+ *  never prints the raw lead label twice (eyebrow verdict + headline call).
+ *  Live voice ("Early read") is reserved for runs still collecting; a
+ *  finished run's read is final, just not necessarily decisive. */
 export const headlineLabel = (c: {
   status: Status;
   signal: DecisionSignal;
@@ -1357,9 +1402,13 @@ export const headlineLabel = (c: {
     case "Leading":
       return `Recommended: ${winnerLabel(c)}`;
     case "Directional":
-      return `Early read: ${winnerLabel(c)}`;
+      return c.status === "Ended"
+        ? `Ended: ${winnerLabel(c)} — short of decisive`
+        : `Early read: ${winnerLabel(c)}`;
     case "Too close":
-      return `Too close to call — ${winnerLabel(c)}`;
+      return c.status === "Ended"
+        ? `Ended too close to call — ${winnerLabel(c)}`
+        : `Too close to call — ${winnerLabel(c)}`;
     case "Collecting":
       return `Collecting — ${winnerLabel(c)} so far`;
     case "Inconclusive":
@@ -1368,6 +1417,34 @@ export const headlineLabel = (c: {
       return "No votes yet";
   }
 };
+
+/** The one status-aware eyebrow above `headlineLabel`. The DecisionBrief and
+ *  the decision report both speak it — "Decided · High confidence" once an
+ *  ended run's call is made, "Ready to decide · …" while a live run's
+ *  evidence supports the call, otherwise the plain verdict with its evidence
+ *  volume — so the two surfaces can never drift, and the report never opens
+ *  with the raw lead label directly above the headline that carries it. */
+export const decisionEyebrow = (c: {
+  status: Status;
+  signal: DecisionSignal;
+  confidence: Confidence;
+  winner: { option: string; marginPts: number } | null;
+  voters: number;
+  target?: number;
+}): { label: string; ready: boolean } =>
+  isReadyToDecide(c)
+    ? {
+        ready: true,
+        label: `${c.status === "Ended" ? "Decided" : "Ready to decide"}${
+          c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""
+        }`,
+      }
+    : {
+        ready: false,
+        label: `${verdictLabel(c)} — ${fmtInt(c.voters)}${
+          c.target ? ` of ${fmtInt(c.target)}` : ""
+        } voters`,
+      };
 
 /* ── Team (Settings) ─────────────────────────────────────────────────
    Staging's model: members are provisioned brand-only accounts (no

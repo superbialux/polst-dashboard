@@ -1797,7 +1797,8 @@ export function Switch({
 
 /** One integration: what it is, what it feeds, and its connection state.
  *  Marketers see integrations — the word "API" stays in the developer
- *  section. Connecting only raises a toast in this mockup. */
+ *  section. No OAuth flow exists in this mockup, so Connect refuses in the
+ *  demo voice — a toast never claims a window that will not open. */
 export function ConnectCard({ integration }: { integration: Integration }) {
   const toast = useToast();
   return (
@@ -1827,7 +1828,7 @@ export function ConnectCard({ integration }: { integration: Integration }) {
           variant="secondary"
           size="sm"
           className="shrink-0"
-          onClick={() => toast(`Opening ${integration.name} to authorize the connection…`)}
+          onClick={() => toast(`Connecting ${integration.name} is disabled in this demo workspace`)}
         >
           Connect
         </Button>

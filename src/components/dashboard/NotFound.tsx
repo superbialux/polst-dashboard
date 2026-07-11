@@ -16,7 +16,7 @@ export function NotFoundCard({ kind = "page" }: { kind?: string }) {
             It may have been moved or deleted.
           </p>
           <Button variant="secondary" size="sm" asChild>
-            <Link to="/">Back to Home</Link>
+            <Link to="/">Back to home</Link>
           </Button>
         </div>
       </DashboardCard>

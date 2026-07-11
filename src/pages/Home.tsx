@@ -89,15 +89,19 @@ function AttentionRow({ item }: { item: ListItem }) {
 
 /* ── Ready to decide ─────────────────────────────────────────────── */
 
-function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more: number }) {
+function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more?: string }) {
   // An Ended run's call is made — the card says "Decided" and points at the
   // report instead of nagging "Review decision" forever.
   const decided = campaign.status === "Ended";
   return (
     <DashboardCard title={decided ? "Decided" : "Ready to decide"} className="lg:col-span-4">
-      <p className="text-sm font-semibold text-status-success">
-        {decided ? "Decided" : "Ready to decide"} · {campaign.confidence} confidence
-      </p>
+      {/* The card title already carries the state — this line adds only the
+          evidence strength, never a repeat of the title. */}
+      {campaign.confidence !== "—" ? (
+        <p className="text-sm font-semibold text-status-success">
+          {campaign.confidence} confidence
+        </p>
+      ) : null}
       <Link
         to={`/campaigns/${campaign.id}`}
         className="mt-2 block font-display text-base font-semibold leading-6 text-text-primary hover:text-text-accent"
@@ -120,12 +124,12 @@ function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more: numbe
       <Button className="mt-3 w-full" asChild>
         <Link to={`/campaigns/${campaign.id}`}>{decided ? "Open report" : "Review decision"}</Link>
       </Button>
-      {more > 0 ? (
+      {more ? (
         <Link
           to="/campaigns"
           className="mt-2.5 block text-center text-xs font-semibold text-text-accent hover:underline"
         >
-          {more} more ready to decide
+          {more}
         </Link>
       ) : null}
     </DashboardCard>
@@ -217,7 +221,8 @@ function launchSteps(campaign: Campaign, sourceCount: number): SetupStep[] {
       },
     },
     {
-      title: "Assign a source",
+      // Plural like its CTA — a campaign collects through several sources.
+      title: "Assign sources",
       done: sourceCount > 0,
       description:
         sourceCount > 0
@@ -268,7 +273,8 @@ function KeyDateCard({ date, coverage }: { date: KeyDate; coverage: KeyDateCover
         ? `"${polst.question}" is ${polst.status.toLowerCase()} — runs ${fmtDateRange(polst.startAt, polst.endAt)}.`
         : `"${polst.question}" is ${polst.status.toLowerCase()} — no source yet.`;
     primary = {
-      label: sourceCount > 0 ? "View Polst" : "Assign a source",
+      // Singular, no article — the same verb form as the control it lands on.
+      label: sourceCount > 0 ? "View Polst" : "Assign source",
       to: `/polsts/${polst.id}`,
     };
   } else {
@@ -323,6 +329,22 @@ export function HomePage() {
     [campaigns],
   );
   const readyCampaign = readyToDecide[0];
+
+  /* The "more" link states each group truthfully: a Decided (Ended) run is
+     never counted as "ready to decide" — that call is already made. */
+  const moreReady = useMemo(() => {
+    const rest = readyToDecide.slice(1);
+    const live = rest.filter((c) => c.status !== "Ended").length;
+    const decided = rest.length - live;
+    return (
+      [
+        live > 0 ? `${live} more ready to decide` : null,
+        decided > 0 ? `${decided} decided ${decided === 1 ? "run" : "runs"} to review` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || undefined
+    );
+  }, [readyToDecide]);
 
   /* The nearest scheduled campaign that still has a launch gap. */
   const launchCampaign = useMemo(
@@ -387,7 +409,7 @@ export function HomePage() {
       {/* What can be decided, and what's in the way. */}
       <SectionGrid>
         {readyCampaign ? (
-          <ReadyDecisionCard campaign={readyCampaign} more={readyToDecide.length - 1} />
+          <ReadyDecisionCard campaign={readyCampaign} more={moreReady} />
         ) : null}
         <DashboardCard
           title={attention.length ? `${attention.length} need attention` : "Needs attention"}

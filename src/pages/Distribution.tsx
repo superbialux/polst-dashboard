@@ -597,7 +597,8 @@ function AddSourceModal({
           label="Link to"
           helper={
             <p className="text-xs leading-4 text-text-secondary">
-              Unassigned sources collect without attribution — you can assign one later.
+              An unassigned source doesn&rsquo;t collect voters yet — assign it to a campaign
+              or Polst when you&rsquo;re ready.
             </p>
           }
         >

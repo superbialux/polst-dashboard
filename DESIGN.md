@@ -536,15 +536,22 @@ plain-language translation, `verdictLabel` in `workspace.ts` ("Minimal label
 **on live runs only**: once the run is Ended the call is made, and every
 ready surface (brief eyebrow, Home card, Analytics rails) speaks
 "Decided · {confidence} confidence" with an "Open report" CTA instead of
-nagging "Ready to decide" forever. `headlineLabel` (workspace.ts) is the one
-headline framing of the call ("Decided: Trio Box +10 pts" / "Recommended: …");
-the DecisionBrief and the decision report both speak it, so the report never
-prints the raw lead label twice.
+nagging "Ready to decide" forever. Ended runs speak **past voice**
+everywhere: `verdictLabel` says "finished slightly ahead" and
+`headlineLabel` says "Ended: … — short of decisive", never "Early read" or
+"slightly ahead" on a closed race. `headlineLabel` (workspace.ts) is the one
+headline framing of the call ("Decided: Trio Box +10 pts" / "Recommended: …" /
+"Ended: … — short of decisive"), and **`decisionEyebrow`** (workspace.ts) is
+the one status-aware eyebrow above it ("Decided · High confidence" on
+ended-ready runs, "Ready to decide · …" live, otherwise the verdict with its
+voter progress); the DecisionBrief and the decision report both consume the
+same pair, so the report never prints the raw lead label twice and the two
+surfaces can never drift.
 Campaign tables carry **both** columns — Status and **"Result so far"**
 (the verdict) — never one string mixing the two. The chain itself previews
 as a **`ThumbStrip`** (first three split A/B minis + a "+N" chip). No
 surface speaks the raw taxonomy: the decision report leads with the same
-plain verdict + confidence line as the DecisionBrief.
+`decisionEyebrow` line as the DecisionBrief.
 
 `StatusBadge` and `verdictLabel` own their mappings in one place; pages pass
 the entity and get the right treatment for free.
@@ -581,7 +588,11 @@ weaken it).
   (`scheduleEdit` refuses; date edits on published runs re-resolve status
   through `publishedStatus` and re-derive the signal), a voted source never
   unassigns (its attribution is part of the linked run's record), and one
-  email is one account.
+  email is one account. Milestone feeds clip to each run's **current** end
+  (`clipToRun`): when a schedule edit or in-session ending moves a
+  campaign's end earlier, "What changed" and notification entries stamped
+  after the new end are retired — a feed never asserts a milestone the
+  record contradicts.
 
 ## The dashboard component kit
 
@@ -594,8 +605,9 @@ fork. New surface area should feel assembled, not authored:
   no chrome of its own — the header breadcrumbs own page identity and the
   content does the explaining.
 - **`DecisionBrief`** — the **Decision Narrative** as one reusable object:
-  a plain-language **verdict eyebrow** ("Ready to decide · High confidence",
-  or `verdictLabel` + progress — "Collecting votes — 640 of 1,200 voters") →
+  a plain-language **verdict eyebrow** (the shared `decisionEyebrow` —
+  "Decided · …" / "Ready to decide · High confidence", or `verdictLabel` +
+  progress — "Collecting votes — 640 of 1,200 voters") →
   a 20px headline (the call) → what changed
   and why → an amber **caveat** line → an **evidence strip** (label/value
   pairs, each with an optional `InfoHint` definition) → one primary action.
@@ -638,7 +650,11 @@ fork. New surface area should feel assembled, not authored:
   **`DateRangeMenu`** above the strip — one `WindowRange` swaps the values,
   deltas, sparks, and axis labels together (the stats derive from the live
   store) — and `scopeLabel` names the comparison window ("vs Jun 2 – Jun
-  8"). Definitions ride `InfoHint`, never `title=`.
+  8"). When the previous window has no comparable traffic (`windowDelta`'s
+  honesty floor), the label and the dashed previous line are **withheld** —
+  a stated baseline with nothing compared against it is decoration — and the
+  trend insight says "no comparable previous period yet" instead of "held
+  steady". Definitions ride `InfoHint`, never `title=`.
 - **`DataTable<T>`** — the one list primitive: typed columns, status pills,
   right-aligned row actions, an honest empty label. Campaigns, Polsts,
   Sources, Reports, Audience's country rows, and Settings' team table all
@@ -744,7 +760,8 @@ fork. New surface area should feel assembled, not authored:
   anatomy for the same report object (signal + winning direction, key
   findings, caveats, voter journey, sources) with one footer convention.
   One object, one report — never two anatomies for the same deliverable.
-  Its headline is the brief's `headlineLabel`; a zero-voter Ended run reports
+  Its eyebrow is the shared `decisionEyebrow` and its headline the brief's
+  `headlineLabel`; a zero-voter Ended run reports
   "Ended without votes" (no empty funnel, never a bare "—"). Analytics ›
   Reports derives its rows live: every Ended campaign carries a Ready
   decision-report row (the authored seed rows plus in-session endings), so
@@ -767,7 +784,8 @@ fork. New surface area should feel assembled, not authored:
 - **`Switch` + module flags** — `lib/modules.tsx` holds feature-flagged
   modules (Acquisition, Retention — **default OFF**) in context +
   localStorage; Settings › Modules toggles them and the sidebar reacts
-  instantly. Off means gone — no ghost nav items (`LockedCard` is only for
+  instantly. Settings › **Embed appearance** persists its four choices the
+  same way (localStorage), so its dirty-tracked Save is a real write. Off means gone — no ghost nav items (`LockedCard` is only for
   teaser-tier content). When enabled they appear as Analytics nav children
   and open **`ConnectCard` integration surfaces, never fabricated
   dashboards**. The 36×20px track sits inside **8px padding on every side**,
@@ -784,7 +802,12 @@ The load-bearing facts a builder must not re-invent:
 - **Campaign detail** — tabs are **Overview (default) · Polsts · Sources ·
   Settings**; `DecisionBrief` leads Overview. Tab state lives in `?tab=` so
   other pages can deep-link (Home's "Add sources" →
-  `/campaigns/{id}?tab=sources`).
+  `/campaigns/{id}?tab=sources`). The zero-voter Overview follows the
+  lifecycle: the **launch checklist renders only for Draft/Scheduled** runs;
+  a zero-voter Active run says it is live and waiting, and a zero-voter
+  Ended/Archived run speaks the report's voice ("Ended without votes — no
+  result, nothing was collected") with the honest lifecycle exits
+  (Archive / Restore), never launch instructions its record contradicts.
 - **Sources, not "channels".** Distribution is the workspace-level **Sources
   library** at `/distribution`: a **source** is a concrete asset — QR code,
   Share link, Embed, Tracked link — and a **channel** is the rollup family it
@@ -800,7 +823,8 @@ The load-bearing facts a builder must not re-invent:
   per-country completion — and the Platforms card carries a real Browsers
   list (`browserMix`). Demographics we don't collect (age/gender, income)
   stay `LockedCard`s. The window and its comparison period are stated once
-  at band level; tiles say only "% vs the previous period".
+  at band level — omitted when the previous window has no comparable
+  traffic — and tiles say only "% vs the previous period".
 - **Polst detail** — Vote velocity is **votes/hr** over the last 1h/6h/24h
   (engine `hourlyVotes`, on the fixed demo clock, sharing its daypart curve
   with `TimeHeatmap`), shown only for Active runs with votes.

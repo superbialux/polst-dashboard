@@ -6,12 +6,14 @@
    store via the caller); the copy button writes the real clipboard and
    reports failure honestly. */
 
+import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import { fmtDateRange, fmtInt, fmtPct, pct } from "@/lib/canon";
 import {
+  decisionEyebrow,
   headlineLabel,
   polstOptions,
   verdictLabel,
@@ -53,6 +55,12 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
   // already-past dates). Its report says so plainly — never a bare "—"
   // verdict over an all-zero funnel.
   const zeroVoters = campaign.voters === 0;
+  /* The shared status-aware eyebrow (workspace.decisionEyebrow) — the exact
+     words the DecisionBrief speaks, so the report can never open with the
+     raw lead label directly above the headline that already carries it. */
+  const eyebrow = zeroVoters
+    ? { label: "Ended without votes", ready: false }
+    : decisionEyebrow(campaign);
   const journey: FunnelStep[] = [
     { label: "Started", count: campaign.voters },
     ...campaign.chain.map((q, i) => ({
@@ -65,15 +73,13 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
   return (
     <>
       <header>
-        {/* Plain-language verdict — the report speaks to the same
-            non-technical reader as every other campaign surface. The
-            headline carries the brief's framing ("Decided: …"), so the
-            lead label never prints twice in a row. */}
-        <p className="text-sm font-semibold text-text-primary">
-          {zeroVoters ? "Ended without votes" : verdictLabel(campaign)}
-          {campaign.confidence !== "—" ? (
-            <span className="font-medium text-text-secondary"> · {campaign.confidence} confidence</span>
-          ) : null}
+        <p
+          className={cn(
+            "text-sm font-semibold",
+            eyebrow.ready ? "text-status-success" : "text-text-primary",
+          )}
+        >
+          {eyebrow.label}
         </p>
         <h3 className="mt-2 font-display text-lg font-semibold leading-6 text-text-primary">
           {zeroVoters ? "No result — nothing was collected" : headlineLabel(campaign)}

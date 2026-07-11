@@ -442,7 +442,7 @@ export function PolstDetailPage() {
       marginPts,
     };
     const signal = signalFor({ status: polst.status, voters: polst.votes, marginPts });
-    return `${verdictLabel({ signal, winner })} · ${fmtInt(polst.votes)} votes`;
+    return `${verdictLabel({ status: polst.status, signal, winner })} · ${fmtInt(polst.votes)} votes`;
   })();
   const verdictLine = resultVerdict ? (
     <span className="text-sm font-medium tabular-nums text-text-secondary">{resultVerdict}</span>
@@ -612,6 +612,7 @@ export function PolstDetailPage() {
             bodyClassName="pt-2"
           >
             <PollCard
+              preview
               author={WORKSPACE.brand}
               authorBadge={WORKSPACE.initials}
               authorColor="var(--color-purple-tint)"
@@ -665,7 +666,7 @@ export function PolstDetailPage() {
   );
 }
 
-/* ── Assign a source (scheduled runs) ─────────────────────────────────
+/* ── Assign source (scheduled runs) ───────────────────────────────────
    The campaign Sources tab's assign flow, scoped to this Polst — the
    attention card's CTA finishes the job in place instead of landing one
    click short on Distribution. "Assign" links; "Add" (Distribution)
@@ -710,8 +711,25 @@ function AssignSourceModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} label="Assign a source" title="Assign a source">
-      <div className="space-y-5 p-4">
+    // Titled like the button that opens it, with the standard modal footer
+    // (Cancel + primary) every sibling form modal carries.
+    <Modal
+      open={open}
+      onClose={onClose}
+      label="Assign source"
+      title="Assign source"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!name.trim() || submitting} onClick={create}>
+            Create &amp; assign
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 p-4">
         {unlinked.length > 0 ? (
           <div>
             <p className="mb-2 font-display text-sm font-semibold text-text-primary">
@@ -779,11 +797,6 @@ function AssignSourceModal({
                 />
               )}
             </Field>
-          </div>
-          <div className="flex justify-end">
-            <Button disabled={!name.trim() || submitting} onClick={create}>
-              Create &amp; assign
-            </Button>
           </div>
         </div>
       </div>

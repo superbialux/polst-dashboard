@@ -95,6 +95,10 @@ export type PollCardProps = {
   /** Human time left, e.g. "2h", rendered as "2h left". Omit it and the
    *  card shows no countdown — drafts and unscheduled runs have none. */
   timeLeft?: string;
+  /** Dashboard voter-preview embed: the card renders as the brand's own
+   *  poll (no follow/report affordances) and transient interactions stay
+   *  quiet — no toast may claim an action the demo never performs. */
+  preview?: boolean;
 };
 
 /** Content limits. */
@@ -140,14 +144,16 @@ export function PollCard({
   reposts,
   votes,
   timeLeft,
+  preview = false,
 }: PollCardProps) {
   const [selected, setSelected] = useState<number | null>(null);
   const [liked, setLiked] = useState(false);
   const [reposted, setReposted] = useState(false);
   const [following, setFollowing] = useState(isFollowing);
   const [saved, setSaved] = useState(false);
-  /** The account's own polls drop follow/report affordances. */
-  const isOwn = author === ACCOUNT.name;
+  /** The account's own polls drop follow/report affordances — and so does
+   *  the dashboard preview, where the operator IS the poll's brand. */
+  const isOwn = preview || author === ACCOUNT.name;
   const hasVoted = selected !== null;
   const category = categories[0];
   const articleRef = useRef<HTMLElement>(null);
@@ -405,7 +411,9 @@ export function PollCard({
             active={saved}
             onClick={() => {
               setSaved((v) => !v);
-              toast(saved ? "Removed from saved" : "Saved");
+              // The preview toggle is transient UI state, like Like/Repost —
+              // it must not toast a "Saved" the demo never stored.
+              if (!preview) toast(saved ? "Removed from saved" : "Saved");
             }}
           />
         </div>

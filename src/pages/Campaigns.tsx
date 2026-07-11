@@ -60,6 +60,8 @@ import {
 import {
   KEY_DATES,
   WHAT_CHANGED,
+  clipToRun,
+  decisionEyebrow,
   embedIframe,
   embedScript,
   headlineLabel,
@@ -569,22 +571,12 @@ export function CampaignDetailPage() {
 /* The headline framing is the shared `headlineLabel` (workspace.ts) — the
    decision report leads with the exact same words, one anatomy. */
 
-/** The brief's plain-language eyebrow: the decision state plus its evidence
- *  volume — canon's verdict vocabulary, never a raw signal label. An Ended
- *  run's call is made — it speaks "Decided", never a "Ready to decide" nag
- *  above a headline that already says the decision happened. */
+/** The brief's eyebrow is the shared status-aware `decisionEyebrow`
+ *  (workspace.ts) — the exact words the decision report opens with, so the
+ *  two surfaces can never drift. Ready states take the success tone. */
 const briefEyebrow = (c: Campaign): ReactNode => {
-  if (isReadyToDecide(c)) {
-    return (
-      <span className="text-status-success">
-        {c.status === "Ended" ? "Decided" : "Ready to decide"}
-        {c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}
-      </span>
-    );
-  }
-  return `${verdictLabel(c)} — ${fmtInt(c.voters)}${
-    c.target ? ` of ${fmtInt(c.target)}` : ""
-  } voters`;
+  const { label, ready } = decisionEyebrow(c);
+  return ready ? <span className="text-status-success">{label}</span> : label;
 };
 
 function CampaignOverview({
@@ -601,7 +593,14 @@ function CampaignOverview({
   onReport: () => void;
 }) {
   if (campaign.voters === 0) {
-    return <LaunchChecklist campaign={campaign} sources={sources} onGoTo={onGoTo} />;
+    // The launch checklist speaks only to runs that can still launch. A
+    // live, ended, or archived zero-voter run gets the honest state instead
+    // of instructions ("get this ready to launch") its lifecycle contradicts.
+    return campaign.status === "Draft" || campaign.status === "Scheduled" ? (
+      <LaunchChecklist campaign={campaign} sources={sources} onGoTo={onGoTo} />
+    ) : (
+      <ZeroVoterOverview campaign={campaign} sources={sources} onGoTo={onGoTo} />
+    );
   }
 
   const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
@@ -618,7 +617,11 @@ function CampaignOverview({
     { label: "Completed", count: campaign.completed },
   ];
 
-  const changed = WHAT_CHANGED.filter((w) => w.to === `/campaigns/${campaign.id}`);
+  // Milestones clip to the run's current end (clipToRun): an in-session
+  // schedule edit or ending retires entries the record now contradicts.
+  const changed = clipToRun(WHAT_CHANGED, [campaign]).filter(
+    (w) => w.to === `/campaigns/${campaign.id}`,
+  );
 
   const sourceColumns: Array<DataColumn<Source>> = [
     {
@@ -716,8 +719,91 @@ function CampaignOverview({
   );
 }
 
-/** Draft / Scheduled (and anything else with zero voters): the same
- *  launch-readiness pattern Home uses, derived entirely from real state. */
+/** The zero-voter overviews' right-rail facts card — one anatomy whether the
+ *  run is still launching or already over. Titled "About", like the
+ *  Settings tab's twin. */
+function AboutCampaignCard({ campaign }: { campaign: Campaign }) {
+  return (
+    <DashboardCard title="About" className="lg:col-span-5">
+      <DetailList
+        items={[
+          ["Decision", campaign.decision || "Not set"],
+          ["Dates", fmtDateRange(campaign.startAt, campaign.endAt)],
+          ["Voter target", campaign.target ? fmtInt(campaign.target) : "—"],
+          ["Key date", eventTitle(campaign.event)],
+          ["Created", fmtDate(campaign.createdAt)],
+        ]}
+      />
+    </DashboardCard>
+  );
+}
+
+/** Zero-voter runs past the launch gate. An Active run is live and waiting
+ *  for its first voter; an Ended or Archived one can never launch, so this
+ *  speaks the report's zero-voter voice ("No result — nothing was
+ *  collected") and offers the honest lifecycle exits instead of a checklist
+ *  whose CTAs all land on read-only tabs. */
+function ZeroVoterOverview({
+  campaign,
+  sources,
+  onGoTo,
+}: {
+  campaign: Campaign;
+  sources: Source[];
+  onGoTo: (tab: DetailTab) => void;
+}) {
+  const store = useWorkspace();
+  const toast = useToast();
+  const state =
+    campaign.status === "Active"
+      ? {
+          icon: "hub",
+          title: "Live — no voters yet",
+          hint: sources.length
+            ? "The run is live and its sources are in place. Results appear here with the first voter."
+            : "Nothing collects voters until a QR code, link, or embed points at this campaign.",
+          action: {
+            label: sources.length ? "View sources" : "Assign source",
+            onClick: () => onGoTo("Sources"),
+          },
+        }
+      : campaign.status === "Archived"
+        ? {
+            icon: "archive",
+            title: "Archived without running",
+            hint: "This campaign never collected voters and is read-only. Restore it to keep working on it.",
+            action: {
+              label: "Restore to draft",
+              onClick: () => {
+                store.restoreCampaign(campaign.id);
+                toast("Campaign restored as a draft");
+              },
+            },
+          }
+        : {
+            icon: "event_busy",
+            title: "Ended without votes",
+            hint: "No result — nothing was collected before the run closed.",
+            action: {
+              label: "Archive campaign",
+              onClick: () => {
+                store.archiveCampaign(campaign.id);
+                toast("Campaign archived");
+              },
+            },
+          };
+  return (
+    <SectionGrid className="items-start">
+      <DashboardCard className="lg:col-span-7">
+        <EmptyState icon={state.icon} title={state.title} hint={state.hint} action={state.action} />
+      </DashboardCard>
+      <AboutCampaignCard campaign={campaign} />
+    </SectionGrid>
+  );
+}
+
+/** Draft / Scheduled with zero voters: the same launch-readiness pattern
+ *  Home uses, derived entirely from real state. */
 function LaunchChecklist({
   campaign,
   sources,
@@ -743,7 +829,8 @@ function LaunchChecklist({
       cta: { label: hasPolsts ? "View Polsts" : "Add Polsts", onClick: () => onGoTo("Polsts") },
     },
     {
-      title: "Assign a source",
+      // Plural like its CTA — a campaign collects through several sources.
+      title: "Assign sources",
       done: hasSources,
       description: hasSources
         ? `${sources.length} ${sources.length === 1 ? "source" : "sources"} will collect voters.`
@@ -781,17 +868,7 @@ function LaunchChecklist({
           steps={steps}
         />
       </div>
-      <DashboardCard title="About this campaign" className="lg:col-span-5">
-        <DetailList
-          items={[
-            ["Decision", campaign.decision || "Not set"],
-            ["Dates", fmtDateRange(campaign.startAt, campaign.endAt)],
-            ["Voter target", campaign.target ? fmtInt(campaign.target) : "—"],
-            ["Key date", eventTitle(campaign.event)],
-            ["Created", fmtDate(campaign.createdAt)],
-          ]}
-        />
-      </DashboardCard>
+      <AboutCampaignCard campaign={campaign} />
     </SectionGrid>
   );
 }
@@ -1293,8 +1370,25 @@ function AssignSourceModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} label="Assign a source" title="Assign a source">
-      <div className="space-y-5 p-4">
+    // Titled like the button that opens it, with the standard modal footer
+    // (Cancel + primary) every sibling form modal carries.
+    <Modal
+      open={open}
+      onClose={onClose}
+      label="Assign source"
+      title="Assign source"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!name.trim() || submitting} onClick={create}>
+            Create &amp; assign
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 p-4">
         {unlinked.length > 0 ? (
           <div>
             <p className="mb-2 font-display text-sm font-semibold text-text-primary">
@@ -1362,11 +1456,6 @@ function AssignSourceModal({
                 />
               )}
             </Field>
-          </div>
-          <div className="flex justify-end">
-            <Button disabled={!name.trim() || submitting} onClick={create}>
-              Create &amp; assign
-            </Button>
           </div>
         </div>
       </div>

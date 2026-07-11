@@ -21,6 +21,7 @@ import {
   SOURCES,
   TEAM,
   WORKSPACE_NOTIFICATIONS,
+  clipToRun,
   type Campaign,
   type ChainQuestion,
   type Channel,
@@ -264,12 +265,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [polsts],
   );
 
+  // Notifications clip to each run's current end: a schedule edit or an
+  // in-session ending that moves a campaign's end earlier retires milestone
+  // entries the record now contradicts (workspace.clipToRun).
+  const visibleNotifications = useMemo(
+    () => clipToRun(notifications, campaigns),
+    [notifications, campaigns],
+  );
+
   const value = useMemo<WorkspaceStore>(
     () => ({
       campaigns,
       polsts,
       sources,
-      notifications,
+      notifications: visibleNotifications,
       campaignById: (id) => campaigns.find((c) => c.id === id),
       polstById: (id) => polsts.find((p) => p.id === id),
 
@@ -541,9 +550,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setNotifications((all) => all.map((n) => (n.id === id ? { ...n, read: true } : n))),
       markAllNotificationsRead: () =>
         setNotifications((all) => all.map((n) => ({ ...n, read: true }))),
-      unreadCount: notifications.filter((n) => !n.read).length,
+      unreadCount: visibleNotifications.filter((n) => !n.read).length,
     }),
-    [campaigns, polsts, sources, members, notifications, createCampaign, createPolst, patchCampaign, patchPolst],
+    [campaigns, polsts, sources, members, visibleNotifications, createCampaign, createPolst, patchCampaign, patchPolst],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

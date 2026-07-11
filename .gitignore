@@ -30,3 +30,7 @@ dist/
 # Audit pipeline artifacts
 /audit/
 *.jpeg
+/p3-*.md
+/dash-*.png
+/before.png
+/aisle-*.png

@@ -370,18 +370,75 @@ const TYPEFACE_CLASSES = {
 } as const;
 type TypefaceChoice = keyof typeof TYPEFACE_CLASSES;
 
+/* The four choices persist in localStorage — the module-flags pattern
+   (lib/modules) — so "Save changes" is a real write: the card round-trips
+   section switches and reloads, and the toast never claims what didn't
+   happen. Unknown stored values fall back to the defaults. */
+type EmbedAppearance = {
+  accent: string;
+  titlePlacement: TitlePlacement;
+  radius: RadiusChoice;
+  typeface: TypefaceChoice;
+};
+
+const EMBED_APPEARANCE_KEY = "polst-embed-appearance-v1";
+const EMBED_APPEARANCE_DEFAULT: EmbedAppearance = {
+  accent: "#6161c7",
+  titlePlacement: "Above",
+  radius: "Medium",
+  typeface: "System UI",
+};
+
+function readEmbedAppearance(): EmbedAppearance {
+  try {
+    const raw = localStorage.getItem(EMBED_APPEARANCE_KEY);
+    if (!raw) return EMBED_APPEARANCE_DEFAULT;
+    const stored = { ...EMBED_APPEARANCE_DEFAULT, ...JSON.parse(raw) };
+    return {
+      accent: /^#[0-9a-f]{6}$/i.test(stored.accent)
+        ? stored.accent
+        : EMBED_APPEARANCE_DEFAULT.accent,
+      titlePlacement: (TITLE_PLACEMENTS as readonly string[]).includes(stored.titlePlacement)
+        ? stored.titlePlacement
+        : EMBED_APPEARANCE_DEFAULT.titlePlacement,
+      radius:
+        stored.radius in RADIUS_CLASSES ? stored.radius : EMBED_APPEARANCE_DEFAULT.radius,
+      typeface:
+        stored.typeface in TYPEFACE_CLASSES ? stored.typeface : EMBED_APPEARANCE_DEFAULT.typeface,
+    };
+  } catch {
+    return EMBED_APPEARANCE_DEFAULT;
+  }
+}
+
 /** Every control here drives the live preview — accent, question
  *  placement, corner radius, typeface — so nothing on this card is
- *  decorative. The preview is the real PollResults block. */
+ *  decorative. The preview is the real PollResults block. Saving writes
+ *  localStorage; the button dirty-tracks against the saved state, like
+ *  every other save in the app. */
 function EmbedAppearanceCard() {
   const toast = useToast();
   const { polsts } = useWorkspace();
   const sample = polsts.find((p) => p.votes > 0) ?? polsts[0];
 
-  const [accent, setAccent] = useState("#6161c7");
-  const [titlePlacement, setTitlePlacement] = useState<TitlePlacement>("Above");
-  const [radius, setRadius] = useState<RadiusChoice>("Medium");
-  const [typeface, setTypeface] = useState<TypefaceChoice>("System UI");
+  const [saved, setSaved] = useState<EmbedAppearance>(readEmbedAppearance);
+  const [accent, setAccent] = useState(saved.accent);
+  const [titlePlacement, setTitlePlacement] = useState<TitlePlacement>(saved.titlePlacement);
+  const [radius, setRadius] = useState<RadiusChoice>(saved.radius);
+  const [typeface, setTypeface] = useState<TypefaceChoice>(saved.typeface);
+
+  const dirty =
+    accent !== saved.accent ||
+    titlePlacement !== saved.titlePlacement ||
+    radius !== saved.radius ||
+    typeface !== saved.typeface;
+
+  const save = () => {
+    const next: EmbedAppearance = { accent, titlePlacement, radius, typeface };
+    localStorage.setItem(EMBED_APPEARANCE_KEY, JSON.stringify(next));
+    setSaved(next);
+    toast("Embed appearance saved");
+  };
 
   const question = (placement: TitlePlacement) =>
     titlePlacement === placement ? (
@@ -399,7 +456,7 @@ function EmbedAppearanceCard() {
     <DashboardCard
       title="Embed appearance"
       action={
-        <Button size="sm" onClick={() => toast("Embed appearance saved")}>
+        <Button size="sm" disabled={!dirty} onClick={save}>
           Save changes
         </Button>
       }

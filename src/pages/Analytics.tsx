@@ -47,6 +47,7 @@ import {
   WORKSPACE,
   attentionItems,
   campaignSeries,
+  clipToRun,
   polstSeries,
   verdictLabel,
   winnerLabel,
@@ -392,8 +393,6 @@ export function AnalyticsOverviewPage() {
     [filters],
   );
   const [prevStart, prevEnd] = windowBounds(filters.range, 1);
-  const compareLabel =
-    filters.range === "All" ? null : `vs ${fmtDate(prevStart)} – ${fmtDate(prevEnd)}`;
   const prev = prevRows
     ? {
         views: segmentTotal(prevRows, "views"),
@@ -402,6 +401,12 @@ export function AnalyticsOverviewPage() {
         completed: segmentTotal(prevRows, "completed"),
       }
     : null;
+  /* A stated baseline needs at least one surviving comparison: views bound
+     every other metric, so when the previous window's views fall under
+     windowDelta's honesty floor no tile can show a delta — the label and
+     the dashed previous line are withheld rather than decorating zeros. */
+  const comparable = prev !== null && windowDelta(views, prev.views) !== null;
+  const compareLabel = comparable ? `vs ${fmtDate(prevStart)} – ${fmtDate(prevEnd)}` : null;
   /** Trend + "12% vs May 13 – Jun 11" for a tile; {} when the previous
    *  window is too small for an honest comparison (windowDelta's rule). */
   const tileDelta = (current: number, previous: number | null | undefined) => {
@@ -425,8 +430,8 @@ export function AnalyticsOverviewPage() {
 
   const trend = useMemo(() => scopedDailyVotes(rows, filters.range), [rows, filters.range]);
   const prevTrend = useMemo(
-    () => (prevRows ? scopedDailyVotes(prevRows, filters.range, 1) : undefined),
-    [prevRows, filters.range],
+    () => (prevRows && comparable ? scopedDailyVotes(prevRows, filters.range, 1) : undefined),
+    [prevRows, comparable, filters.range],
   );
   const sourceMix = useMemo(() => mixBy(rows, (row) => row.channel, "voters"), [rows]);
   const verticals = useMemo(() => verticalRows(rows), [rows]);
@@ -465,8 +470,17 @@ export function AnalyticsOverviewPage() {
     <DashboardPage actions={<ExportMenu summary={summary} />}>
       <AnalyticsFilterBar />
 
-      {/* Decisions first, telemetry after. */}
-      <DashboardCard title="Ready to decide" padded={false} bodyClassName="pb-1">
+      {/* Decisions first, telemetry after. The title follows the rows'
+          truth: all-Ended runs are Decided, never "ready to decide". */}
+      <DashboardCard
+        title={
+          ready.length > 0 && ready.every((c) => c.status === "Ended")
+            ? "Decided"
+            : "Ready to decide"
+        }
+        padded={false}
+        bodyClassName="pb-1"
+      >
         {ready.length ? (
           <ReadyToDecideList campaigns={ready} />
         ) : (
@@ -672,6 +686,9 @@ export function AnalyticsInsightsPage() {
     () => attentionItems(campaigns, polsts, sources),
     [campaigns, polsts, sources],
   );
+  /* Milestones clip to each run's current end (clipToRun): an in-session
+     schedule edit or ending retires entries the record now contradicts. */
+  const changed = useMemo(() => clipToRun(WHAT_CHANGED, campaigns), [campaigns]);
 
   const summary = () =>
     [
@@ -681,7 +698,7 @@ export function AnalyticsInsightsPage() {
           `${c.status === "Ended" ? "Decided" : "Ready to decide"}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
       ),
       ...attention.map((item) => `Needs attention: ${item.title}`),
-      ...WHAT_CHANGED.map((item) => `${fmtDate(item.at)} — ${item.text}`),
+      ...changed.map((item) => `${fmtDate(item.at)} — ${item.text}`),
     ].join("\n");
 
   return (
@@ -732,7 +749,7 @@ export function AnalyticsInsightsPage() {
         </DashboardCard>
         <DashboardCard title="What changed" className="lg:col-span-5" bodyClassName="pt-2">
           <ul className="divide-y divide-border-default">
-            {WHAT_CHANGED.map((item) => (
+            {changed.map((item) => (
               <li key={item.id} className="py-3 first:pt-1 last:pb-1">
                 <Link
                   to={item.to}
