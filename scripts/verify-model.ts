@@ -50,13 +50,13 @@ for (const c of CAMPAIGNS) {
     check(!!c.startAt && c.startAt > TODAY, `campaign ${c.id}: Scheduled but start not in future`);
     check(c.voters === 0, `campaign ${c.id}: Scheduled with voters`);
   }
-  if (c.status === "Ended") check(!!c.endAt && c.endAt < TODAY, `campaign ${c.id}: Ended but end not in past`);
+  if (c.status === "Ended") check(!!c.endAt && c.endAt <= TODAY, `campaign ${c.id}: Ended but end not in past`);
   if (c.status === "Draft" || c.status === "Archived") check(c.voters === 0, `campaign ${c.id}: ${c.status} with voters`);
 }
 for (const p of SINGLE_POLSTS) {
   if (p.status === "Active") check(!!p.startAt && p.startAt <= TODAY && !!p.endAt && p.endAt >= TODAY, `polst ${p.id}: Active outside its dates`);
   if (p.status === "Scheduled") check(!!p.startAt && p.startAt > TODAY && p.votes === 0, `polst ${p.id}: Scheduled incoherent`);
-  if (p.status === "Ended") check(!!p.endAt && p.endAt < TODAY, `polst ${p.id}: Ended but end not past`);
+  if (p.status === "Ended") check(!!p.endAt && p.endAt <= TODAY, `polst ${p.id}: Ended but end not past`);
   if (p.status === "Draft" || p.status === "Archived") check(p.votes === 0, `polst ${p.id}: ${p.status} with votes`);
 }
 

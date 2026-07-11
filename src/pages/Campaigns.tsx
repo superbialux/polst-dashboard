@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
@@ -222,13 +222,20 @@ export function CreateCampaignPage() {
     KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "",
   );
 
+  // ?event= can change while the form stays mounted (e.g. two "Plan a
+  // campaign" links for different key dates) — resync the preselect.
+  useEffect(() => {
+    setEvent(KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "");
+  }, [eventParam]);
+
   const endAt =
     duration === "No end"
       ? undefined
       : duration === "Custom"
         ? customEnd || undefined
         : startAt
-          ? addDays(startAt, DURATION_DAYS[duration])
+          ? // Inclusive span: "7 days" runs start..start+6.
+            addDays(startAt, DURATION_DAYS[duration] - 1)
           : undefined;
 
   const endLine =

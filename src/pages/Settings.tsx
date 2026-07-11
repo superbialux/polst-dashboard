@@ -562,6 +562,13 @@ const monthColumns: Array<DataColumn<{ id: string; month: string; views: number;
 /** The plan story is small on purpose: a free workspace, real usage
  *  numbers derived from the model, and the Pro-gated developer teaser. */
 function PlanUsageSection() {
+  const { campaigns, polsts } = useWorkspace();
+  // Live counts mirror USAGE's formula (workspace.ts) against store state,
+  // so in-session creations tick immediately. The views/votes totals and
+  // monthly history stay on the static model snapshot.
+  const campaignsCreated = campaigns.length;
+  const polstsCreated =
+    campaigns.reduce((total, c) => total + c.chain.length, 0) + polsts.length;
   return (
     <>
       <SectionGrid>
@@ -582,8 +589,8 @@ function PlanUsageSection() {
       </SectionGrid>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Polsts created" value={fmtInt(USAGE.polstsCreated)} />
-        <StatTile label="Campaigns created" value={fmtInt(USAGE.campaignsCreated)} />
+        <StatTile label="Polsts created" value={fmtInt(polstsCreated)} />
+        <StatTile label="Campaigns created" value={fmtInt(campaignsCreated)} />
         <StatTile
           label="Total views"
           value={fmtInt(USAGE.totalViews)}

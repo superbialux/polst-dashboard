@@ -56,8 +56,14 @@ export function Menu({
     const r = rootRef.current?.getBoundingClientRect();
     if (!r) return;
     const gap = 4;
+    // Measurable in the same commit (portal already mounted), so a menu that
+    // would leave the viewport flips to the trigger's other side instead.
+    const panelHeight = listRef.current?.getBoundingClientRect().height ?? 0;
+    const fitsBelow = r.bottom + gap + panelHeight <= window.innerHeight - 8;
+    const fitsAbove = r.top - gap - panelHeight >= 8;
+    const openBelow = side === "bottom" ? fitsBelow || !fitsAbove : !fitsAbove && fitsBelow;
     const style: CSSProperties = { minWidth: Math.max(r.width, 208) };
-    if (side === "bottom") style.top = r.bottom + gap;
+    if (openBelow) style.top = r.bottom + gap;
     else style.bottom = window.innerHeight - r.top + gap;
     if (align === "end") style.right = Math.max(8, window.innerWidth - r.right);
     else style.left = Math.max(8, r.left);
@@ -77,11 +83,18 @@ export function Menu({
     };
     // The panel is fixed, so it can't ride an anchor that scrolls away —
     // close instead of chasing it. Scrolls inside the panel stay open.
+    // If focus was inside the panel, hand it back to the trigger so the
+    // keyboard user isn't dropped on <body> when the panel unmounts.
+    const closeFromLayout = () => {
+      const focusWasInside = listRef.current?.contains(document.activeElement);
+      setOpen(false);
+      if (focusWasInside) rootRef.current?.querySelector<HTMLElement>("button")?.focus();
+    };
     const onScroll = (e: Event) => {
       if (e.target instanceof Node && listRef.current?.contains(e.target)) return;
-      setOpen(false);
+      closeFromLayout();
     };
-    const onResize = () => setOpen(false);
+    const onResize = () => closeFromLayout();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);

@@ -1079,14 +1079,15 @@ export type WorkspaceReport = {
   id: string;
   name: string;
   linked: { type: "campaign" | "polst"; id: string };
-  status: "Ready" | "Draft";
+  /** Deliverable state — deliberately not the lifecycle `Status` vocabulary. */
+  state: "Ready" | "Draft";
   createdAt: string;
 };
 
 export const REPORTS: WorkspaceReport[] = [
-  { id: "flavor-launch-recap-report", name: "Flavor Launch Recap — decision report", linked: { type: "campaign", id: "flavor-launch-recap" }, status: "Ready", createdAt: "2026-06-11" },
-  { id: "label-layout-report", name: "Label Layout — results summary", linked: { type: "polst", id: "label-layout" }, status: "Ready", createdAt: "2026-06-01" },
-  { id: "packaging-direction-report", name: "Packaging Direction Test — decision report", linked: { type: "campaign", id: "packaging-direction" }, status: "Draft", createdAt: "2026-06-15" },
+  { id: "flavor-launch-recap-report", name: "Flavor Launch Recap — decision report", linked: { type: "campaign", id: "flavor-launch-recap" }, state: "Ready", createdAt: "2026-06-11" },
+  { id: "label-layout-report", name: "Label Layout — results summary", linked: { type: "polst", id: "label-layout" }, state: "Ready", createdAt: "2026-06-01" },
+  { id: "packaging-direction-report", name: "Packaging Direction Test — decision report", linked: { type: "campaign", id: "packaging-direction" }, state: "Draft", createdAt: "2026-06-15" },
 ];
 
 /* ── Usage (plan/billing surface) ────────────────────────────────── */

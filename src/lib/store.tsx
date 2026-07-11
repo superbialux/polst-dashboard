@@ -100,9 +100,10 @@ const blankPolst = (id: string, input: CreatePolstInput): SinglePolst => ({
   sources: [],
 });
 
-/** Publishing resolves to Active or Scheduled from the object's dates. */
-const publishedStatus = (startAt?: string): Status =>
-  startAt && startAt > TODAY ? "Scheduled" : "Active";
+/** Publishing resolves from the object's dates: a future start is Scheduled,
+ *  a past end is Ended (never a falsely "Active" run), otherwise Active. */
+const publishedStatus = (startAt?: string, endAt?: string): Status =>
+  endAt && endAt < TODAY ? "Ended" : startAt && startAt > TODAY ? "Scheduled" : "Active";
 
 /* ── Public shape ─────────────────────────────────────────────────── */
 
@@ -190,32 +191,35 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  // Ids are minted synchronously from the rendered state (an updater may run
+  // after the caller navigates), and the enqueue re-checks for collisions.
   const createCampaign = useCallback(
     (input: CreateCampaignInput) => {
-      let id = "";
-      setCampaigns((all) => {
-        id = uniqueId(input.name, new Set(all.map((c) => c.id)));
-        return [blankCampaign(id, input), ...all];
-      });
+      const id = uniqueId(input.name, new Set(campaigns.map((c) => c.id)));
+      setCampaigns((all) =>
+        all.some((c) => c.id === id) ? all : [blankCampaign(id, input), ...all],
+      );
       return id;
     },
-    [],
+    [campaigns],
   );
 
   const createPolst = useCallback(
     (input: CreatePolstInput, opts?: { publish?: boolean }) => {
-      let id = "";
+      const id = uniqueId(input.question, new Set(polsts.map((p) => p.id)));
       setPolsts((all) => {
-        id = uniqueId(input.question, new Set(all.map((p) => p.id)));
+        if (all.some((p) => p.id === id)) return all;
         const polst = blankPolst(id, input);
         return [
-          opts?.publish ? { ...polst, status: publishedStatus(polst.startAt) } : polst,
+          opts?.publish
+            ? { ...polst, status: publishedStatus(polst.startAt, polst.endAt) }
+            : polst,
           ...all,
         ];
       });
       return id;
     },
-    [],
+    [polsts],
   );
 
   const value = useMemo<WorkspaceStore>(
@@ -288,12 +292,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           return { ...c, chain };
         }),
       publishCampaign: (id) => {
+        // Validation reads the rendered state — fine for click-driven flows;
+        // batching several mutations in one tick would need a reducer.
         const c = campaigns.find((x) => x.id === id);
         if (!c) return { ok: false as const, reason: "Campaign not found." };
         if (!c.chain.length) return { ok: false as const, reason: "Add at least one Polst first." };
         if (!c.startAt) return { ok: false as const, reason: "Set a schedule first." };
+        if (c.endAt && c.endAt < c.startAt)
+          return { ok: false as const, reason: "The end date is before the start." };
         patchCampaign(id, (x) => {
-          const status = publishedStatus(x.startAt);
+          const status = publishedStatus(x.startAt, x.endAt);
           return {
             ...x,
             status,
@@ -335,16 +343,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (!p) return { ok: false as const, reason: "Polst not found." };
         if (!p.question || !p.optionA || !p.optionB)
           return { ok: false as const, reason: "Finish the question and both options first." };
-        patchPolst(id, (x) => ({ ...x, status: publishedStatus(x.startAt) }));
+        if (p.endAt && p.startAt && p.endAt < p.startAt)
+          return { ok: false as const, reason: "The end date is before the start." };
+        patchPolst(id, (x) => ({ ...x, status: publishedStatus(x.startAt, x.endAt) }));
         return { ok: true as const };
       },
       archivePolst: (id) => patchPolst(id, (p) => ({ ...p, status: "Archived" })),
-      restorePolst: (id) => patchPolst(id, (p) => ({ ...p, status: "Draft" })),
+      // A run that collected votes can't go back to Draft — its evidence is
+      // part of the record, so it restores as Ended instead.
+      restorePolst: (id) =>
+        patchPolst(id, (p) => ({ ...p, status: p.votes > 0 ? "Ended" : "Draft" })),
 
       addSource: (input) => {
-        let id = "";
+        const id = uniqueId(input.name, new Set(sources.map((s) => s.id)));
         setSources((all) => {
-          id = uniqueId(input.name, new Set(all.map((s) => s.id)));
+          if (all.some((s) => s.id === id)) return all;
           return [
             {
               id,

@@ -363,12 +363,18 @@ export function PolstsPage() {
 
 export function PolstDetailPage() {
   const { id } = useParams();
-  const { polstById, archivePolst, restorePolst } = useWorkspace();
+  const { polstById, archivePolst, restorePolst, sources } = useWorkspace();
   const toast = useToast();
   const [shareOpen, setShareOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const polst = polstById(id);
   if (!polst) return <NotFoundCard kind="Polst" />;
+
+  /* This Polst's sources, read live from the store — never the stale
+   * back-refs baked onto the entity at module load. */
+  const polstSources = sources.filter(
+    (s) => s.linked?.type === "polst" && s.linked.id === polst.id,
+  );
 
   const isDraft = polst.status === "Draft";
   const isScheduled = polst.status === "Scheduled";
@@ -500,7 +506,7 @@ export function PolstDetailPage() {
           primary={{ label: "Finish & publish", to: `/polsts/new?edit=${polst.id}` }}
         />
       ) : null}
-      {isScheduled && polst.startAt && polst.sources.length === 0 ? (
+      {isScheduled && polst.startAt && polstSources.length === 0 ? (
         <ActionCard
           title={`Starts ${relativeToToday(polst.startAt)} with no sources`}
           reason="Attach a QR code, share link, or embed so it collects votes from day one."
@@ -647,7 +653,8 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
     // A saved schedule round-trips exactly: no end = Custom with an empty
     // end field, an off-preset run = Custom with its end date.
     if (!draft.startAt || !draft.endAt) return draft.startAt ? "Custom" : "7 days";
-    const days = daysBetween(draft.startAt, draft.endAt);
+    // Inclusive span: a "7 days" run counts both endpoints (start..start+6).
+    const days = daysBetween(draft.startAt, draft.endAt) + 1;
     const preset = (Object.entries(DURATION_DAYS) as Array<[DurationTab, number]>).find(
       ([, presetDays]) => presetDays === days,
     );
@@ -659,7 +666,8 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
     duration === "Custom"
       ? customEnd || undefined
       : startDate
-        ? addDays(startDate, DURATION_DAYS[duration])
+        ? // Inclusive span: "7 days" runs start..start+6.
+          addDays(startDate, DURATION_DAYS[duration] - 1)
         : undefined;
 
   const checks: Array<[string, boolean]> = [

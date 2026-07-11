@@ -391,11 +391,13 @@ export function AnalyticsOverviewPage() {
   const campaignPerf = useMemo(() => buildCampaignPerf(rows, campaigns), [rows, campaigns]);
   const polstPerf = useMemo(() => buildPolstPerf(rows, polsts), [rows, polsts]);
 
+  /* Voting steps only, so the biggest-drop marker compares like with
+   * like: views are impressions (not people) and would flag views→started
+   * as the biggest drop forever, drowning the voting-step drops. Views
+   * and share taps (interactions, not voters) stand as plain numbers. */
   const journey = [
-    { label: "Landed", count: views },
     { label: "Started voting", count: voters },
     { label: "Completed", count: completed },
-    { label: "Shared", count: shares },
   ];
 
   const summary = () =>
@@ -480,7 +482,23 @@ export function AnalyticsOverviewPage() {
 
       <SectionGrid>
         <DashboardCard title="Voter journey" className="lg:col-span-5">
+          <div className="mb-4 flex items-baseline justify-between gap-3 text-sm">
+            <span className="flex items-center gap-1.5 font-semibold text-text-primary">
+              Views
+              <InfoHint label="Views" text={METRIC_INFO.views} />
+            </span>
+            <span className="tabular-nums text-text-secondary">
+              {fmtInt(views)} · {pct(voters, views, 1)} started voting
+            </span>
+          </div>
           <Funnel steps={journey} />
+          <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-border-default pt-3 text-sm">
+            <span className="flex items-center gap-1.5 font-semibold text-text-primary">
+              Share taps
+              <InfoHint label="Share taps" text={METRIC_INFO.interactions} />
+            </span>
+            <span className="tabular-nums text-text-secondary">{fmtInt(shares)}</span>
+          </div>
         </DashboardCard>
         <DashboardCard
           title="Verticals"
@@ -854,9 +872,9 @@ export function AnalyticsReportsPage() {
       ),
     },
     {
-      header: "Status",
+      header: "State",
       cell: (row) => (
-        <Chip tone={row.status === "Ready" ? "success" : "neutral"}>{row.status}</Chip>
+        <Chip tone={row.state === "Ready" ? "success" : "neutral"}>{row.state}</Chip>
       ),
     },
     {
@@ -867,7 +885,7 @@ export function AnalyticsReportsPage() {
       header: "",
       align: "right",
       cell: (row) =>
-        row.status === "Ready" ? (
+        row.state === "Ready" ? (
           <Button variant="secondary" size="sm" onClick={() => setPreviewId(row.id)}>
             Preview
           </Button>
@@ -883,7 +901,7 @@ export function AnalyticsReportsPage() {
     [
       `${WORKSPACE.brand} — reports (${scopeLine(filters)})`,
       ...scoped.map(
-        (report) => `${report.name} — ${report.status}, created ${fmtDate(report.createdAt)}`,
+        (report) => `${report.name} — ${report.state}, created ${fmtDate(report.createdAt)}`,
       ),
     ].join("\n");
 
