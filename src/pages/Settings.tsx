@@ -94,7 +94,7 @@ function TeamRowActions({ member }: { member: TeamMember }) {
               Cancel
             </Button>
             <Button
-              className="bg-status-danger hover:bg-status-danger"
+              variant="destructive"
               onClick={() => {
                 setConfirmOpen(false);
                 toast(`${member.name} was removed from the workspace`);
@@ -178,7 +178,7 @@ const inviteColumns: Array<DataColumn<PendingInvite>> = [
         <Button variant="secondary" size="sm">
           Resend
         </Button>
-        <Button variant="secondary" size="sm" className="text-status-danger">
+        <Button variant="destructive-secondary" size="sm">
           Revoke
         </Button>
       </div>

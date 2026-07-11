@@ -275,8 +275,8 @@ export function PollComposer({
 
       <Menu
         label="Categories"
+        // The portaled panel matches the trigger's width by itself.
         rootClassName="w-full"
-        className="w-full min-w-full"
         trigger={({ open, toggle }) => (
           <Button
             type="button"

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import {
   ActionCard,
-  BarChart,
   CohortGrid,
   DashboardCard,
   DashboardPage,
@@ -318,7 +317,7 @@ export function AnalyticsOverviewPage() {
           title="Response trend"
           className="lg:col-span-8"
         >
-          <BarChart values={seriesFor(rows, "completions")} xTicks={[...RANGE_TICKS[filters.range]]} />
+          <TrendChart series={seriesFor(rows, "completions")} xTicks={[...RANGE_TICKS[filters.range]]} />
         </DashboardCard>
         <DashboardCard title="Source mix" className="lg:col-span-4">
           <MixBars slices={sourceMix} />
@@ -864,7 +863,7 @@ export function AnalyticsReportsPage() {
         <DashboardCard title="Report preview" className="lg:col-span-5">
           <div className="space-y-4">
             <StatusBadge status={preview.status === "Ended" ? "Ready" : "Draft"} />
-            <h3 className="font-display text-xl font-bold text-text-primary">
+            <h3 className="font-display text-xl font-semibold text-text-primary">
               {preview.name}
             </h3>
             <DetailList

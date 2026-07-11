@@ -2,25 +2,32 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-const badgeVariants = cva(
-  "inline-flex items-center justify-center font-semibold text-xs leading-4 whitespace-nowrap",
+/** The one non-status chip: plan tags, "Peak" markers, count badges.
+ *  Lifecycle state keeps its own component (`StatusBadge` adds the dot and
+ *  reads canon's STATUS_TONE); everything else that needs a small toned
+ *  label uses this. One radius (soft rounded-md, matching StatusBadge),
+ *  one padding recipe, semantic tokens only. */
+const chipVariants = cva(
+  "inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-md px-2 font-display text-xs font-semibold",
   {
     variants: {
-      variant: {
-        tag: "bg-surface-subtle text-text-primary rounded-full px-2 py-1",
-        outline:
-          "bg-surface-raised text-text-primary border border-border-accent rounded-md px-3 py-2 text-sm gap-2",
-        soft: "bg-surface-subtle text-text-primary rounded-md px-3 py-2 text-sm gap-2",
+      tone: {
+        neutral: "bg-surface-subtle text-text-secondary",
+        success: "bg-status-success-soft text-status-success",
+        // Amber ink (--color-yellow-ink) on the yellow-15 soft wash — AA-dark.
+        warning: "bg-status-warning-soft text-status-warning",
+        accent: "bg-accent-soft text-accent-default",
+        danger: "bg-status-danger-soft text-status-danger",
       },
     },
-    defaultVariants: { variant: "tag" },
+    defaultVariants: { tone: "neutral" },
   },
 );
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+export interface ChipProps
+  extends React.HTMLAttributes<HTMLSpanElement>,
+    VariantProps<typeof chipVariants> {}
 
-export function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+export function Chip({ className, tone, ...props }: ChipProps) {
+  return <span className={cn(chipVariants({ tone }), className)} {...props} />;
 }

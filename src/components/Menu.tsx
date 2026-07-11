@@ -1,14 +1,20 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "./Icon";
 
 /** Anchored dropdown: `trigger` renders the button, `children` the items.
- *  Closes on outside click, Escape, or any item click. */
+ *  Closes on outside click, Escape, or any item click. The panel renders in
+ *  a body portal, fixed-positioned from the trigger's rect (same approach
+ *  as the calendar's day popover), so an `overflow-hidden` card can never
+ *  clip a row-action menu. */
 export function Menu({
   trigger,
   align = "end",
@@ -27,7 +33,7 @@ export function Menu({
   /** Which side of the trigger the panel opens on. */
   side?: "top" | "bottom";
   label: string;
-  /** Classes for the positioning wrapper around trigger + panel. */
+  /** Classes for the wrapper around the trigger. */
   rootClassName?: string;
   className?: string;
   /** Keep open after clicks inside (rich panels like notifications). */
@@ -35,8 +41,28 @@ export function Menu({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<CSSProperties | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Anchor the fixed panel to the trigger before paint. The panel is never
+  // narrower than its trigger (208px floor = the old min-w-52), so selects
+  // still read as one control with their input.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const r = rootRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const gap = 4;
+    const style: CSSProperties = { minWidth: Math.max(r.width, 208) };
+    if (side === "bottom") style.top = r.bottom + gap;
+    else style.bottom = window.innerHeight - r.top + gap;
+    if (align === "end") style.right = Math.max(8, window.innerWidth - r.right);
+    else style.left = Math.max(8, r.left);
+    setPos(style);
+  }, [open, align, side]);
 
   useEffect(() => {
     if (!open) return;
@@ -46,8 +72,16 @@ export function Menu({
       (selected ?? listRef.current?.querySelector<HTMLElement>('[role="menuitem"]'))?.focus();
     }
     const onDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!rootRef.current?.contains(t) && !listRef.current?.contains(t)) setOpen(false);
     };
+    // The panel is fixed, so it can't ride an anchor that scrolls away —
+    // close instead of chasing it. Scrolls inside the panel stay open.
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && listRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onResize = () => setOpen(false);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);
@@ -75,35 +109,41 @@ export function Menu({
     };
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
+    document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     return () => {
       document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
     };
   }, [open, closeOnClick]);
 
   return (
     <div ref={rootRef} className={cn("relative", rootClassName)}>
       {trigger({ open, toggle: () => setOpen((v) => !v) })}
-      {open && (
-        <div
-          ref={listRef}
-          role={closeOnClick ? "menu" : "dialog"}
-          aria-label={label}
-          // Item clicks bubble here and close the menu after they run.
-          onClick={closeOnClick ? () => {
-            setOpen(false);
-            requestAnimationFrame(() => rootRef.current?.querySelector<HTMLElement>("button")?.focus());
-          } : undefined}
-          className={cn(
-            "absolute z-40 min-w-52 rounded-card border border-border-default bg-surface-raised p-1 shadow-lg",
-            side === "bottom" ? "top-full mt-1" : "bottom-full mb-1",
-            align === "end" ? "right-0" : "left-0",
-            className,
-          )}
-        >
-          {children}
-        </div>
-      )}
+      {/* Closed = unmounted, so the panel is inert until asked for. */}
+      {open &&
+        createPortal(
+          <div
+            ref={listRef}
+            role={closeOnClick ? "menu" : "dialog"}
+            aria-label={label}
+            // Item clicks bubble here and close the menu after they run.
+            onClick={closeOnClick ? () => {
+              setOpen(false);
+              requestAnimationFrame(() => rootRef.current?.querySelector<HTMLElement>("button")?.focus());
+            } : undefined}
+            style={pos ?? undefined}
+            className={cn(
+              "fixed z-50 rounded-card border border-border-default bg-surface-raised p-1 shadow-lg",
+              className,
+            )}
+          >
+            {children}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
@@ -112,34 +111,13 @@ const columns = (
 /* ── View toggle ─────────────────────────────────────────────────── */
 
 /** List is the operational default; the grid is a deliberate gallery mode
- *  for reviewing creative, not for admin scanning. */
+ *  for reviewing creative, not for admin scanning. The toggle is the kit's
+ *  one SegmentedControl with icon items. */
 const VIEWS = [
-  { key: "list", icon: "table_rows", label: "List view" },
-  { key: "grid", icon: "grid_view", label: "Gallery view" },
+  { value: "list", icon: "table_rows", label: "List view" },
+  { value: "grid", icon: "grid_view", label: "Gallery view" },
 ] as const;
-type View = (typeof VIEWS)[number]["key"];
-
-function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => void }) {
-  return (
-    <div role="group" aria-label="View mode" className="flex h-[37px] rounded-md border border-border-default bg-surface-raised p-1">
-      {VIEWS.map((option) => (
-        <button
-          key={option.key}
-          type="button"
-          aria-pressed={view === option.key}
-          aria-label={option.label}
-          onClick={() => onChange(option.key)}
-          className={cn(
-            "grid h-[29px] w-8 place-items-center rounded-sm text-icon-secondary transition-colors hover:text-icon-primary",
-            view === option.key && "bg-surface-subtle text-icon-primary",
-          )}
-        >
-          <Icon name={option.icon} size={18} />
-        </button>
-      ))}
-    </div>
-  );
-}
+type View = (typeof VIEWS)[number]["value"];
 
 /* ── Grid card ───────────────────────────────────────────────────── */
 
@@ -239,7 +217,7 @@ export function PolstsPage() {
               onQueryChange={setQuery}
               className="min-w-0 flex-1 border-b-0 p-0"
             />
-            <ViewToggle view={view} onChange={setView} />
+            <SegmentedControl tabs={VIEWS} active={view} onChange={setView} />
           </div>
           {rows.length ? (
             <SectionGrid>
@@ -264,7 +242,7 @@ export function PolstsPage() {
             placeholder="Search Polsts"
             query={query}
             onQueryChange={setQuery}
-            action={<ViewToggle view={view} onChange={setView} />}
+            action={<SegmentedControl tabs={VIEWS} active={view} onChange={setView} />}
           />
           <DataTable
             rows={rows}

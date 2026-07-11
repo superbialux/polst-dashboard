@@ -16,6 +16,12 @@ const buttonVariants = cva(
           "text-text-primary hover:bg-surface-subtle",
         icon:
           "bg-surface-raised border border-border-default text-text-primary hover:bg-surface-subtle",
+        // Destructive pair: filled for the point-of-no-return action,
+        // secondary chrome + danger ink for its quieter siblings.
+        destructive:
+          "bg-status-danger text-text-on-accent hover:bg-status-danger-hover",
+        "destructive-secondary":
+          "bg-btn-secondary-bg text-status-danger border border-btn-secondary-border hover:bg-btn-secondary-bg-hover",
       },
       size: {
         // Three physical weights: row actions (28) < toolbar (32) < primary page actions (36).

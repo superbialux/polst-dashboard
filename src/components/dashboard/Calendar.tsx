@@ -136,29 +136,32 @@ export function WorkspaceCalendar() {
       {/* Month header */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div className="flex items-center gap-2">
-          <h2 className="min-w-40 font-display text-lg font-bold text-text-primary">{label}</h2>
+          <h2 className="min-w-40 font-display text-lg font-semibold text-text-primary">{label}</h2>
           <div className="ml-1 flex items-center">
+            {/* Icon buttons ride the shared 32px rounded-md control recipe. */}
             <button
               onClick={() => shift(-1)}
-              className="grid h-8 w-8 place-items-center rounded-sm text-icon-secondary transition-colors hover:bg-surface-subtle"
+              className="grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle"
               aria-label="Previous month"
             >
-              <Icon name="chevron_left" size={20} />
+              <Icon name="chevron_left" size={18} />
             </button>
             <button
               onClick={() => shift(1)}
-              className="grid h-8 w-8 place-items-center rounded-sm text-icon-secondary transition-colors hover:bg-surface-subtle"
+              className="grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle"
               aria-label="Next month"
             >
-              <Icon name="chevron_right" size={20} />
+              <Icon name="chevron_right" size={18} />
             </button>
           </div>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-1"
             onClick={() => setView({ y: CALENDAR_MONTH.year, m: CALENDAR_MONTH.month })}
-            className="ml-1 h-8 rounded-md border border-border-default bg-surface-raised px-3 font-display text-ui font-semibold text-text-primary transition-colors hover:bg-surface-subtle"
           >
             Today
-          </button>
+          </Button>
         </div>
         <Legend />
       </div>
@@ -317,16 +320,16 @@ const DayPopover = forwardRef<
       <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
         <div>
           <p className="text-xs font-medium text-text-secondary">{weekday}</p>
-          <p className="font-display text-base font-bold text-text-primary">
+          <p className="font-display text-base font-semibold text-text-primary">
             {monthShort} {cell.day}
           </p>
         </div>
         <button
           onClick={onClose}
           aria-label="Close"
-          className="grid h-8 w-8 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle"
+          className="grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle"
         >
-          <Icon name="close" size={20} />
+          <Icon name="close" size={18} />
         </button>
       </div>
 

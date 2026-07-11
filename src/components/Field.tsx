@@ -25,7 +25,7 @@ export function Field({
     <div className="flex flex-col gap-1.5">
       <label
         htmlFor={id}
-        className="font-display text-sm font-bold leading-5 text-text-primary"
+        className="font-display text-sm font-semibold leading-5 text-text-primary"
       >
         {label}
       </label>
@@ -77,23 +77,7 @@ export function TextInput({
   return (
     <div className="relative">
       <span className="pointer-events-none absolute inset-y-0 left-3 my-auto flex h-5 w-5 items-center justify-center text-icon-tertiary">
-        {icon === "search" ? (
-          <svg
-            aria-hidden
-            viewBox="0 0 20 20"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="8.75" cy="8.75" r="5.25" />
-            <path d="m12.6 12.6 3.4 3.4" />
-          </svg>
-        ) : (
-          <Icon name={icon} size={20} />
-        )}
+        <Icon name={icon} size={20} />
       </span>
       <input id={id} className={cn(CONTROL, "pl-10 pr-3", className)} {...rest} />
     </div>
@@ -151,8 +135,8 @@ export function SelectMenu({
       <Menu
       label={label}
       align={align}
+      // The portaled panel matches the trigger's width by itself.
       rootClassName={compact ? "shrink-0" : "w-full"}
-      className={cn(compact ? "min-w-52" : "w-full min-w-full")}
       trigger={({ open, toggle }) => (
         <Button
           id={id}

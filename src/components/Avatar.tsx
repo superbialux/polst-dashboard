@@ -50,7 +50,7 @@ export function Avatar({
       ) : label ? (
         <span
           className={cn(
-            "font-display font-bold uppercase leading-none tracking-tight",
+            "font-display font-semibold uppercase leading-none tracking-tight",
             !textColor && "text-text-inverse",
             variant === "monogram" ? "text-sm" : "text-[9px] lg:text-[10px]",
           )}

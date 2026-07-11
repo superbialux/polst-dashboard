@@ -100,6 +100,7 @@
     --status-success:      var(--color-green);
     --status-success-soft: var(--color-green-10);
     --status-danger:       var(--color-red);
+    --status-danger-hover: #cc572e; /* hover step for destructive buttons — darkened --color-red */
     --status-danger-soft:  var(--color-red-10);
     --status-warning:      var(--color-yellow-ink);
     --status-warning-soft: var(--color-yellow-15);
@@ -186,6 +187,13 @@
     --tabchip-fg:           var(--text-primary);
     --tabchip-icon-active:  var(--accent-default);
     --tabchip-icon-bg:      var(--color-purple-tint);
+
+    /* ── Z layers (one ladder, no ad-hoc z-indexes) ─────────
+       z-20      in-card popovers — InfoHint, ProgressRing step list
+       z-50      overlays — Modal, Drawer, portaled Menu panels, the
+                 calendar day popover (portals stack by DOM order)
+       z-toast   (60, tailwind `zIndex.toast`) — confirmations float
+                 above every overlay                                  */
 
     /* ── Elevation (replaces borders) ──────────────────────── */
     --shadow-sm: 0 1px 2px rgba(33, 38, 47, 0.04);

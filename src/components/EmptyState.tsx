@@ -1,42 +1,56 @@
-import { type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "./Icon";
+import { Button } from "./ui/button";
 
-/** Quiet placeholder for empty tabs, no-result lists, and soft errors:
- *  an icon on a subtle disc, a one-line title, supporting copy, and an
- *  optional action. */
+export type EmptyStateAction = { label: string; to?: string; onClick?: () => void };
+
+/** The kit's one empty pattern — empty tabs, filtered-out lists, soft
+ *  errors: an optional icon disc, a one-line title, a supporting hint, and
+ *  at most one quiet action. Fixed padding and ink so every empty surface
+ *  reads identically (DataTable's `emptyLabel` shares the same recipe). */
 export function EmptyState({
   icon,
   title,
-  body,
+  hint,
   action,
   className,
 }: {
-  icon: string;
+  icon?: string;
   title: string;
-  body?: string;
-  action?: ReactNode;
+  hint?: string;
+  action?: EmptyStateAction;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-1 px-6 py-12 text-center",
+        "flex flex-col items-center gap-1 px-6 py-8 text-center",
         className,
       )}
     >
-      <span className="mb-2 grid h-12 w-12 place-items-center rounded-pill bg-surface-subtle">
-        <Icon name={icon} size={26} className="text-icon-secondary" />
-      </span>
-      <h3 className="font-display text-base font-bold leading-6 text-text-primary">
-        {title}
-      </h3>
-      {body && (
-        <p className="max-w-72 font-sans text-sm leading-5 text-text-secondary">
-          {body}
-        </p>
-      )}
-      {action && <div className="mt-3">{action}</div>}
+      {icon ? (
+        <span className="mb-2 grid h-10 w-10 place-items-center rounded-pill bg-surface-subtle">
+          <Icon name={icon} size={22} className="text-icon-secondary" />
+        </span>
+      ) : null}
+      <h3 className="text-sm font-medium text-text-primary">{title}</h3>
+      {hint ? (
+        <p className="max-w-72 text-sm leading-5 text-text-secondary">{hint}</p>
+      ) : null}
+      {action ? (
+        <div className="mt-3">
+          {action.to ? (
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={action.to}>{action.label}</Link>
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" onClick={action.onClick}>
+              {action.label}
+            </Button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

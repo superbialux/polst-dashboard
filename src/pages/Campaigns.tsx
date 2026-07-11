@@ -16,12 +16,10 @@ import {
   DateRangeMenu,
   DecisionBrief,
   DetailList,
-  FlowSteps,
   Funnel,
   PollResults,
   PageTabs,
   PollThumb,
-  SavedChip,
   SearchAndFilters,
   SectionGrid,
   SegmentedControl,
@@ -431,7 +429,7 @@ function ChainPolstCard({ polst, index }: { polst: ChainPolst; index: number }) 
               <p className="text-xs font-medium text-text-secondary">
                 Question {index + 1}
               </p>
-              <h3 className="mt-1 font-display text-base font-bold leading-6 text-text-primary">
+              <h3 className="mt-1 font-display text-base font-semibold leading-6 text-text-primary">
                 {polst.question}
               </h3>
             </div>
@@ -520,7 +518,7 @@ function SelectFromLibraryModal({
             <Checkbox label={`Select ${polst.question}`} />
             <PollThumb options={polstOptions(polst)} />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-display text-sm font-bold text-text-primary">
+              <p className="truncate font-display text-sm font-semibold text-text-primary">
                 {polst.question}
               </p>
               <p className="mt-0.5 truncate text-xs text-text-secondary">
@@ -593,7 +591,7 @@ function CampaignInsights({
       <SectionGrid>
         <DashboardCard title="Recommended decision" className="lg:col-span-7">
           <div className="space-y-4 text-sm leading-6 text-text-secondary">
-            <h3 className="font-display text-lg font-bold text-text-primary">
+            <h3 className="font-display text-lg font-semibold text-text-primary">
               {hasSignal ? winnerLabel(campaign) : "No recommendation yet"}
             </h3>
             <p>{detail.summary}</p>
@@ -704,7 +702,7 @@ function CampaignReport({
           <p className="text-xs font-medium text-text-secondary">
             {WORKSPACE.brand} · Decision report
           </p>
-          <h3 className="font-display text-2xl font-bold text-text-primary">
+          <h3 className="font-display text-2xl font-semibold text-text-primary">
             {campaign.name}
           </h3>
           <p className="text-sm text-text-secondary">
@@ -843,9 +841,8 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
               Unpublish
             </Button>
             <Button
-              variant="secondary"
+              variant="destructive-secondary"
               size="sm"
-              className="text-status-danger"
               onClick={() => toast("Campaign ended")}
             >
               End campaign
@@ -862,9 +859,8 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
               Archive campaign
             </Button>
             <Button
-              variant="secondary"
+              variant="destructive-secondary"
               size="sm"
-              className="text-status-danger"
               onClick={() => toast("Campaign deleted")}
             >
               Delete campaign
@@ -960,7 +956,7 @@ function CampaignLifecycle({ campaign }: { campaign: Campaign }) {
           <DashboardCard title="Take this campaign offline temporarily" action={<Button variant="secondary" onClick={() => toast("Campaign unpublished")}>Unpublish</Button>}>
             <p className="text-sm text-text-secondary">Votes already cast are kept. Publish again at any time.</p>
           </DashboardCard>
-          <DashboardCard title="End this campaign" action={<Button className="bg-status-danger hover:bg-status-danger" onClick={() => toast("Campaign ended")}>End campaign</Button>}>
+          <DashboardCard title="End this campaign" action={<Button variant="destructive" onClick={() => toast("Campaign ended")}>End campaign</Button>}>
             <p className="text-sm text-text-secondary">Voting stops and the campaign becomes read-only.</p>
           </DashboardCard>
         </div>

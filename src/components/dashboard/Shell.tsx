@@ -626,7 +626,7 @@ function NotificationsMenu() {
       )}
     >
       <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
-        <p className="font-display text-base font-bold text-text-primary">Notifications</p>
+        <p className="font-display text-base font-semibold text-text-primary">Notifications</p>
         <div className="flex items-center gap-1">
           <button
             aria-label="Filter"
@@ -697,7 +697,7 @@ function WorkspaceMenu() {
           aria-expanded={open}
           className="grid h-9 w-full grid-cols-[20px_minmax(0,1fr)_20px] items-center gap-2 rounded-md px-2 transition-colors hover:bg-sidenav-hover"
         >
-          <span className="grid h-5 w-5 place-items-center rounded-xs bg-accent-default font-display text-[8px] font-bold leading-none text-text-on-accent">
+          <span className="grid h-5 w-5 place-items-center rounded-xs bg-accent-default font-display text-[8px] font-semibold leading-none text-text-on-accent">
             {WORKSPACE.initials}
           </span>
           <span className="min-w-0 truncate text-center text-sm font-medium leading-5 text-sidenav-fg">
@@ -772,7 +772,8 @@ function UserMenu() {
       align="start"
       side="top"
       rootClassName="w-full"
-      className="w-full p-1.5"
+      // The portaled panel matches the trigger (rail row) width by itself.
+      className="p-1.5"
       trigger={({ open, toggle }) => (
         <button
           type="button"
@@ -780,7 +781,7 @@ function UserMenu() {
           aria-expanded={open}
           className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-sidenav-hover"
         >
-          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-[8px] font-bold leading-none text-text-on-accent">
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-[8px] font-semibold leading-none text-text-on-accent">
             {initialsOf(WORKSPACE.owner)}
           </span>
           <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-sidenav-fg">
@@ -814,7 +815,7 @@ function WorkspaceMark({
   return (
     <span
       className={cn(
-        "grid shrink-0 place-items-center rounded-md bg-accent-default font-display font-bold text-text-on-accent",
+        "grid shrink-0 place-items-center rounded-md bg-accent-default font-display font-semibold text-text-on-accent",
         size === "sm" ? "h-7 w-7 text-xs" : "h-9 w-9 text-sm",
       )}
     >

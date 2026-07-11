@@ -55,6 +55,7 @@ export default {
         "status-success":      "var(--status-success)",
         "status-success-soft": "var(--status-success-soft)",
         "status-danger":       "var(--status-danger)",
+        "status-danger-hover": "var(--status-danger-hover)",
         "status-danger-soft":  "var(--status-danger-soft)",
         "status-warning":      "var(--status-warning)",
         "status-warning-soft": "var(--status-warning-soft)",
@@ -132,6 +133,12 @@ export default {
       fontSize: {
         // Unified control type — buttons, tabs, selectors, nav, menu rows.
         ui: ["13px", "16px"],
+        // Named micro size for the OR disc and similar 2-letter marks.
+        micro: ["9px", "12px"],
+      },
+      zIndex: {
+        // The one layer above every overlay — see the ladder in index.css.
+        toast: "60",
       },
       maxWidth: {
         // ONE content container: every page — Home board, data tables,

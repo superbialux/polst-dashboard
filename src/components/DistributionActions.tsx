@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
-import { Switch } from "@/components/dashboard";
+import { SegmentedControl, Switch } from "@/components/dashboard";
 import { useToast } from "@/components/Toast";
-import { cn } from "@/lib/utils";
 
 const SOCIAL_CHANNELS = ["Facebook", "Reddit", "LinkedIn", "X / Twitter", "Discord"];
 
@@ -54,7 +53,8 @@ export function QrCodeModal({
 }) {
   const toast = useToast();
   const [format, setFormat] = useState<"PNG" | "SVG">("PNG");
-  const [color, setColor] = useState("#171717");
+  // --text-primary's hex — <input type="color"> needs a literal value.
+  const [color, setColor] = useState("#21262f");
   const [logo, setLogo] = useState(false);
   return (
     <Modal open={open} onClose={onClose} label="QR code" title="QR code">
@@ -62,6 +62,8 @@ export function QrCodeModal({
         <p className="text-sm leading-5 text-text-secondary">
           Scanning opens {objectName} with attribution intact.
         </p>
+        {/* Print exception: a QR quiet zone must stay true white to scan
+            reliably, so this surface deliberately skips the theme tokens. */}
         <div className="mx-auto grid size-56 place-items-center rounded-md border border-border-default bg-white">
           <span style={{ color }}><Icon name="qr_code_2" size={184} /></span>
         </div>
@@ -83,22 +85,13 @@ export function QrCodeModal({
             <Switch checked={logo} onChange={setLogo} label="Brand logo overlay" />
           </div>
         </div>
-        <div className="flex gap-2">
-          <div className="flex rounded-md border border-border-default bg-surface-raised p-1">
-            {(["PNG", "SVG"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setFormat(option)}
-                className={cn(
-                  "h-7 rounded-sm px-3 text-sm font-semibold text-text-secondary",
-                  format === option && "bg-surface-subtle text-text-primary",
-                )}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-2">
+          <SegmentedControl
+            tabs={["PNG", "SVG"] as const}
+            active={format}
+            onChange={setFormat}
+            size="compact"
+          />
           <Button
             className="flex-1"
             onClick={() => toast(`${objectName} QR downloaded as ${format}`)}

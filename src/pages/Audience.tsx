@@ -1,5 +1,4 @@
 import {
-  BarChart,
   DashboardCard,
   DashboardPage,
   LockedCard,
@@ -7,6 +6,7 @@ import {
   SectionGrid,
   SplitBar,
   StatTile,
+  TrendChart,
 } from "@/components/dashboard";
 import {
   AGE_MIX,
@@ -51,7 +51,7 @@ export function AudiencePage() {
           description="Engaged respondents per week, trailing 12 weeks."
           className="lg:col-span-8"
         >
-          <BarChart values={AUDIENCE_TREND} xTicks={["12 weeks ago", "6 weeks ago", "This week"]} />
+          <TrendChart series={AUDIENCE_TREND} xTicks={["12 weeks ago", "6 weeks ago", "This week"]} />
         </DashboardCard>
         <DashboardCard title="New vs returning" className="lg:col-span-4">
           <MixBars
@@ -94,11 +94,11 @@ export function AudiencePage() {
         <SectionGrid>
           <div className="space-y-6 lg:col-span-6">
             <div>
-              <p className="mb-3 font-display text-sm font-bold text-text-primary">Age</p>
+              <p className="mb-3 font-display text-sm font-semibold text-text-primary">Age</p>
               <MixBars slices={AGE_MIX} />
             </div>
             <div>
-              <p className="mb-3 font-display text-sm font-bold text-text-primary">Region</p>
+              <p className="mb-3 font-display text-sm font-semibold text-text-primary">Region</p>
               <SplitBar split={US_SPLIT} />
             </div>
           </div>

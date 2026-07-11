@@ -131,7 +131,7 @@ export function Modal({
             )}
           >
             {title && (
-              <h2 className="font-display text-base font-bold leading-6 text-text-primary">
+              <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
                 {title}
               </h2>
             )}

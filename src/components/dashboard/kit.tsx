@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/badge";
 import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
@@ -12,13 +13,12 @@ import { STATUS_TONE, type StatusTone } from "@/lib/canon";
 import type { AnalyticsFilters, AnalyticsRange } from "@/lib/analytics";
 import {
   formatNumber,
-  polstOptions,
   type Campaign,
   type Cohort,
   type DecisionSignal,
   type Integration,
-  type SinglePolst,
   type Split,
+  type Stat,
   type Status,
 } from "@/lib/workspace";
 
@@ -295,45 +295,70 @@ export function DecisionBrief({
 
 /* ── Filters ─────────────────────────────────────────────────────── */
 
+/** A segment: a bare string, or `{ value, label?, icon? }`. An item with an
+ *  `icon` renders icon-only; its label (or value) becomes the accessible
+ *  name — the view-mode toggles ride the same control as status filters. */
+export type SegmentItem<T extends string> = T | { value: T; label?: string; icon?: string };
+
+/** The three segmented weights, matching the control-height contract:
+ *  37px list toolbars (default), 29px compact in-card switches, 40px
+ *  enumerated form choices under a Field label (full width). Segments
+ *  stretch to the track minus its padding — no per-size inner heights. */
+const SEGMENT_SIZES = {
+  toolbar: "h-[37px] p-1",
+  compact: "h-[29px] p-0.5",
+  form: "h-10 w-full p-1",
+} as const;
+
 /** Segmented tab group on a subtle track — the in-page status filter. */
-/** The one segmented select across the app — status filters and page tabs.
- *  32px tall (matches buttons), **white** (raised + bordered) so it reads
- *  against the page background, with a light active pill. Scrolls if it can't
- *  fit. `FilterTabs` / `PageTabs` are thin aliases so every select is identical. */
+/** The one segmented select across the app — status filters, page tabs, and
+ *  compact view changes. **White** (raised + bordered) so it reads against
+ *  the page background, with a light active pill. Scrolls if it can't fit.
+ *  `FilterTabs` / `PageTabs` are thin aliases so every select is identical. */
 export function SegmentedControl<T extends string>({
   tabs,
   active,
   onChange,
+  size = "toolbar",
   className,
 }: {
-  tabs: readonly T[];
+  tabs: ReadonlyArray<SegmentItem<T>>;
   active: T;
   onChange: (tab: T) => void;
+  size?: keyof typeof SEGMENT_SIZES;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "inline-flex h-[37px] max-w-full items-center gap-0.5 overflow-x-auto rounded-md border border-border-default bg-surface-raised p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "inline-flex max-w-full items-stretch gap-0.5 overflow-x-auto rounded-md border border-border-default bg-surface-raised [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        SEGMENT_SIZES[size],
         className,
       )}
     >
-      {tabs.map((tab) => (
-        <button
-          key={tab}
-          type="button"
-          onClick={() => onChange(tab)}
-          aria-pressed={active === tab}
-          className={cn(
-            "h-[29px] shrink-0 whitespace-nowrap rounded-sm px-3 font-display text-ui font-semibold transition-colors",
-            active === tab
-              ? "bg-surface-subtle text-text-primary shadow-sm"
-              : "text-text-secondary hover:text-text-primary",
-          )}
-        >
-          {tab}
-        </button>
-      ))}
+      {tabs.map((tab) => {
+        const item = typeof tab === "string" ? { value: tab } : tab;
+        const name = item.label ?? item.value;
+        return (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onChange(item.value)}
+            aria-pressed={active === item.value}
+            aria-label={item.icon ? name : undefined}
+            className={cn(
+              "flex shrink-0 items-center justify-center whitespace-nowrap rounded-sm font-display text-ui font-semibold transition-colors",
+              item.icon ? "w-8" : "px-3",
+              size === "form" && "flex-1",
+              active === item.value
+                ? "bg-surface-subtle text-text-primary shadow-sm"
+                : "text-text-secondary hover:text-text-primary",
+            )}
+          >
+            {item.icon ? <Icon name={item.icon} size={18} /> : name}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -478,8 +503,10 @@ export function DataTable<T extends { id: string }>({
             ))
           ) : (
             <tr>
+              {/* Same ink and padding as EmptyState's title, so every
+                  empty surface reads as one pattern. */}
               <td
-                className="px-5 py-12 text-center text-sm text-text-secondary"
+                className="px-5 py-8 text-center text-sm font-medium text-text-primary"
                 colSpan={columns.length}
               >
                 {emptyLabel}
@@ -550,15 +577,14 @@ export function ProgressBar({
 
 /* ── Sparkline ───────────────────────────────────────────────────── */
 
-/** Inline SVG trend line for the stat strip and analytics tiles. The
- *  stroke tones by direction: up = success, down = danger, flat = quiet. */
+/** Inline SVG trend line for the stat strip and analytics tiles. Always
+ *  accent — the mini chart echoes the expanded chart; only the delta arrow
+ *  carries the up/down verdict. */
 export function Sparkline({
   values,
-  trend = "flat",
   className,
 }: {
   values: number[];
-  trend?: "up" | "down" | "flat";
   className?: string;
 }) {
   const w = 72;
@@ -569,17 +595,11 @@ export function Sparkline({
   const pts = values.map(
     (v, i) => [(i / (values.length - 1)) * w, h - ((v - min) / range) * (h - 2) - 1] as [number, number],
   );
-  const stroke =
-    trend === "up"
-      ? "text-status-success"
-      : trend === "down"
-        ? "text-status-danger"
-        : "text-text-tertiary";
   return (
     <svg
       viewBox={`0 0 ${w} ${h}`}
       preserveAspectRatio="none"
-      className={cn("h-6 w-16", stroke, className)}
+      className={cn("h-6 w-16 text-accent-default", className)}
       aria-hidden
     >
       <path
@@ -595,77 +615,11 @@ export function Sparkline({
   );
 }
 
-/** A simple column chart for the analytics trend tiles: accent bars over a
- *  light instrumented scale — gridlines, y ticks at 0 / half / max, optional
- *  x-axis ticks, and a hover state that surfaces each bar's exact value. */
-export function BarChart({
-  values,
-  xTicks,
-  className,
-}: {
-  values: number[];
-  /** Evenly-spread axis labels under the bars (first → last). */
-  xTicks?: string[];
-  className?: string;
-}) {
-  const max = Math.max(...values) || 1;
-  return (
-    <div className={className}>
-      <div className="flex gap-3">
-        <div className="flex h-40 shrink-0 flex-col justify-between text-right text-xs tabular-nums text-text-secondary">
-          <span>{formatNumber(max)}</span>
-          <span>{formatNumber(Math.round(max / 2))}</span>
-          <span>0</span>
-        </div>
-        <div className="relative h-40 min-w-0 flex-1">
-          {/* Gridlines at max / half / baseline */}
-          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between">
-            <div className="border-t border-dashed border-border-default" />
-            <div className="border-t border-dashed border-border-default" />
-            <div className="border-t border-border-default" />
-          </div>
-          <div className="absolute inset-0 flex items-end gap-1.5 pb-px">
-            {values.map((value, index) => (
-              <div
-                key={index}
-                tabIndex={0}
-                role="img"
-                aria-label={formatNumber(value)}
-                title={formatNumber(value)}
-                className="flex-1 rounded-t-sm bg-accent-default transition-[filter] duration-150 hover:brightness-90 focus-visible:brightness-90"
-                style={{ height: `${Math.max(4, (value / max) * 100)}%` }}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-      {xTicks?.length ? (
-        <div className="mt-2 flex justify-between text-xs text-text-secondary">
-          {xTicks.map((tick) => (
-            <span key={tick}>{tick}</span>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 /* ── Stats strip ─────────────────────────────────────────────────── */
 
-type Stat = {
-  label: string;
-  value: string;
-  delta: string;
-  trend?: "up" | "down" | "flat";
-  spark?: number[];
-  /** The metric's definition — formula and denominator, in plain words. */
-  info?: string;
-  insights?: Array<{
-    text: string;
-    to: string;
-    tone: "success" | "warning" | "danger" | "accent";
-  }>;
-};
+/** The strip consumes the workspace's `Stat` — value, delta, real spark and
+ *  real previous-period series — so no number here is synthesized. */
+export type { Stat } from "@/lib/workspace";
 
 const INSIGHT_TONES = {
   success: { border: "border-status-success", dot: "bg-status-success" },
@@ -680,20 +634,6 @@ const trendClass = (trend?: Stat["trend"]) =>
     : trend === "down"
       ? "text-status-danger"
       : "text-text-secondary";
-
-/** Expand a 7-point spark into a ~30-point daily series so the opened stat can
- *  show a full chart. Deterministic (a small wobble keeps it from reading flat). */
-function expandSeries(spark: number[], n = 30): number[] {
-  if (!spark.length) return [];
-  return Array.from({ length: n }, (_, i) => {
-    const t = (i / (n - 1)) * (spark.length - 1);
-    const lo = Math.floor(t);
-    const hi = Math.min(spark.length - 1, lo + 1);
-    const base = spark[lo] + (spark[hi] - spark[lo]) * (t - lo);
-    const wob = Math.sin(i * 1.3) * 0.1 + Math.sin(i * 0.5) * 0.06;
-    return Math.max(0, base * (1 + wob));
-  });
-}
 
 /** Catmull-Rom → cubic-bezier smoothing so the line reads as a soft curve. */
 function smoothPath(pts: Array<[number, number]>): string {
@@ -739,7 +679,7 @@ export function TrendChart({
     arr.map((v, i) => [(i / (arr.length - 1)) * 300, 100 - (v / max) * 100] as [number, number]);
   const line = smoothPath(toPts(series));
   const prev = previous?.length ? smoothPath(toPts(previous)) : null;
-  const area = `${line} L 300,100 L 0,100 Z`;
+  const area = line ? `${line} L 300,100 L 0,100 Z` : "";
   const hoverX = hover === null ? 0 : (hover / (series.length - 1)) * 100;
   const hoverY = hover === null ? 0 : 100 - (series[hover] / max) * 100;
   return (
@@ -849,27 +789,35 @@ export function TrendChart({
 /** The mini-stats bar (Shopify-style): a padded parent holding borderless,
  *  rounded, hoverable stat cards. Click one to expand its full chart below
  *  (with a smooth reveal); the chevron toggles the panel. Purple sparklines
- *  echo the expanded chart; the trend arrow keeps its up/down colour. */
+ *  echo the expanded chart; the trend arrow keeps its up/down colour. The
+ *  dashed previous-period line is the data layer's real previous series —
+ *  when a stat carries none, the chart simply shows the current period. */
 export function StatsStrip({
   stats,
   xTicks,
   scope,
+  scopeLabel,
 }: {
   stats: Stat[];
   xTicks: string[];
-  /** Optional scope copy for surfaces that do not already establish it. */
+  /** What the numbers cover, for surfaces that do not already establish it. */
   scope?: string;
+  /** The comparison window behind every delta — "vs previous 30 days". */
+  scopeLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(0);
   const active = stats[sel] ?? stats[0];
-  const series = expandSeries(active.spark ?? []);
-  const previous = expandSeries((active.spark ?? []).map((v) => v * 0.82));
+  const series = active.spark ?? [];
+  const previous = active.previous;
 
   return (
     <section className="rounded-card border border-border-default bg-surface-raised p-1.5 shadow-sm">
-      {scope ? (
-        <p className="px-2 pb-1 pt-1.5 text-xs text-text-tertiary">{scope}</p>
+      {scope || scopeLabel ? (
+        <div className="flex items-baseline justify-between gap-3 px-2 pb-1 pt-1.5 text-xs text-text-tertiary">
+          <span>{scope}</span>
+          {scopeLabel ? <span className="ml-auto text-right">{scopeLabel}</span> : null}
+        </div>
       ) : null}
       <div className="flex items-stretch gap-1">
         <div className="grid flex-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -883,7 +831,6 @@ export function StatsStrip({
                   setOpen(true);
                 }}
                 aria-pressed={selected}
-                title={stat.info}
                 className={cn(
                   "rounded-md px-3 py-2.5 text-left transition-colors hover:bg-surface-subtle",
                   selected && "bg-surface-subtle",
@@ -934,12 +881,19 @@ export function StatsStrip({
           <div
             className={cn(
               "grid gap-4 px-2 pb-2 pt-4",
-              active.insights?.length && "lg:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)]",
+              active.insights?.length && "lg:grid-cols-12",
             )}
           >
-            <TrendChart series={series} previous={previous} xTicks={xTicks} />
+            <div className={cn(active.insights?.length && "lg:col-span-7")}>
+              {/* The metric's definition rides a visible ⓘ, not a title=. */}
+              <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-text-secondary">
+                {active.label}
+                {active.info ? <InfoHint text={active.info} /> : null}
+              </div>
+              <TrendChart series={series} previous={previous} xTicks={xTicks} />
+            </div>
             {active.insights?.length ? (
-              <div>
+              <div className="lg:col-span-5">
                 <ul className="space-y-2">
                   {active.insights.map((insight) => (
                     <li key={insight.text}>
@@ -971,9 +925,18 @@ export function StatsStrip({
 /* ── Guidance cards (Home / Insights) ────────────────────────────── */
 
 type Cta = { label: string; onClick?: () => void; to?: string };
-type CardProgress = { done: number; total: number; steps: string[] };
 
 export type CardTone = "accent" | "green" | "amber" | "red" | "neutral";
+
+/** The one tone → wash map for card visuals (media placeholders and any
+ *  future toned tile). Status colors never leave this recipe. */
+const CARD_TONES: Record<CardTone, string> = {
+  accent: "bg-accent-soft text-accent-default",
+  green: "bg-status-success-soft text-status-success",
+  red: "bg-status-danger-soft text-status-danger",
+  amber: "bg-surface-subtle text-text-secondary",
+  neutral: "bg-surface-subtle text-icon-secondary",
+};
 
 /** A full-bleed card image. Authored to 3:4 (side) / 16:9 (bottom); the
  *  container object-covers, so any close ratio crops cleanly. Until real art
@@ -986,20 +949,12 @@ export type CardMedia = {
   placement?: "side" | "bottom";
 };
 
-const MEDIA_TONES: Record<CardTone, string> = {
-  accent: "bg-accent-soft text-accent-default",
-  green: "bg-status-success-soft text-status-success",
-  red: "bg-status-danger-soft text-status-danger",
-  amber: "bg-surface-subtle text-text-secondary",
-  neutral: "bg-surface-subtle text-icon-secondary",
-};
-
 /** Fills its box with the image, or a tone-wash placeholder if there's no src. */
 function MediaFill({ media, className }: { media: CardMedia; className?: string }) {
   return (
     <div
       aria-hidden={!media.src}
-      className={cn("relative overflow-hidden", !media.src && MEDIA_TONES[media.tone ?? "neutral"], className)}
+      className={cn("relative overflow-hidden", !media.src && CARD_TONES[media.tone ?? "neutral"], className)}
     >
       {media.src ? (
         <img src={media.src} alt={media.alt ?? ""} className="absolute inset-0 h-full w-full object-cover" />
@@ -1012,10 +967,21 @@ function MediaFill({ media, className }: { media: CardMedia; className?: string 
   );
 }
 
-/** A 16px completion ring; hovering anywhere on the parent card (which carries
- *  `group`) reveals the steps still left. */
-export function ProgressRing({ done, total, steps }: CardProgress) {
-  const r = 9;
+/** The one 16px completion ring (setup cards, checklist headers). Pass
+ *  `steps` and hovering anywhere on the parent card (which carries `group`)
+ *  reveals the steps still left; omit it for a plain ring. `r` tunes the
+ *  ring's weight inside the same 24-unit box. */
+export function ProgressRing({
+  done,
+  total,
+  steps,
+  r = 9,
+}: {
+  done: number;
+  total: number;
+  steps?: string[];
+  r?: number;
+}) {
   const circ = 2 * Math.PI * r;
   const frac = total ? done / total : 0;
   const left = total - done;
@@ -1038,34 +1004,36 @@ export function ProgressRing({ done, total, steps }: CardProgress) {
       <span className="sr-only">
         {done} of {total} steps done
       </span>
-      <div className="pointer-events-none absolute left-0 top-6 z-20 hidden w-60 rounded-md border border-border-default bg-surface-raised p-3 text-left shadow-lg group-hover:block">
-        <p className="mb-2 text-xs font-semibold text-text-primary">
-          {left} {left === 1 ? "step" : "steps"} left
-        </p>
-        <ul className="space-y-1.5">
-          {steps.map((step, i) => (
-            <li key={step} className="flex items-center gap-2 text-xs">
-              <Icon
-                name={i < done ? "check_circle" : "radio_button_unchecked"}
-                size={16}
-                filled={i < done}
-                className={i < done ? "text-status-success" : "text-icon-tertiary"}
-              />
-              <span className={i < done ? "text-text-tertiary line-through" : "text-text-primary"}>
-                {step}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {steps?.length ? (
+        <div className="pointer-events-none absolute left-0 top-6 z-20 hidden w-60 rounded-md border border-border-default bg-surface-raised p-3 text-left shadow-lg group-hover:block">
+          <p className="mb-2 text-xs font-semibold text-text-primary">
+            {left} {left === 1 ? "step" : "steps"} left
+          </p>
+          <ul className="space-y-1.5">
+            {steps.map((step, i) => (
+              <li key={step} className="flex items-center gap-2 text-xs">
+                <Icon
+                  name={i < done ? "check_circle" : "radio_button_unchecked"}
+                  size={16}
+                  filled={i < done}
+                  className={i < done ? "text-status-success" : "text-icon-tertiary"}
+                />
+                <span className={i < done ? "text-text-tertiary line-through" : "text-text-primary"}>
+                  {step}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 /** The one card for every actionable surface on Home & Insights: an optional
- *  eyebrow / progress ring / status / right-hand meta, a title, a 14/20 line
- *  of copy, an optional visual, and a CTA pinned bottom-left. No header rule,
- *  no item borders — one consistent shape everywhere. */
+ *  eyebrow / status / right-hand meta, a title, a 14/20 line of copy, an
+ *  optional media fill, and a CTA pinned bottom-left. No header rule, no
+ *  item borders — one consistent shape everywhere. */
 export function ActionCard({
   eyebrow,
   title,
@@ -1074,9 +1042,7 @@ export function ActionCard({
   meta,
   primary,
   secondary,
-  visual,
   media,
-  progress,
   className,
 }: {
   eyebrow?: ReactNode;
@@ -1086,9 +1052,7 @@ export function ActionCard({
   meta?: ReactNode;
   primary?: Cta;
   secondary?: Cta;
-  visual?: ReactNode;
   media?: CardMedia;
-  progress?: CardProgress;
   className?: string;
 }) {
   const bottom = media?.placement === "bottom";
@@ -1103,12 +1067,9 @@ export function ActionCard({
       <div className={cn("flex min-w-0 flex-1 flex-col", media && "p-5")}>
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            {eyebrow || progress ? (
+            {eyebrow ? (
               <div className="mb-1 flex items-center gap-1.5">
-                {progress ? <ProgressRing {...progress} /> : null}
-                {eyebrow ? (
-                  <span className="text-xs font-semibold text-text-secondary">{eyebrow}</span>
-                ) : null}
+                <span className="text-xs font-semibold text-text-secondary">{eyebrow}</span>
               </div>
             ) : null}
             <h3 className="font-display text-base font-semibold leading-6 text-text-primary">{title}</h3>
@@ -1139,44 +1100,10 @@ export function ActionCard({
             ) : null}
           </div>
         ) : (
-          <MediaFill media={media} className="w-2/5 max-w-[14rem] shrink-0 self-stretch" />
+          <MediaFill media={media} className="w-2/5 max-w-56 shrink-0 self-stretch" />
         )
-      ) : visual ? (
-        <div className="shrink-0 self-center">{visual}</div>
       ) : null}
     </section>
-  );
-}
-
-/** A decorative illustration tile — the "image" on setup/promo cards, in
- *  our tokens (soft tone wash + a big glyph) instead of a stock graphic. */
-export function CardArt({
-  icon,
-  tone = "accent",
-  className,
-}: {
-  icon: string;
-  tone?: "accent" | "green" | "red" | "amber" | "neutral";
-  className?: string;
-}) {
-  const tones: Record<string, string> = {
-    accent: "bg-accent-soft text-accent-default",
-    green: "bg-status-success-soft text-status-success",
-    red: "bg-status-danger-soft text-status-danger",
-    amber: "bg-surface-subtle text-text-secondary",
-    neutral: "bg-surface-subtle text-icon-secondary",
-  };
-  return (
-    <div
-      aria-hidden
-      className={cn(
-        "grid aspect-[5/3] w-44 shrink-0 place-items-center overflow-hidden rounded-md",
-        tones[tone],
-        className,
-      )}
-    >
-      <Icon name={icon} size={44} filled />
-    </div>
   );
 }
 
@@ -1213,45 +1140,10 @@ export function PollThumb({ options }: { options: [PollOption, PollOption] }) {
     <div className="relative grid h-14 w-14 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-md bg-surface-strong">
       <img src={options[0].image} alt="" className="h-full w-full object-cover" />
       <img src={options[1].image} alt="" className="h-full w-full object-cover" />
-      <span className="absolute left-1/2 top-1/2 grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill bg-surface-raised font-display text-[9px] font-bold text-text-primary shadow-sm">
+      <span className="absolute left-1/2 top-1/2 grid h-5 w-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill bg-surface-raised font-display text-micro font-semibold text-text-primary shadow-sm">
         OR
       </span>
     </div>
-  );
-}
-
-/** A Polst in miniature (Home "Polsts" card): a split thumb beside the
- *  question, its status, and the current split — or its state before it runs.
- *  Reuses the mini-poll anatomy (thumb · question · shares). */
-export function PolstMiniRow({ polst }: { polst: SinglePolst }) {
-  const hasSplit = (polst.split ?? "").includes("/");
-  const [a, b] = hasSplit ? (polst.split ?? "").split("/").map((s) => s.trim()) : ["", ""];
-  return (
-    <Link
-      to={`/polsts/${polst.id}`}
-      className="flex items-center gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
-    >
-      <PollThumb options={polstOptions(polst)} />
-      <div className="flex h-14 min-w-0 flex-1 flex-col justify-center gap-1">
-        <div className="flex items-center justify-between gap-2">
-          <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
-            {polst.question}
-          </p>
-          <StatusBadge status={polst.status} />
-        </div>
-        {hasSplit ? (
-          <div className="flex items-center gap-1.5 text-xs font-medium text-text-secondary">
-            <span className="min-w-0 truncate">{polst.optionA}</span>
-            <span className="shrink-0 font-semibold text-text-primary tabular-nums">{a}</span>
-            <span aria-hidden className="h-3 w-px shrink-0 bg-border-strong" />
-            <span className="shrink-0 font-semibold text-text-primary tabular-nums">{b}</span>
-            <span className="min-w-0 truncate">{polst.optionB}</span>
-          </div>
-        ) : (
-          <p className="truncate text-xs font-medium text-text-tertiary">{polst.dates}</p>
-        )}
-      </div>
-    </Link>
   );
 }
 
@@ -1306,29 +1198,6 @@ function StepBullet({ done }: { done?: boolean }) {
   );
 }
 
-/** Small completion ring for the setup-card header (no tooltip). */
-function StepRing({ done, total }: { done: number; total: number }) {
-  const r = 8;
-  const circ = 2 * Math.PI * r;
-  const frac = total ? done / total : 0;
-  return (
-    <svg viewBox="0 0 20 20" className="h-4 w-4 -rotate-90" aria-hidden>
-      <circle cx={10} cy={10} r={r} fill="none" strokeWidth={2.5} className="stroke-surface-strong" />
-      <circle
-        cx={10}
-        cy={10}
-        r={r}
-        fill="none"
-        strokeWidth={2.5}
-        strokeLinecap="round"
-        className="stroke-accent-default"
-        strokeDasharray={circ}
-        strokeDashoffset={circ * (1 - frac)}
-      />
-    </svg>
-  );
-}
-
 export type SetupStep = {
   title: string;
   description?: string;
@@ -1358,10 +1227,10 @@ export function NextStepsCard({
     <section className="overflow-hidden rounded-card border border-border-default bg-surface-raised p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="mb-2 flex items-center gap-2 text-xs font-medium text-text-secondary">
-            <StepRing done={done} total={steps.length} />
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-text-secondary">
+            <ProgressRing done={done} total={steps.length} />
             {done} of {steps.length} tasks complete
-          </p>
+          </div>
           <h2 className="font-display text-base font-semibold leading-6 text-text-primary">{title}</h2>
           {intro && !collapsed ? (
             <p className="mt-1 text-sm leading-5 text-text-secondary">{intro}</p>
@@ -1420,7 +1289,7 @@ export function NextStepsCard({
                     ) : null}
                   </div>
                   {open && step.media ? (
-                    <MediaFill media={step.media} className="w-2/5 max-w-[14rem] shrink-0 self-stretch" />
+                    <MediaFill media={step.media} className="w-2/5 max-w-56 shrink-0 self-stretch" />
                   ) : null}
                 </div>
               </li>
@@ -1429,76 +1298,6 @@ export function NextStepsCard({
         </ol>
       ) : null}
     </section>
-  );
-}
-
-/* ── Flow steps (staged create/edit workflows) ───────────────────── */
-
-/** The progress header for a staged workflow: numbered steps, the active
- *  one filled, finished ones checked. Completed steps are clickable so
- *  the user can go back without losing place. */
-export function FlowSteps<T extends string>({
-  steps,
-  active,
-  onChange,
-}: {
-  steps: readonly T[];
-  active: T;
-  onChange: (step: T) => void;
-}) {
-  const activeIndex = steps.indexOf(active);
-  return (
-    <ol className="flex flex-wrap items-center gap-2" aria-label="Setup steps">
-      {steps.map((step, i) => {
-        const state = i < activeIndex ? "done" : i === activeIndex ? "active" : "todo";
-        return (
-          <li key={step} className="flex items-center gap-2">
-            {i > 0 ? (
-              <Icon name="chevron_right" size={16} className="text-icon-tertiary" aria-hidden />
-            ) : null}
-            <button
-              type="button"
-              disabled={state === "todo"}
-              onClick={() => onChange(step)}
-              aria-current={state === "active" ? "step" : undefined}
-              className={cn(
-                "flex h-8 items-center gap-2 rounded-md px-2.5 font-display text-ui font-semibold transition-colors",
-                state === "active" && "bg-surface-raised text-text-primary shadow-sm ring-1 ring-border-default",
-                state === "done" && "text-text-secondary hover:text-text-primary",
-                state === "todo" && "cursor-default text-text-tertiary",
-              )}
-            >
-              {state === "done" ? (
-                <Icon name="check_circle" size={18} filled className="text-status-success" />
-              ) : (
-                <span
-                  className={cn(
-                    "grid h-5 w-5 place-items-center rounded-pill text-xs font-semibold",
-                    state === "active"
-                      ? "bg-accent-default text-text-on-accent"
-                      : "bg-surface-strong text-text-secondary",
-                  )}
-                >
-                  {i + 1}
-                </span>
-              )}
-              {step}
-            </button>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-/** The quiet autosave affordance: saving is the system's job, so it never
- *  gets a primary button — just this line beside the flow's real action. */
-export function SavedChip({ when = "just now" }: { when?: string }) {
-  return (
-    <span className="flex h-8 items-center gap-1 text-xs text-text-tertiary">
-      <Icon name="cloud_done" size={16} />
-      Draft saved {when}
-    </span>
   );
 }
 
@@ -1741,7 +1540,7 @@ export function SnippetCard({
           size="sm"
           onClick={() => toast(`${title} copied`)}
         >
-          <Icon name="content_copy" size={16} />
+          <Icon name="content_copy" size={18} />
           Copy
         </Button>
       </div>
@@ -1781,9 +1580,8 @@ export function LockedCard({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-display text-sm font-semibold text-text-primary">{title}</p>
-          <span className="rounded-pill bg-surface-strong px-2 py-0.5 font-display text-xs font-semibold text-text-secondary">
-            {chip}
-          </span>
+          {/* Steps one fill above the card's subtle surface so it stays visible. */}
+          <Chip className="bg-surface-strong">{chip}</Chip>
         </div>
         <p className="mt-1 text-sm leading-5 text-text-secondary">{description}</p>
       </div>
@@ -1842,7 +1640,11 @@ export function SplitBar({ split, className }: { split: Split; className?: strin
 
 /** Retention triangle: weekly cohorts down, return checkpoints across,
  *  cells shaded by percent returning. Cells the cohort hasn't reached yet
- *  render as quiet dashes — maturing, not missing. */
+ *  render as quiet dashes — maturing, not missing.
+ *  NOTE (page agent): this component's workspace data source was removed as
+ *  fabricated — Analytics.tsx currently synthesizes `cohorts` locally. When
+ *  the Retention page is rebuilt without it, delete CohortGrid (and the
+ *  `Cohort` type import above) with it. */
 export function CohortGrid({ cohorts, className }: { cohorts: Cohort[]; className?: string }) {
   const columns = ["Day 1", "Day 7", "Day 14", "Day 30"] as const;
   const keys = ["d1", "d7", "d14", "d30"] as const;
