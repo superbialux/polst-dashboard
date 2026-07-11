@@ -20,7 +20,7 @@ import {
   type DataColumn,
 } from "@/components/dashboard";
 import { useWorkspace } from "@/lib/store";
-import { METRIC_INFO, fmtInt, fmtPct, relativeToToday } from "@/lib/canon";
+import { METRIC_INFO, fmtInt, fmtPct, pct, relativeToToday } from "@/lib/canon";
 import { windowDelta } from "@/lib/engine";
 import {
   INTEGRATIONS,
@@ -76,16 +76,21 @@ export function DistributionPage() {
       : null;
   };
 
-  /* Worst completion first (the eroding source Home points at), then the
-     silent sources — newest on top so a just-created one is visible. */
+  /* Campaign sources worst-completion first (the eroding source Home
+     points at), then Polst sources by volume — a single question has no
+     completion to rank — then the silent sources, newest on top so a
+     just-created one is visible. */
   const rows = useMemo(() => {
     const measured = sources
-      .filter((s) => s.completionRate !== null)
+      .filter((s) => s.completionRate !== null && s.linked?.type === "campaign")
       .sort((a, b) => a.completionRate! - b.completionRate!);
+    const polstFed = sources
+      .filter((s) => s.voters > 0 && s.linked?.type === "polst")
+      .sort((a, b) => b.voters - a.voters);
     const silent = sources
-      .filter((s) => s.completionRate === null)
+      .filter((s) => !measured.includes(s) && !polstFed.includes(s))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return [...measured, ...silent];
+    return [...measured, ...polstFed, ...silent];
   }, [sources]);
 
   const window30 = workspaceWindow("30D");
@@ -146,9 +151,14 @@ export function DistributionPage() {
     {
       header: "Completion",
       align: "right",
+      /* Only campaign sources have a real completion story — a single-
+         question Polst completes the moment it votes, so "100%" would be
+         a degenerate stat, not information. */
       cell: (s) => (
         <span className="tabular-nums">
-          {s.completionRate !== null ? fmtPct(s.completionRate, 0) : "—"}
+          {s.linked?.type === "campaign" && s.completionRate !== null
+            ? fmtPct(s.completionRate, 0)
+            : "—"}
         </span>
       ),
     },
@@ -392,8 +402,15 @@ function QrTile({
           [
             ["Scans", source.views > 0 ? fmtInt(source.views) : "—"],
             ["Voters", source.voters > 0 ? fmtInt(source.voters) : "—"],
-            ["Completion", source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—"],
-          ] as const
+            // A single-question Polst always "completes" — its honest QR
+            // stat is scan → vote conversion instead.
+            linked?.type === "polst"
+              ? ["Conversion", pct(source.voters, source.views)]
+              : [
+                  "Completion",
+                  source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—",
+                ],
+          ] as Array<[string, string]>
         ).map(([label, value]) => (
           <div key={label}>
             <dt className="text-xs font-medium text-text-secondary">{label}</dt>

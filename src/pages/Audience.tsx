@@ -3,41 +3,46 @@ import {
   Chip,
   DashboardCard,
   DashboardPage,
+  DataTable,
   DateRangeMenu,
   LockedCard,
   MixBars,
   SectionGrid,
   StatTile,
   TimeHeatmap,
+  type DataColumn,
 } from "@/components/dashboard";
-import { METRIC_INFO, fmtInt } from "@/lib/canon";
+import { METRIC_INFO, fmtInt, fmtPct } from "@/lib/canon";
 import { windowDelta } from "@/lib/engine";
 import {
   HEATMAP_BUCKETS,
   HEATMAP_DAYS,
   answerHeat,
+  browserMix,
+  countryMix,
   deviceMix,
   platformMix,
   workspaceWindow,
+  type CountryRow,
   type WindowRange,
-  type WorkspaceWindow,
 } from "@/lib/workspace";
 
 /* ── Audience — what anonymous voting can actually tell us ─────────
-   Behavior (when people answer), technology (devices, platforms), and
-   volume (voters, views, votes per voter) — all derived from the
-   workspace window. Demographics stay locked until respondent-level
-   collection exists; nothing here is invented. */
+   Behavior (when people answer), technology (devices, platforms,
+   browsers), geography (country mix), and volume (voters, views, votes
+   per voter) — all derived from the workspace window. Age, gender, and
+   income stay locked until respondent-level collection exists; nothing
+   here is invented. */
 
-type TileDelta = { detail: string; trend: "up" | "down" | "flat" };
+type TileDelta = { detail?: string; trend: "up" | "down" | "flat" };
 
-/** Delta line with its baseline stated, or the window itself when there
- *  is no comparable previous period (All time, near-empty baselines). */
-const vsPrevious = (w: WorkspaceWindow, delta: number | null): TileDelta => {
-  if (delta === null || !w.compareLabel) return { detail: w.label, trend: "flat" };
-  if (delta === 0) return { detail: `No change ${w.compareLabel}`, trend: "flat" };
+/** The tile's delta line. The window and its comparison period are
+ *  stated ONCE at band level — tiles never repeat the dates. */
+const vsPrevious = (delta: number | null): TileDelta => {
+  if (delta === null) return { trend: "flat" };
+  if (delta === 0) return { detail: "No change vs the previous period", trend: "flat" };
   return {
-    detail: `${Math.abs(delta)}% ${w.compareLabel}`,
+    detail: `${Math.abs(delta)}% vs the previous period`,
     trend: delta > 0 ? "up" : "down",
   };
 };
@@ -61,6 +66,36 @@ const peakLabel = (heat: number[][]): string => {
   return `Peak · ${HEATMAP_DAYS[best.day]} ${HEATMAP_BUCKETS[best.slot]}–${end}`;
 };
 
+const countryColumns: Array<DataColumn<CountryRow>> = [
+  {
+    header: "Country",
+    cell: (row) => (
+      <span className="font-display font-semibold text-text-primary">{row.country}</span>
+    ),
+  },
+  {
+    header: "Share",
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{fmtPct(row.share, 0)}</span>,
+  },
+  {
+    header: "Voters",
+    align: "right",
+    cell: (row) => (
+      <span className="tabular-nums">{row.voters > 0 ? fmtInt(row.voters) : "—"}</span>
+    ),
+  },
+  {
+    header: "Completion",
+    align: "right",
+    cell: (row) => (
+      <span className="tabular-nums">
+        {row.completionRate !== null ? fmtPct(row.completionRate, 0) : "—"}
+      </span>
+    ),
+  },
+];
+
 export function AudiencePage() {
   const [range, setRange] = useState<WindowRange>("30D");
   const w = workspaceWindow(range);
@@ -75,29 +110,36 @@ export function AudiencePage() {
       label: "Voters",
       value: fmtInt(w.voters),
       info: METRIC_INFO.voters,
-      ...vsPrevious(w, w.prev ? windowDelta(w.voters, w.prev.voters) : null),
+      ...vsPrevious(w.prev ? windowDelta(w.voters, w.prev.voters) : null),
     },
     {
       label: "Views",
       value: fmtInt(w.views),
       info: METRIC_INFO.views,
-      ...vsPrevious(w, w.prev ? windowDelta(w.views, w.prev.views) : null),
+      ...vsPrevious(w.prev ? windowDelta(w.views, w.prev.views) : null),
     },
     {
       label: "Votes per voter",
       value: votesPerVoter !== null ? votesPerVoter.toFixed(1) : "—",
       info: "Total votes ÷ voters for the period. A voter answering a three-question campaign counts as three votes.",
-      ...vsPrevious(w, ratioDelta(votesPerVoter, prevVotesPerVoter)),
+      ...vsPrevious(ratioDelta(votesPerVoter, prevVotesPerVoter)),
     },
   ];
 
   return (
     <DashboardPage actions={<DateRangeMenu value={range} onChange={setRange} />}>
-      <SectionGrid>
-        {tiles.map((tile) => (
-          <StatTile key={tile.label} className="lg:col-span-4" {...tile} />
-        ))}
-      </SectionGrid>
+      {/* The window and its comparison period, said once for the band. */}
+      <div className="space-y-3">
+        <p className="text-sm text-text-secondary">
+          {w.label}
+          {w.compareLabel ? ` · compared with ${w.compareLabel.slice(3)}` : ""}
+        </p>
+        <SectionGrid>
+          {tiles.map((tile) => (
+            <StatTile key={tile.label} className="lg:col-span-4" {...tile} />
+          ))}
+        </SectionGrid>
+      </div>
 
       <SectionGrid>
         <DashboardCard
@@ -113,28 +155,35 @@ export function AudiencePage() {
       </SectionGrid>
 
       <SectionGrid>
-        {/* DOM order keeps Devices → Platforms adjacent when stacked;
-            at lg the order classes put Demographics on the left. */}
-        <DashboardCard title="Platforms" className="lg:order-2 lg:col-span-4">
-          <MixBars slices={platformMix(range)} />
+        <DashboardCard
+          title="Geography"
+          description="Where the period's voters answered from."
+          padded={false}
+          className="lg:col-span-8"
+        >
+          <DataTable rows={countryMix(range)} columns={countryColumns} />
         </DashboardCard>
-        <DashboardCard title="Demographics" className="lg:order-1 lg:col-span-8">
-          <div className="space-y-3">
-            <LockedCard
-              title="Age & gender"
-              description="Voting is anonymous today — these arrive with respondent-level collection."
-            />
-            <LockedCard
-              title="Household income"
-              description="Needs voters who link a profile; nothing is inferred from anonymous votes."
-            />
-            <LockedCard
-              title="Geography"
-              description="Country and city breakdowns ship once vote location is captured."
-            />
-          </div>
+        <DashboardCard title="Platforms" className="lg:col-span-4">
+          <MixBars slices={platformMix(range)} />
+          <p className="mt-5 border-t border-border-default pt-4 font-display text-sm font-semibold text-text-primary">
+            Browsers
+          </p>
+          <MixBars className="mt-3" slices={browserMix(range)} />
         </DashboardCard>
       </SectionGrid>
+
+      <DashboardCard title="Demographics">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <LockedCard
+            title="Age & gender"
+            description="Voting is anonymous today — these arrive with respondent-level collection."
+          />
+          <LockedCard
+            title="Household income"
+            description="Needs voters who link a profile; nothing is inferred from anonymous votes."
+          />
+        </div>
+      </DashboardCard>
     </DashboardPage>
   );
 }

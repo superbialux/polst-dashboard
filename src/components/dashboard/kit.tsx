@@ -7,9 +7,10 @@ import { Chip } from "@/components/ui/badge";
 import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
-import { SelectMenu, TextInput } from "@/components/Field";
+import { FieldHelper, SelectMenu, TextInput } from "@/components/Field";
 import { HeaderActions } from "./Shell";
-import { STATUS_TONE, type StatusTone } from "@/lib/canon";
+import { STATUS_TONE, daysBetween, fmtDateRange, type StatusTone } from "@/lib/canon";
+import { addDays } from "@/lib/engine";
 import type { AnalyticsFilters } from "@/lib/analytics";
 import {
   formatNumber,
@@ -372,6 +373,91 @@ export function FilterTabs({
   onChange: (tab: string) => void;
 }) {
   return <SegmentedControl tabs={tabs} active={active} onChange={onChange} />;
+}
+
+/* ── Duration field ──────────────────────────────────────────────── */
+
+/** The one run-length vocabulary. "No end" is an explicit preset — an
+ *  open-ended run is a choice, never a Custom field left blank. */
+export const DURATION_PRESETS = ["3 days", "7 days", "10 days", "No end", "Custom"] as const;
+export type DurationPreset = (typeof DURATION_PRESETS)[number];
+const DURATION_PRESET_DAYS: Partial<Record<DurationPreset, number>> = {
+  "3 days": 3,
+  "7 days": 7,
+  "10 days": 10,
+};
+
+/** End date a preset implies (inclusive span: "7 days" = start..start+6);
+ *  undefined for "No end", the picked date for "Custom". */
+export const durationEnd = (
+  preset: DurationPreset,
+  startAt: string,
+  customEnd: string,
+): string | undefined => {
+  if (preset === "No end") return undefined;
+  if (preset === "Custom") return customEnd || undefined;
+  return startAt ? addDays(startAt, DURATION_PRESET_DAYS[preset]! - 1) : undefined;
+};
+
+/** The preset a saved schedule round-trips to — exact. */
+export const durationPresetFor = (startAt?: string, endAt?: string): DurationPreset => {
+  if (!startAt) return "7 days"; // nothing scheduled yet — the default
+  if (!endAt) return "No end";
+  const days = daysBetween(startAt, endAt) + 1;
+  const hit = (Object.entries(DURATION_PRESET_DAYS) as Array<[DurationPreset, number]>).find(
+    ([, presetDays]) => presetDays === days,
+  );
+  return hit ? hit[0] : "Custom";
+};
+
+/** The one run-length control (create Campaign / create Polst): preset
+ *  segments, a date input that appears for Custom, and an honest helper
+ *  line saying exactly what the choice means. */
+export function DurationField({
+  value,
+  onChange,
+  customEnd,
+  onCustomEndChange,
+  startAt,
+  subject,
+}: {
+  value: DurationPreset;
+  onChange: (preset: DurationPreset) => void;
+  customEnd: string;
+  onCustomEndChange: (iso: string) => void;
+  /** The run's start date (ISO), or "" when not set yet. */
+  startAt: string;
+  /** "campaign" | "Polst" — the noun the helper line speaks. */
+  subject: string;
+}) {
+  const end = durationEnd(value, startAt, customEnd);
+  const line =
+    value === "No end"
+      ? `No end date — the ${subject} collects votes until you end it.`
+      : end
+        ? `Runs ${fmtDateRange(startAt || undefined, end)}. Voting closes when the ${subject} ends.`
+        : value === "Custom"
+          ? "Pick the last day voters can submit."
+          : "Voting closes at the end of the run — set a start date to see it.";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="font-display text-sm font-semibold leading-5 text-text-primary">
+        How long should it run?
+      </p>
+      <SegmentedControl tabs={DURATION_PRESETS} active={value} onChange={onChange} size="form" />
+      {value === "Custom" ? (
+        <div className="mt-2 max-w-56">
+          <TextInput
+            type="date"
+            aria-label="End date"
+            value={customEnd}
+            onChange={(e) => onCustomEndChange(e.target.value)}
+          />
+        </div>
+      ) : null}
+      <FieldHelper tone="neutral">{line}</FieldHelper>
+    </div>
+  );
 }
 
 /** The list-page toolbar: status filters on the left, search on the right. */

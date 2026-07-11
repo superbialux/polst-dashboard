@@ -141,20 +141,45 @@ export function chainVotes(started: number, completed: number, questions: number
   );
 }
 
-/* ── Answer-time surface (heatmap) ────────────────────────────────────
-   Day × 2-hour buckets: lunchtime and evening peaks, quieter weekends —
-   one plausible audience rhythm, scaled to the window's real vote count. */
+/* ── Answer-time surface (heatmap + hourly velocity) ──────────────────
+   One daypart curve — lunchtime and evening peaks, quiet nights — drives
+   both the day × 2-hour heatmap and the trailing votes/hr readout. */
 
+/** Relative vote density for an hour of the day (0–23). */
+const daypartWeight = (hour: number) =>
+  hour < 6 ? 0.15 : hour < 10 ? 0.7 : hour < 14 ? 1.05 : hour < 18 ? 0.9 : hour < 22 ? 1.25 : 0.4;
+
+/** Day × 2-hour vote density, scaled to the window's REAL vote total. */
 export function timeHeat(votesInWindow: number): number[][] {
   const buckets = Array.from({ length: 7 }, (_, day) =>
-    Array.from({ length: 12 }, (_, slot) => {
-      const hour = slot * 2;
-      const daypart =
-        hour < 6 ? 0.15 : hour < 10 ? 0.7 : hour < 14 ? 1.05 : hour < 18 ? 0.9 : hour < 22 ? 1.25 : 0.4;
-      return WEEKDAY_WEIGHT[day] * daypart * (0.9 + seededUnit(97, day * 12 + slot) * 0.2);
-    }),
+    Array.from({ length: 12 }, (_, slot) =>
+      WEEKDAY_WEIGHT[day] * daypartWeight(slot * 2) * (0.9 + seededUnit(97, day * 12 + slot) * 0.2),
+    ),
   );
   const flat = buckets.flat();
   const alloc = allocate(votesInWindow, flat);
   return buckets.map((row, day) => row.map((_, slot) => alloc[day * 12 + slot]));
+}
+
+/** The demo clock: "now" is TODAY at 14:00. Hourly reads anchor here so
+ *  they stay coherent with the fixed TODAY the daily series use. */
+export const NOW_HOUR = 14;
+
+/** The 24 completed hours ending at TODAY {NOW_HOUR}:00, oldest first.
+ *  Each day's REAL total from the daily series spreads across its 24
+ *  hours on the daypart curve (seeded jitter), so the trailing window —
+ *  yesterday {NOW_HOUR}:00 → today {NOW_HOUR}:00 — reconciles with the
+ *  same series every other screen reads. Deterministic. */
+export function hourlyVotes(id: string, todayTotal: number, yesterdayTotal: number): number[] {
+  const seed = seedHash(`${id}:hourly`);
+  const dayHours = (dayIndex: number, total: number) =>
+    allocate(
+      total,
+      Array.from({ length: 24 }, (_, h) =>
+        daypartWeight(h) * (0.85 + seededUnit(seed, dayIndex * 24 + h) * 0.3),
+      ),
+    );
+  const yesterday = dayHours(0, yesterdayTotal);
+  const today = dayHours(1, todayTotal);
+  return [...yesterday.slice(NOW_HOUR), ...today.slice(0, NOW_HOUR)];
 }

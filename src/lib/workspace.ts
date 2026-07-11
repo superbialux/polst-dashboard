@@ -14,9 +14,11 @@ import {
   type Status,
 } from "@/lib/canon";
 import {
+  addDays,
   allocate,
   chainVotes,
   dailySeries,
+  hourlyVotes,
   sumWindow,
   timeHeat,
   windowBounds,
@@ -89,7 +91,7 @@ export type Campaign = {
   voters: number; // unique people who started (= Q1 votes)
   completed: number; // answered every question (= last Q votes)
   viewsFactor: number; // views = round(votes * viewsFactor)
-  shares: number; // interactions (shares/reposts)
+  shares: number; // interactions (likes/shares/reposts)
   avgTimeSeconds?: number; // avg completion time
   // Narrative (authored — every number in the copy matches the data):
   summary: string;
@@ -1125,6 +1127,25 @@ export function answerHeat(range: WindowRange): number[][] {
   return heat;
 }
 
+/* ── Vote velocity (Polst detail) ────────────────────────────────────
+   votes/hr over the trailing 1h / 6h / 24h, staging's readout. Derived
+   from the Polst's REAL daily series spread across the daypart curve
+   (engine.hourlyVotes) — active runs only; nothing else has a pace. */
+
+export type VoteVelocity = { lastHour: number; perHour6: number; perHour24: number };
+
+export function voteVelocity(polst: SinglePolst): VoteVelocity | null {
+  if (polst.status !== "Active" || polst.votes === 0) return null;
+  const series = polstSeries(polst, "votes");
+  const on = (iso: string) => {
+    const i = series.dates.indexOf(iso);
+    return i === -1 ? 0 : series.values[i];
+  };
+  const hours = hourlyVotes(polst.id, on(TODAY), on(addDays(TODAY, -1)));
+  const rate = (n: number) => round1(hours.slice(-n).reduce((a, b) => a + b, 0) / n);
+  return { lastHour: rate(1), perHour6: rate(6), perHour24: rate(24) };
+}
+
 /* ── Device & platform mix ───────────────────────────────────────── */
 
 export type MixSlice = { label: string; value: number; detail?: string };
@@ -1149,6 +1170,13 @@ const PLATFORM_SHARES = [
   { label: "Other", value: 3 },
 ];
 
+const BROWSER_SHARES = [
+  { label: "Chrome", value: 46 },
+  { label: "Mobile Safari", value: 28 },
+  { label: "Safari", value: 14 },
+  { label: "Other", value: 12 },
+];
+
 const mixFor = (shares: Array<{ label: string; value: number }>, range: WindowRange): MixSlice[] => {
   const counts = allocate(workspaceWindow(range).voters, shares.map((s) => s.value));
   return shares.map((s, i) => ({ ...s, detail: `${fmtInt(counts[i])} voters` }));
@@ -1156,6 +1184,55 @@ const mixFor = (shares: Array<{ label: string; value: number }>, range: WindowRa
 
 export const deviceMix = (range: WindowRange): MixSlice[] => mixFor(DEVICE_SHARES, range);
 export const platformMix = (range: WindowRange): MixSlice[] => mixFor(PLATFORM_SHARES, range);
+export const browserMix = (range: WindowRange): MixSlice[] => mixFor(BROWSER_SHARES, range);
+
+/* ── Geography (country mix) ─────────────────────────────────────────
+   Authored share-of-voters weights (US-heavy, like the real audience)
+   plus a completion delta per country — the window's REAL voter and
+   completed totals are allocated across them exactly, the same pattern
+   sources use, so the table reconciles with every headline number. */
+
+const COUNTRY_SHARES = [
+  { label: "United States", value: 63, completionDelta: 2 },
+  { label: "Canada", value: 12, completionDelta: 1 },
+  { label: "United Kingdom", value: 9, completionDelta: -2 },
+  { label: "Australia", value: 7, completionDelta: -3 },
+  { label: "Germany", value: 5, completionDelta: -5 },
+  { label: "Other", value: 4, completionDelta: -7 },
+];
+
+export type CountryRow = {
+  id: string;
+  country: string;
+  /** Share of the window's voters, in %. */
+  share: number;
+  voters: number;
+  completed: number;
+  completionRate: number | null; // completed/voters*100, 1dp
+};
+
+const countryCache = new Map<WindowRange, CountryRow[]>();
+
+export function countryMix(range: WindowRange): CountryRow[] {
+  const hit = countryCache.get(range);
+  if (hit) return hit;
+  const w = workspaceWindow(range);
+  const voters = allocate(w.voters, COUNTRY_SHARES.map((c) => c.value));
+  const completed = allocate(
+    w.completed,
+    COUNTRY_SHARES.map((c) => c.value * Math.max(0, (w.completionRate ?? 0) + c.completionDelta)),
+  );
+  const rows = COUNTRY_SHARES.map((c, i) => ({
+    id: c.label,
+    country: c.label,
+    share: c.value,
+    voters: voters[i],
+    completed: Math.min(completed[i], voters[i]),
+    completionRate: voters[i] > 0 ? round1((Math.min(completed[i], voters[i]) / voters[i]) * 100) : null,
+  }));
+  countryCache.set(range, rows);
+  return rows;
+}
 
 /* ── Share links & embed snippets (per object) ───────────────────── */
 
@@ -1176,22 +1253,27 @@ export const embedScript = (id: string) => `<div id="polst-campaign"></div>
 export const winnerLabel = (c: { winner: { option: string; marginPts: number } | null }) =>
   c.winner ? `${c.winner.option} +${c.winner.marginPts} pts` : "—";
 
-/* ── Team & invitations (Settings) ───────────────────────────────── */
+/* ── Team (Settings) ─────────────────────────────────────────────────
+   Staging's model: members are provisioned brand-only accounts (no
+   invite email), and everyone but the owner is a Manager. */
 
-export type TeamRole = "Owner" | "Editor" | "Viewer";
+export type TeamRole = "Owner" | "Manager";
 
-export type TeamMember = { id: string; name: string; email: string; role: TeamRole };
+export type TeamMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: TeamRole;
+  /** First sign-in date; absent while the provisioned account is unused. */
+  joined?: string;
+};
 
 export const TEAM: TeamMember[] = [
-  { id: "owner", name: WORKSPACE.owner, email: WORKSPACE.email, role: "Owner" },
-  { id: "strategist", name: "Elena Morris", email: "elena@northstarpantry.co", role: "Editor" },
-  { id: "analyst", name: "Devon Park", email: "devon@northstarpantry.co", role: "Viewer" },
-];
-
-export type PendingInvite = { id: string; email: string; role: TeamRole; sent: string };
-
-export const PENDING_INVITES: PendingInvite[] = [
-  { id: "invite-agency", email: "sam@brightside.agency", role: "Viewer", sent: fmtDate("2026-06-12") },
+  { id: "owner", name: WORKSPACE.owner, email: WORKSPACE.email, role: "Owner", joined: "2026-01-12" },
+  { id: "strategist", name: "Elena Morris", email: "elena@northstarpantry.co", role: "Manager", joined: "2026-02-03" },
+  { id: "analyst", name: "Devon Park", email: "devon@northstarpantry.co", role: "Manager", joined: "2026-04-18" },
+  // Provisioned Jun 12 for the agency; hasn't signed in yet.
+  { id: "agency", name: "Sam Ellery", email: "sam@brightside.agency", role: "Manager" },
 ];
 
 /* ── Integrations (Settings) ─────────────────────────────────────── */

@@ -9,7 +9,7 @@ import {
   isReadyToDecide,
   signalFor,
 } from "../src/lib/canon";
-import { sumWindow, windowBounds } from "../src/lib/engine";
+import { addDays, hourlyVotes, sumWindow, windowBounds } from "../src/lib/engine";
 import {
   ATTENTION_ITEMS,
   CAMPAIGNS,
@@ -19,8 +19,13 @@ import {
   REPORTS,
   SINGLE_POLSTS,
   SOURCES,
+  browserMix,
   campaignSeries,
+  countryMix,
+  deviceMix,
+  platformMix,
   polstSeries,
+  voteVelocity,
   workspaceWindow,
 } from "../src/lib/workspace";
 import { ANALYTICS_DEFAULTS, analyticsRows, segmentTotal } from "../src/lib/analytics";
@@ -181,6 +186,54 @@ check(
   JSON.stringify(READY_TO_DECIDE.map((c) => c.id).sort()) === JSON.stringify(expectedReady.sort()),
   `READY_TO_DECIDE ≠ campaigns matching isReadyToDecide (${expectedReady.join(",")})`,
 );
+
+/* ── 14. Audience mixes reconcile with the window ─────────────────── */
+for (const range of ["7D", "30D", "90D", "All"] as const) {
+  const w = workspaceWindow(range);
+  // Country mix: exact allocation of the window's voters AND completed.
+  const geo = countryMix(range);
+  const geoVoters = geo.reduce((a, r) => a + r.voters, 0);
+  const geoCompleted = geo.reduce((a, r) => a + r.completed, 0);
+  check(geoVoters === w.voters, `${range}: Σ country voters ${geoVoters} ≠ window voters ${w.voters}`);
+  check(geoCompleted === w.completed, `${range}: Σ country completed ${geoCompleted} ≠ window completed ${w.completed}`);
+  for (const r of geo) check(r.completed <= r.voters, `${range}: ${r.country} completed > voters`);
+  // Share tables state percentages that must total 100.
+  for (const [name, mix] of [
+    ["device", deviceMix(range)],
+    ["platform", platformMix(range)],
+    ["browser", browserMix(range)],
+  ] as const) {
+    const total = mix.reduce((a, s) => a + s.value, 0);
+    check(total === 100, `${range}: ${name} mix shares sum to ${total}, not 100`);
+  }
+}
+
+/* ── 15. Hourly velocity derives from the daily series ────────────── */
+for (const p of SINGLE_POLSTS) {
+  const v = voteVelocity(p);
+  if (p.status !== "Active" || p.votes === 0) {
+    check(v === null, `polst ${p.id}: velocity reported for a non-active or zero-vote run`);
+    continue;
+  }
+  check(v !== null, `polst ${p.id}: Active with votes but no velocity`);
+  const series = polstSeries(p, "votes");
+  const on = (iso: string) => {
+    const i = series.dates.indexOf(iso);
+    return i === -1 ? 0 : series.values[i];
+  };
+  const hours = hourlyVotes(p.id, on(TODAY), on(addDays(TODAY, -1)));
+  check(hours.length === 24, `polst ${p.id}: hourly window is ${hours.length}h, not 24`);
+  check(hours.every((h) => h >= 0), `polst ${p.id}: negative hourly votes`);
+  const last24 = hours.reduce((a, b) => a + b, 0);
+  check(
+    last24 <= on(TODAY) + on(addDays(TODAY, -1)),
+    `polst ${p.id}: trailing 24h votes exceed the two source days`,
+  );
+  check(
+    v !== null && Math.abs(v.perHour24 - last24 / 24) < 0.06,
+    `polst ${p.id}: perHour24 ${v?.perHour24} ≠ Σ trailing 24h / 24`,
+  );
+}
 
 if (failures) {
   console.error(`\n${failures} invariant(s) violated.`);

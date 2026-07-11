@@ -20,7 +20,9 @@ import {
   DashboardPage,
   DataTable,
   DetailList,
+  DurationField,
   EmptyState,
+  InfoHint,
   NotFoundCard,
   PollResults,
   PollThumb,
@@ -29,8 +31,11 @@ import {
   SegmentedControl,
   StatTile,
   StatusBadge,
+  durationEnd,
+  durationPresetFor,
   filterByStatus,
   type DataColumn,
+  type DurationPreset,
   type EmptyStateAction,
 } from "@/components/dashboard";
 import {
@@ -43,13 +48,12 @@ import {
   fmtPct,
   relativeToToday,
 } from "@/lib/canon";
-import { addDays } from "@/lib/engine";
 import {
   WORKSPACE,
   polstImage,
   polstOptions,
-  polstSeries,
   shareUrl,
+  voteVelocity,
   type SinglePolst,
   type Vertical,
 } from "@/lib/workspace";
@@ -408,21 +412,9 @@ export function PolstDetailPage() {
     scheduleItems.push(["Starts in", `${until} ${until === 1 ? "day" : "days"}`]);
   }
 
-  /* Recent pace from the polst's real daily series — Active runs with
-   *  votes only; a zero-vote run has no pace to report. */
-  const pace = (() => {
-    if (!isActive || polst.votes === 0) return null;
-    const series = polstSeries(polst, "votes");
-    const on = (iso: string) => {
-      const i = series.dates.indexOf(iso);
-      return i === -1 ? 0 : series.values[i];
-    };
-    const last7 = series.dates.reduce((sum, date, i) => {
-      const back = daysBetween(date, TODAY);
-      return back >= 0 && back <= 6 ? sum + series.values[i] : sum;
-    }, 0);
-    return { today: on(TODAY), yesterday: on(addDays(TODAY, -1)), last7 };
-  })();
+  /* votes/hr over the trailing 1h / 6h / 24h — Active runs with votes
+   *  only; a zero-vote run has no pace to report. */
+  const velocity = voteVelocity(polst);
 
   /* Voter preview facts. The like/repost counts split the polst's real
    *  interactions total, so the card reconciles with the tile above. */
@@ -544,13 +536,21 @@ export function PolstDetailPage() {
             <DashboardCard title="Schedule">
               <DetailList items={scheduleItems} />
             </DashboardCard>
-            {pace ? (
-              <DashboardCard title="Vote velocity">
+            {velocity ? (
+              <DashboardCard
+                title="Vote velocity"
+                action={
+                  <InfoHint
+                    label="Vote velocity"
+                    text="Average votes per hour over the trailing window, from this Polst's daily votes."
+                  />
+                }
+              >
                 <DetailList
                   items={[
-                    ["Today", `${fmtInt(pace.today)} votes`],
-                    ["Yesterday", `${fmtInt(pace.yesterday)} votes`],
-                    ["Last 7 days", `${fmtInt(pace.last7)} votes`],
+                    ["Last hour", `${velocity.lastHour} votes/hr`],
+                    ["Last 6 hours", `${velocity.perHour6} votes/hr`],
+                    ["Last 24 hours", `${velocity.perHour24} votes/hr`],
                   ]}
                 />
               </DashboardCard>
@@ -612,14 +612,6 @@ export function PolstDetailPage() {
 
 /* ── Create / edit a Polst ───────────────────────────────────────── */
 
-const DURATION_TABS = ["3 days", "7 days", "10 days", "Custom"] as const;
-type DurationTab = (typeof DURATION_TABS)[number];
-const DURATION_DAYS: Record<Exclude<DurationTab, "Custom">, number> = {
-  "3 days": 3,
-  "7 days": 7,
-  "10 days": 10,
-};
-
 /** /polsts/new — also the draft editor via ?edit={id}. */
 export function CreatePolstPage() {
   const [params] = useSearchParams();
@@ -648,27 +640,13 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
     imagesSet: Boolean(draft),
   });
   const [startDate, setStartDate] = useState(draft?.startAt ?? TODAY);
-  const [duration, setDuration] = useState<DurationTab>(() => {
-    if (!draft) return "7 days";
-    // A saved schedule round-trips exactly: no end = Custom with an empty
-    // end field, an off-preset run = Custom with its end date.
-    if (!draft.startAt || !draft.endAt) return draft.startAt ? "Custom" : "7 days";
-    // Inclusive span: a "7 days" run counts both endpoints (start..start+6).
-    const days = daysBetween(draft.startAt, draft.endAt) + 1;
-    const preset = (Object.entries(DURATION_DAYS) as Array<[DurationTab, number]>).find(
-      ([, presetDays]) => presetDays === days,
-    );
-    return preset ? preset[0] : "Custom";
-  });
+  // A saved schedule round-trips exactly (kit owns the preset vocabulary).
+  const [duration, setDuration] = useState<DurationPreset>(() =>
+    draft ? durationPresetFor(draft.startAt, draft.endAt) : "7 days",
+  );
   const [customEnd, setCustomEnd] = useState(draft?.endAt ?? "");
 
-  const endDate =
-    duration === "Custom"
-      ? customEnd || undefined
-      : startDate
-        ? // Inclusive span: "7 days" runs start..start+6.
-          addDays(startDate, DURATION_DAYS[duration] - 1)
-        : undefined;
+  const endDate = durationEnd(duration, startDate, customEnd);
 
   const checks: Array<[string, boolean]> = [
     ["Question written", composer.question !== ""],
@@ -749,47 +727,28 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
             />
           </DashboardCard>
           <DashboardCard title="Schedule">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Start date">
-                {(fieldId) => (
-                  <TextInput
-                    id={fieldId}
-                    type="date"
-                    value={startDate}
-                    onChange={(event) => setStartDate(event.target.value)}
-                  />
-                )}
-              </Field>
-              <Field label="Duration">
-                {() => (
-                  <SegmentedControl
-                    tabs={DURATION_TABS}
-                    active={duration}
-                    onChange={setDuration}
-                    size="form"
-                  />
-                )}
-              </Field>
-            </div>
-            {duration === "Custom" ? (
-              <div className="mt-4 max-w-sm">
-                <Field label="End date">
+            <div className="space-y-4">
+              <div className="max-w-sm">
+                <Field label="Start date">
                   {(fieldId) => (
                     <TextInput
                       id={fieldId}
                       type="date"
-                      value={customEnd}
-                      onChange={(event) => setCustomEnd(event.target.value)}
+                      value={startDate}
+                      onChange={(event) => setStartDate(event.target.value)}
                     />
                   )}
                 </Field>
               </div>
-            ) : null}
-            <p className="mt-3 text-xs leading-4 text-text-tertiary">
-              {endDate
-                ? `Runs ${fmtDateRange(startDate || undefined, endDate)}. Voting closes when the Polst ends.`
-                : "No end date set — the Polst keeps collecting votes until you archive it."}
-            </p>
+              <DurationField
+                value={duration}
+                onChange={setDuration}
+                customEnd={customEnd}
+                onCustomEndChange={setCustomEnd}
+                startAt={startDate}
+                subject="Polst"
+              />
+            </div>
           </DashboardCard>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" disabled={!canSave} onClick={saveDraft}>

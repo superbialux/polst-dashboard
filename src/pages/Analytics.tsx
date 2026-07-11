@@ -494,8 +494,8 @@ export function AnalyticsOverviewPage() {
           <Funnel steps={journey} />
           <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-border-default pt-3 text-sm">
             <span className="flex items-center gap-1.5 font-semibold text-text-primary">
-              Share taps
-              <InfoHint label="Share taps" text={METRIC_INFO.interactions} />
+              Interactions
+              <InfoHint label="Interactions" text={METRIC_INFO.interactions} />
             </span>
             <span className="tabular-nums text-text-secondary">{fmtInt(shares)}</span>
           </div>

@@ -95,7 +95,7 @@ export const METRIC_INFO = {
   completionRate: "Voters who completed the full sequence ÷ voters who started it.",
   engagementRate: "Total votes ÷ total views for the period.",
   votesPerView: "Votes ÷ views for one piece of content. Multi-question campaigns can exceed 100%.",
-  interactions: "Shares and reposts of the Polst by voters.",
+  interactions: "Likes, shares, and reposts of the Polst.",
   shareRate: "Voters who shared ÷ voters who completed.",
   viewWithoutVote: "Views that never became a vote: (views − voters) ÷ views.",
 } as const;

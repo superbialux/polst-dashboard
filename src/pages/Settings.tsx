@@ -10,7 +10,6 @@ import {
   DashboardCard,
   DashboardPage,
   DataTable,
-  InfoHint,
   LockedCard,
   NotFoundCard,
   PollResults,
@@ -21,18 +20,15 @@ import {
   type DataColumn,
 } from "@/components/dashboard";
 import { MODULE_INFO, useModules } from "@/lib/modules";
-import { METRIC_INFO, TODAY, fmtDate, fmtInt } from "@/lib/canon";
+import { METRIC_INFO, fmtDate, fmtInt } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import {
   INTEGRATIONS,
-  PENDING_INVITES,
   TEAM,
   USAGE,
   WORKSPACE,
   polstOptions,
-  type PendingInvite,
   type TeamMember,
-  type TeamRole,
 } from "@/lib/workspace";
 
 const optionsOf = (values: readonly string[]) =>
@@ -144,35 +140,13 @@ function BrandProfileCard() {
 
 /* ── Team & access ───────────────────────────────────────────────── */
 
-const ASSIGNABLE_ROLES: TeamRole[] = ["Editor", "Viewer"];
-
-const ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
-  Owner: "Full control, including billing and the team",
-  Editor: "Creates and manages campaigns and Polsts",
-  Viewer: "Read-only access to results and reports",
-};
-
-const ROLE_INFO = `Owner — ${ROLE_DESCRIPTIONS.Owner}. Editor — ${ROLE_DESCRIPTIONS.Editor}. Viewer — ${ROLE_DESCRIPTIONS.Viewer}. Only the owner can change access.`;
-
-/** Members and pending invitations, mutated for real in local state:
- *  access edits reflect in the table, revokes remove the row, invites
- *  append one. Nothing toasts a change that isn't visible. */
+/** The team model: members are provisioned brand-only accounts — no
+ *  invite emails — and everyone besides the owner is a Manager. Adding
+ *  a member appends a real row; "Joined" fills in at first sign-in. */
 function TeamSection() {
   const toast = useToast();
   const [members, setMembers] = useState<TeamMember[]>(TEAM);
-  const [invites, setInvites] = useState<PendingInvite[]>(PENDING_INVITES);
-  const [inviteOpen, setInviteOpen] = useState(false);
-
-  const setRole = (member: TeamMember, role: TeamRole) => {
-    if (member.role === role) return;
-    setMembers((all) => all.map((m) => (m.id === member.id ? { ...m, role } : m)));
-    toast(`${member.name} is now ${role === "Editor" ? "an Editor" : "a Viewer"}`);
-  };
-
-  const revoke = (invite: PendingInvite) => {
-    setInvites((all) => all.filter((i) => i.id !== invite.id));
-    toast(`Invitation to ${invite.email} revoked`);
-  };
+  const [addOpen, setAddOpen] = useState(false);
 
   const memberColumns: Array<DataColumn<TeamMember>> = [
     {
@@ -190,122 +164,88 @@ function TeamSection() {
       ),
     },
     {
-      header: "Access",
-      align: "right",
+      header: "Role",
+      cell: (row) => (
+        <span
+          className={
+            row.role === "Owner"
+              ? "font-display font-semibold text-text-primary"
+              : "text-text-secondary"
+          }
+        >
+          {row.role}
+        </span>
+      ),
+    },
+    {
+      header: "Joined",
       cell: (row) =>
-        row.role === "Owner" ? (
-          <span className="pr-3 font-display text-ui font-semibold text-text-primary">
-            Owner
-          </span>
+        row.joined ? (
+          <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.joined)}</span>
         ) : (
-          <SelectMenu
-            compact
-            align="end"
-            label={`Access for ${row.name}`}
-            value={row.role}
-            onValueChange={(next) => setRole(row, next as TeamRole)}
-            options={optionsOf(ASSIGNABLE_ROLES)}
-          />
+          <span className="whitespace-nowrap text-text-tertiary">Awaiting first sign-in</span>
         ),
-    },
-  ];
-
-  const inviteColumns: Array<DataColumn<PendingInvite>> = [
-    {
-      header: "Invitation",
-      cell: (row) => (
-        <p className="font-display font-semibold text-text-primary">{row.email}</p>
-      ),
-    },
-    {
-      header: "Access",
-      cell: (row) => <span className="text-text-secondary">{row.role}</span>,
-    },
-    {
-      header: "Sent",
-      cell: (row) => <span className="text-text-secondary">{row.sent}</span>,
-    },
-    {
-      header: "",
-      align: "right",
-      cell: (row) => (
-        <Button variant="destructive-secondary" size="sm" onClick={() => revoke(row)}>
-          Revoke
-        </Button>
-      ),
     },
   ];
 
   return (
     <>
       <DashboardCard
-        title={
-          <span className="flex items-center gap-1.5">
-            Members
-            <InfoHint label="Access roles" text={ROLE_INFO} />
-          </span>
-        }
+        title="Members"
+        description="Everyone besides the owner is a Manager. Only the owner can add or remove members."
         padded={false}
         action={
-          <Button size="sm" onClick={() => setInviteOpen(true)}>
-            Invite member
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            Add member
           </Button>
         }
       >
         <DataTable rows={members} columns={memberColumns} />
       </DashboardCard>
 
-      <DashboardCard title="Pending invitations" padded={false}>
-        <DataTable
-          rows={invites}
-          columns={inviteColumns}
-          emptyLabel="No pending invitations"
-        />
-      </DashboardCard>
-
-      <InviteMemberModal
-        open={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        onInvite={(email, role) => {
-          setInvites((all) => [
+      <AddMemberModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdd={(name, email) => {
+          setMembers((all) => [
             ...all,
-            { id: `invite-${Date.now()}`, email, role, sent: fmtDate(TODAY) },
+            { id: `member-${Date.now()}`, name, email, role: "Manager" },
           ]);
-          toast(`Invitation sent to ${email}`);
+          toast(`Account created — ${email} can sign in now`);
         }}
       />
     </>
   );
 }
 
-function InviteMemberModal({
+function AddMemberModal({
   open,
   onClose,
-  onInvite,
+  onAdd,
 }: {
   open: boolean;
   onClose: () => void;
-  onInvite: (email: string, role: TeamRole) => void;
+  onAdd: (name: string, email: string) => void;
 }) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<TeamRole>("Editor");
 
   // A fresh form every time the modal opens.
   useEffect(() => {
     if (open) {
+      setName("");
       setEmail("");
-      setRole("Editor");
     }
   }, [open]);
 
-  const valid = /\S+@\S+\.\S+/.test(email);
+  const valid = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email);
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      label="Invite member"
-      title="Invite member"
+      label="Add member"
+      title="Add member"
       footer={
         <div className="flex justify-end gap-2 p-4">
           <Button variant="secondary" onClick={onClose}>
@@ -314,16 +254,26 @@ function InviteMemberModal({
           <Button
             disabled={!valid}
             onClick={() => {
-              onInvite(email.trim(), role);
+              onAdd(name.trim(), email.trim());
               onClose();
             }}
           >
-            Send invite
+            Create account
           </Button>
         </div>
       }
     >
       <div className="space-y-4 p-4">
+        <Field label="Name">
+          {(fieldId) => (
+            <TextInput
+              id={fieldId}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Jordan Reyes"
+            />
+          )}
+        </Field>
         <Field label="Email">
           {(fieldId) => (
             <TextInput
@@ -336,25 +286,10 @@ function InviteMemberModal({
             />
           )}
         </Field>
-        <Field label="Access">
-          {(fieldId) => (
-            <SelectMenu
-              id={fieldId}
-              label="Access"
-              value={role}
-              onValueChange={(next) => setRole(next as TeamRole)}
-              options={optionsOf(ASSIGNABLE_ROLES)}
-            />
-          )}
-        </Field>
-        <ul className="space-y-1.5 rounded-md bg-surface-subtle p-3">
-          {ASSIGNABLE_ROLES.map((r) => (
-            <li key={r} className="text-xs leading-5 text-text-secondary">
-              <span className="font-semibold text-text-primary">{r}</span> —{" "}
-              {ROLE_DESCRIPTIONS[r]}
-            </li>
-          ))}
-        </ul>
+        <p className="rounded-md bg-surface-subtle p-3 text-xs leading-5 text-text-secondary">
+          Creates a brand-only account in this workspace — your teammate signs in with this
+          email. No invite email is sent. Managers can run campaigns, Polsts, and analytics.
+        </p>
       </div>
     </Modal>
   );

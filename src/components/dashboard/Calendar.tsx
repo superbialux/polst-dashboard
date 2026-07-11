@@ -230,6 +230,23 @@ export function WorkspaceCalendar() {
           const maxEventRows = eventCells.reduce((m, c) => Math.max(m, c.row + 1), 0);
           const barBase = 2 + maxEventRows;
 
+          /* Lane cap: busy weeks never clip a run silently. When the
+             lanes outgrow the cell, the last visible lane becomes a
+             per-day "+N more" that opens the day popover (the truth). */
+          const laneCount = bars.reduce((m, b) => Math.max(m, b.lane + 1), 0);
+          const laneCap = maxEventRows > 0 ? 2 : 3;
+          const visibleLanes = laneCount > laneCap ? laneCap - 1 : laneCount;
+          const visibleBars = bars.filter((b) => b.lane < visibleLanes);
+          const hiddenPerCol =
+            laneCount > visibleLanes
+              ? week.map(
+                  (_, col) =>
+                    bars.filter(
+                      (b) => b.lane >= visibleLanes && b.startCol <= col && b.endCol >= col,
+                    ).length,
+                )
+              : [];
+
           return (
             <div key={wi} className="relative border-b border-border-default last:border-b-0">
               {/* Click targets + gridlines */}
@@ -239,7 +256,9 @@ export function WorkspaceCalendar() {
                     key={cell.iso}
                     onClick={(e) => openDay(cell, e.currentTarget)}
                     className={cn(
-                      "min-h-28 border-r border-border-default transition-colors last:border-r-0",
+                      // Sized so the capped lanes (day number + 3 bars,
+                      // or events + 2) always fit uncut.
+                      "min-h-32 border-r border-border-default transition-colors last:border-r-0",
                       cell.inMonth ? "hover:bg-surface-subtle/60" : "bg-surface-subtle/40",
                     )}
                   />
@@ -281,9 +300,22 @@ export function WorkspaceCalendar() {
                   </button>
                 ))}
 
-                {bars.map((bar) => (
+                {visibleBars.map((bar) => (
                   <CalendarBar key={`${bar.id}-${wi}`} bar={bar} row={barBase + bar.lane} />
                 ))}
+
+                {hiddenPerCol.map((count, col) =>
+                  count > 0 ? (
+                    <button
+                      key={`more-${week[col].iso}`}
+                      onClick={(e) => openDay(week[col], e.currentTarget)}
+                      style={{ gridColumn: col + 1, gridRow: barBase + visibleLanes }}
+                      className="pointer-events-auto mx-1.5 flex h-5 items-center truncate text-left text-xs font-semibold text-text-secondary transition-colors hover:text-text-primary"
+                    >
+                      +{count} more
+                    </button>
+                  ) : null,
+                )}
               </div>
             </div>
           );

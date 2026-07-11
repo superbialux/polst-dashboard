@@ -22,8 +22,10 @@ import {
   DataTable,
   DecisionBrief,
   DetailList,
+  DurationField,
   EmptyState,
   Funnel,
+  durationEnd,
   NextStepsCard,
   NotFoundCard,
   PageTabs,
@@ -37,6 +39,7 @@ import {
   StatusBadge,
   filterByStatus,
   type DataColumn,
+  type DurationPreset,
   type FunnelStep,
   type SetupStep,
 } from "@/components/dashboard";
@@ -48,6 +51,7 @@ import {
   fmtDateRange,
   fmtInt,
   fmtPct,
+  isReadyToDecide,
   pct,
   relativeToToday,
 } from "@/lib/canon";
@@ -196,15 +200,6 @@ export function CampaignsPage() {
 
 /* ── Create campaign ─────────────────────────────────────────────── */
 
-const DURATIONS = ["3 days", "7 days", "10 days", "Custom", "No end"] as const;
-const DURATION_DAYS: Record<string, number> = { "3 days": 3, "7 days": 7, "10 days": 10 };
-
-const addDays = (iso: string, days: number) => {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-};
-
 export function CreateCampaignPage() {
   const { campaigns, createCampaign } = useWorkspace();
   const toast = useToast();
@@ -215,7 +210,7 @@ export function CreateCampaignPage() {
   const [name, setName] = useState("");
   const [decision, setDecision] = useState("");
   const [startAt, setStartAt] = useState("");
-  const [duration, setDuration] = useState<string>("7 days");
+  const [duration, setDuration] = useState<DurationPreset>("7 days");
   const [customEnd, setCustomEnd] = useState("");
   const [target, setTarget] = useState("");
   const [event, setEvent] = useState(
@@ -228,22 +223,7 @@ export function CreateCampaignPage() {
     setEvent(KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "");
   }, [eventParam]);
 
-  const endAt =
-    duration === "No end"
-      ? undefined
-      : duration === "Custom"
-        ? customEnd || undefined
-        : startAt
-          ? // Inclusive span: "7 days" runs start..start+6.
-            addDays(startAt, DURATION_DAYS[duration] - 1)
-          : undefined;
-
-  const endLine =
-    duration === "No end"
-      ? "Runs until you end it manually."
-      : endAt
-        ? `Voters can submit until ${fmtDate(endAt)}.`
-        : "Voters can submit until the campaign ends.";
+  const endAt = durationEnd(duration, startAt, customEnd);
 
   const drafts = campaigns.filter((c) => c.status === "Draft").slice(0, 3);
 
@@ -327,28 +307,14 @@ export function CreateCampaignPage() {
                   )}
                 </Field>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <p className="font-display text-sm font-semibold leading-5 text-text-primary">
-                  How long should it run?
-                </p>
-                <SegmentedControl
-                  tabs={DURATIONS}
-                  active={duration}
-                  onChange={setDuration}
-                  size="form"
-                />
-                {duration === "Custom" ? (
-                  <div className="mt-2 max-w-56">
-                    <TextInput
-                      type="date"
-                      aria-label="End date"
-                      value={customEnd}
-                      onChange={(e) => setCustomEnd(e.target.value)}
-                    />
-                  </div>
-                ) : null}
-                <FieldHelper tone="neutral">{endLine}</FieldHelper>
-              </div>
+              <DurationField
+                value={duration}
+                onChange={setDuration}
+                customEnd={customEnd}
+                onCustomEndChange={setCustomEnd}
+                startAt={startAt}
+                subject="campaign"
+              />
               <Field label="Key date">
                 {(id) => (
                   <SelectMenu
@@ -481,7 +447,9 @@ export function CampaignDetailPage() {
               Publish
             </Button>
           ) : null}
-          {campaign.status === "Active" ? (
+          {/* Ready campaigns end through the DecisionBrief's "End campaign
+              & decide" — one owner, so two end affordances never compete. */}
+          {campaign.status === "Active" && !isReadyToDecide(campaign) ? (
             <Button variant="destructive-secondary" onClick={() => setEndOpen(true)}>
               End campaign
             </Button>
@@ -605,9 +573,7 @@ function CampaignOverview({
   const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
   const daysLeft =
     campaign.status === "Active" && campaign.endAt ? daysBetween(TODAY, campaign.endAt) : null;
-  const ready =
-    campaign.status === "Active" &&
-    (campaign.signal === "Leading" || campaign.signal === "Decisive");
+  const ready = campaign.status === "Active" && isReadyToDecide(campaign);
 
   const funnelSteps: FunnelStep[] = [
     { label: "Started", count: campaign.voters },
