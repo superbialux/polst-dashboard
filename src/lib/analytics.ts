@@ -1,12 +1,197 @@
-export type AnalyticsRange = "7D" | "30D" | "90D" | "All";
+/* ── Analytics — windowed, source-attributed views of the workspace ────
+   Rows are derived per request: each campaign/Polst's window totals come
+   from the same daily series the Home stats read, then split across its
+   sources' channels with exact integer allocation — so Analytics always
+   reconciles with the rest of the dashboard by construction. */
+
+import { allocate, sumWindow, windowBounds, type WindowRange } from "@/lib/engine";
+import {
+  CAMPAIGNS,
+  SINGLE_POLSTS,
+  SOURCES,
+  campaignSeries,
+  polstSeries,
+  type Campaign,
+  type Channel,
+  type SinglePolst,
+  type Vertical,
+} from "@/lib/workspace";
+
+/** @deprecated use WindowRange from engine */
+export type AnalyticsRange = WindowRange;
 
 export type AnalyticsFilters = {
-  range: AnalyticsRange;
+  range: WindowRange;
   channel: string;
   vertical: string;
-  utm: string;
+  /** @deprecated the UTM dimension is gone; kept optional for old pages. */
+  utm?: string;
 };
 
+export const ANALYTICS_DEFAULTS: AnalyticsFilters = {
+  range: "30D",
+  channel: "All channels",
+  vertical: "All verticals",
+};
+
+export type SegmentMetrics = {
+  views: number;
+  voters: number;
+  completed: number;
+  votes: number;
+  shares: number;
+};
+
+export type SegmentRow = {
+  id: string; // `${objectId}:${channel}`
+  kind: "campaign" | "polst";
+  objectId: string;
+  name: string;
+  channel: Channel;
+  vertical: Vertical;
+  metrics: SegmentMetrics;
+};
+
+const METRIC_KEYS: Array<keyof SegmentMetrics> = ["views", "voters", "completed", "votes", "shares"];
+
+/** One traffic-bearing object's window totals split across its channels.
+ *  Every split uses `allocate`, so channel rows sum EXACTLY to the object
+ *  and all rows sum exactly to the workspace window. */
+function objectRows(
+  object: Campaign | SinglePolst,
+  kind: "campaign" | "polst",
+  name: string,
+  vertical: Vertical,
+  start: string,
+  end: string,
+): SegmentRow[] {
+  const sources = object.sources;
+  if (!sources.length) return [];
+  const series = (metric: "views" | "votes" | "voters" | "completed") =>
+    kind === "campaign"
+      ? campaignSeries(object as Campaign, metric)
+      : polstSeries(object as SinglePolst, metric);
+  const views = sumWindow(series("views"), start, end);
+  const votes = sumWindow(series("votes"), start, end);
+  const voters = sumWindow(series("voters"), start, end);
+  const completed = sumWindow(series("completed"), start, end);
+  if (views + votes + voters + completed === 0) return [];
+  // Shares scale with the voters that fall inside the window (exact split).
+  const totalVoters = kind === "campaign" ? (object as Campaign).voters : (object as SinglePolst).votes;
+  const totalShares = kind === "campaign" ? (object as Campaign).shares : (object as SinglePolst).interactions;
+  const shares = allocate(totalShares, [voters, Math.max(0, totalVoters - voters)])[0];
+  // Channel share = Σ voterShare of the object's sources in that channel.
+  const channelShare = new Map<Channel, number>();
+  for (const s of sources) {
+    channelShare.set(s.channel, (channelShare.get(s.channel) ?? 0) + (s.voterShare ?? 0));
+  }
+  const channels = [...channelShare.keys()];
+  const weights = channels.map((c) => channelShare.get(c)!);
+  const split: Record<keyof SegmentMetrics, number[]> = {
+    views: allocate(views, weights),
+    voters: allocate(voters, weights),
+    completed: allocate(completed, weights),
+    votes: allocate(votes, weights),
+    shares: allocate(shares, weights),
+  };
+  return channels.map((channel, i) => ({
+    id: `${object.id}:${channel}`,
+    kind,
+    objectId: object.id,
+    name,
+    channel,
+    vertical,
+    metrics: Object.fromEntries(METRIC_KEYS.map((k) => [k, split[k][i]])) as SegmentMetrics,
+  }));
+}
+
+const rowsCache = new Map<WindowRange, SegmentRow[]>();
+
+const rowsForRange = (range: WindowRange): SegmentRow[] => {
+  const hit = rowsCache.get(range);
+  if (hit) return hit;
+  const [start, end] = windowBounds(range);
+  const rows = [
+    ...CAMPAIGNS.flatMap((c) => objectRows(c, "campaign", c.name, c.vertical, start, end)),
+    ...SINGLE_POLSTS.flatMap((p) => objectRows(p, "polst", p.question, p.vertical, start, end)),
+  ];
+  rowsCache.set(range, rows);
+  return rows;
+};
+
+export function analyticsRows(filters: AnalyticsFilters): SegmentRow[] {
+  return rowsForRange(filters.range).filter(
+    (row) =>
+      (filters.channel === "All channels" || row.channel === filters.channel) &&
+      (filters.vertical === "All verticals" || row.vertical === filters.vertical),
+  );
+}
+
+export const segmentTotal = (rows: SegmentRow[], key: keyof SegmentMetrics): number =>
+  rows.reduce((sum, row) => sum + row.metrics[key], 0);
+
+/** Share-of-total breakdown by any dimension — works for the new SegmentRow
+ *  and the deprecated AnalyticsResult alike (both carry numeric metrics). */
+export function mixBy<T extends { metrics: Record<string, number> }>(
+  rows: T[],
+  getLabel: (row: T) => string,
+  metric = "views",
+) {
+  const denominator = rows.reduce((sum, row) => sum + (row.metrics[metric] ?? 0), 0);
+  const groups = new Map<string, number>();
+  for (const row of rows) {
+    const label = getLabel(row);
+    groups.set(label, (groups.get(label) ?? 0) + (row.metrics[metric] ?? 0));
+  }
+  return [...groups.entries()]
+    .map(([label, value]) => ({
+      label,
+      value: denominator > 0 ? Math.round((value / denominator) * 100) : 0,
+      detail: `${value.toLocaleString("en-US")} ${metric}`,
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
+export type VerticalRow = SegmentMetrics & {
+  id: string;
+  vertical: Vertical;
+  completionRate: number | null;
+  engagementRate: number | null;
+};
+
+/** Per-vertical rollup of the given rows (the Analytics verticals table). */
+export function verticalRows(rows: SegmentRow[]): VerticalRow[] {
+  const groups = new Map<Vertical, SegmentRow[]>();
+  for (const row of rows) groups.set(row.vertical, [...(groups.get(row.vertical) ?? []), row]);
+  return [...groups.entries()]
+    .map(([vertical, grouped]) => {
+      const metrics = Object.fromEntries(
+        METRIC_KEYS.map((k) => [k, segmentTotal(grouped, k)]),
+      ) as SegmentMetrics;
+      return {
+        id: vertical.toLowerCase().replace(/[^a-z]+/g, "-"),
+        vertical,
+        ...metrics,
+        completionRate: metrics.voters > 0 ? Math.round((metrics.completed / metrics.voters) * 1000) / 10 : null,
+        engagementRate: metrics.views > 0 ? Math.round((metrics.votes / metrics.views) * 1000) / 10 : null,
+      };
+    })
+    .sort((a, b) => b.voters - a.voters);
+}
+
+/** Filter options, derived from the entities that actually exist. */
+export const ANALYTICS_CHANNELS = [...new Set(SOURCES.map((s) => s.channel))];
+export const ANALYTICS_VERTICALS = [
+  ...new Set([...CAMPAIGNS.map((c) => c.vertical), ...SINGLE_POLSTS.map((p) => p.vertical)]),
+];
+
+/* ══════════════════════════════════════════════════════════════════
+   COMPAT LAYER — the old fabricated segment table and its helpers.
+   Still imported by src/pages/Analytics.tsx and analytics-context;
+   deleted when those pages are rebuilt on analyticsRows above.
+   ══════════════════════════════════════════════════════════════════ */
+
+/** @deprecated fabricated — deleted with page rebuilds */
 export const DEFAULT_ANALYTICS_FILTERS: AnalyticsFilters = {
   range: "30D",
   channel: "All channels",
@@ -14,7 +199,7 @@ export const DEFAULT_ANALYTICS_FILTERS: AnalyticsFilters = {
   utm: "All UTM groups",
 };
 
-type SegmentMetrics = {
+type LegacySegmentMetrics = {
   views: number;
   starts: number;
   completions: number;
@@ -38,26 +223,23 @@ type SegmentMetrics = {
   d30: number;
 };
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export type AnalyticsSegment = {
   id: string;
   campaignId: string;
   campaign: string;
-  channel: "Website" | "Email" | "Instagram" | "QR" | "Influencer";
-  vertical: "Food & drink" | "Lifestyle" | "Shopping & deals";
+  channel: Channel;
+  vertical: Vertical;
   utm: "Organic" | "Email" | "Paid social" | "Creator" | "Offline QR";
   topic: string;
   hook: string;
   format: "Embed" | "Static image" | "Short video" | "Story" | "Email" | "QR code";
   device: "Mobile" | "Desktop" | "Tablet";
   platform: "iOS" | "Android" | "macOS" | "Windows";
-  metrics: SegmentMetrics;
+  metrics: LegacySegmentMetrics;
 };
 
-/**
- * One row is an attributed campaign/content/source segment for the canonical
- * 30-day window. Other ranges scale these observed counts deterministically;
- * production replaces the scaler with the same query against dated facts.
- */
+/** @deprecated fabricated — deleted with page rebuilds */
 export const ANALYTICS_SEGMENTS: AnalyticsSegment[] = [
   {
     id: "packaging-web",
@@ -229,28 +411,29 @@ export const ANALYTICS_SEGMENTS: AnalyticsSegment[] = [
   },
 ];
 
-const RANGE_SCALE: Record<AnalyticsRange, number> = { "7D": 0.24, "30D": 1, "90D": 2.74, All: 7.6 };
-const RATE_ADJUSTMENT: Record<AnalyticsRange, number> = { "7D": 1.5, "30D": 0, "90D": -1.2, All: -2.4 };
+const RANGE_SCALE: Record<WindowRange, number> = { "7D": 0.24, "30D": 1, "90D": 2.74, All: 7.6 };
+const RATE_ADJUSTMENT: Record<WindowRange, number> = { "7D": 1.5, "30D": 0, "90D": -1.2, All: -2.4 };
 
-const COUNT_KEYS: Array<keyof SegmentMetrics> = [
+const COUNT_KEYS: Array<keyof LegacySegmentMetrics> = [
   "views", "starts", "completions", "votes", "shares", "signups", "impressions", "clicks",
   "spend", "newUsers", "returningUsers", "repeatUsers", "notificationReturns", "churnedUsers",
   "sessions", "sessionPolls",
 ];
 
-export type AnalyticsResult = Omit<AnalyticsSegment, "metrics"> & { metrics: SegmentMetrics };
+/** @deprecated fabricated — deleted with page rebuilds */
+export type AnalyticsResult = Omit<AnalyticsSegment, "metrics"> & { metrics: LegacySegmentMetrics };
 
-export const ANALYTICS_CHANNELS = [...new Set(ANALYTICS_SEGMENTS.map((row) => row.channel))];
-export const ANALYTICS_VERTICALS = [...new Set(ANALYTICS_SEGMENTS.map((row) => row.vertical))];
+/** @deprecated fabricated — deleted with page rebuilds */
 export const ANALYTICS_UTMS = [...new Set(ANALYTICS_SEGMENTS.map((row) => row.utm))];
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export function queryAnalytics(filters: AnalyticsFilters): AnalyticsResult[] {
   const scale = RANGE_SCALE[filters.range];
   const rateAdjustment = RATE_ADJUSTMENT[filters.range];
   return ANALYTICS_SEGMENTS.filter((row) =>
     (filters.channel === "All channels" || row.channel === filters.channel) &&
     (filters.vertical === "All verticals" || row.vertical === filters.vertical) &&
-    (filters.utm === "All UTM groups" || row.utm === filters.utm),
+    (!filters.utm || filters.utm === "All UTM groups" || row.utm === filters.utm),
   ).map((row) => {
     const metrics = { ...row.metrics };
     COUNT_KEYS.forEach((key) => {
@@ -263,7 +446,8 @@ export function queryAnalytics(filters: AnalyticsFilters): AnalyticsResult[] {
   });
 }
 
-export const total = (rows: AnalyticsResult[], key: keyof SegmentMetrics) =>
+/** @deprecated fabricated — deleted with page rebuilds */
+export const total = (rows: AnalyticsResult[], key: keyof LegacySegmentMetrics) =>
   rows.reduce((sum, row) => sum + row.metrics[key], 0);
 
 export const ratio = (numerator: number, denominator: number) =>
@@ -272,10 +456,11 @@ export const ratio = (numerator: number, denominator: number) =>
 export const formatPercent = (value: number, digits = 1) => `${value.toFixed(digits)}%`;
 export const formatMoney = (value: number) => value > 0 ? `$${value.toFixed(2)}` : "-";
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export function weightedAverage(
   rows: AnalyticsResult[],
-  value: keyof SegmentMetrics,
-  weight: keyof SegmentMetrics,
+  value: keyof LegacySegmentMetrics,
+  weight: keyof LegacySegmentMetrics,
 ) {
   const denominator = total(rows, weight);
   return denominator > 0
@@ -289,24 +474,10 @@ function groupRows(rows: AnalyticsResult[], getKey: (row: AnalyticsResult) => st
   return [...groups.entries()];
 }
 
-export function mixBy(
-  rows: AnalyticsResult[],
-  getLabel: (row: AnalyticsResult) => string,
-  metric: keyof SegmentMetrics = "views",
-) {
-  const denominator = total(rows, metric);
-  return groupRows(rows, getLabel)
-    .map(([label, grouped]) => ({
-      label,
-      value: Math.round(ratio(total(grouped, metric), denominator)),
-      detail: `${total(grouped, metric).toLocaleString("en-US")} ${metric}`,
-    }))
-    .sort((a, b) => b.value - a.value);
-}
-
+/** @deprecated fabricated — deleted with page rebuilds */
 export function seriesFor(
   rows: AnalyticsResult[],
-  metric: keyof SegmentMetrics,
+  metric: keyof LegacySegmentMetrics,
   points = 14,
 ) {
   const sum = total(rows, metric);
@@ -318,6 +489,7 @@ export function seriesFor(
   return weights.map((weight) => Math.max(1, Math.round((sum * weight) / weightTotal)));
 }
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export type AcquisitionRow = {
   id: string;
   channel: string;
@@ -331,6 +503,7 @@ export type AcquisitionRow = {
   cpa: string;
 };
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export function acquisitionByChannel(rows: AnalyticsResult[]): AcquisitionRow[] {
   return groupRows(rows, (row) => row.channel).map(([channel, grouped]) => {
     const spend = total(grouped, "spend");
@@ -354,6 +527,7 @@ export function acquisitionByChannel(rows: AnalyticsResult[]): AcquisitionRow[] 
   }).sort((a, b) => b.signups - a.signups);
 }
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export type CampaignReturnRow = {
   id: string;
   campaign: string;
@@ -366,6 +540,7 @@ export type CampaignReturnRow = {
   costPerEngaged: string;
 };
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export function campaignReturns(rows: AnalyticsResult[]): CampaignReturnRow[] {
   return groupRows(rows, (row) => row.campaignId).map(([id, grouped]) => {
     const spend = total(grouped, "spend");
@@ -385,6 +560,7 @@ export function campaignReturns(rows: AnalyticsResult[]): CampaignReturnRow[] {
   }).sort((a, b) => b.engaged - a.engaged);
 }
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export type ContentPerformanceRow = {
   id: string;
   topic: string;
@@ -396,6 +572,7 @@ export type ContentPerformanceRow = {
   shareRate: string;
 };
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export function contentPerformance(rows: AnalyticsResult[]): ContentPerformanceRow[] {
   return rows.map((row) => ({
     id: row.id,
@@ -409,6 +586,7 @@ export function contentPerformance(rows: AnalyticsResult[]): ContentPerformanceR
   })).sort((a, b) => b.views - a.views);
 }
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export type RetentionBreakdownRow = {
   id: string;
   cohort: string;
@@ -421,6 +599,7 @@ export type RetentionBreakdownRow = {
   d30: string;
 };
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export function retentionByChannel(rows: AnalyticsResult[]): RetentionBreakdownRow[] {
   return groupRows(rows, (row) => row.channel).map(([channel, grouped]) => ({
     id: channel.toLowerCase(),
@@ -435,6 +614,7 @@ export function retentionByChannel(rows: AnalyticsResult[]): RetentionBreakdownR
   })).sort((a, b) => b.returningUsers - a.returningUsers);
 }
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export type TrafficQualityRow = {
   id: string;
   channel: string;
@@ -445,6 +625,7 @@ export type TrafficQualityRow = {
   dropOff: string;
 };
 
+/** @deprecated fabricated — deleted with page rebuilds */
 export function trafficQuality(rows: AnalyticsResult[]): TrafficQualityRow[] {
   return rows.map((row) => ({
     id: row.id,

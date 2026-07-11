@@ -22,6 +22,7 @@ import {
   ATTENTION_ITEMS,
   KEY_DATES,
   STAT_XTICKS,
+  winnerLabel,
   type Campaign,
   type ListItem,
   type StatRange,
@@ -165,12 +166,12 @@ function ReadyDecisionCard({ campaign }: { campaign: Campaign }) {
       <dl className="mt-3 grid grid-cols-2 gap-3 border-y border-border-default py-3">
         <div>
           <dt className="text-xs text-text-secondary">Lead</dt>
-          <dd className="mt-0.5 text-sm font-semibold text-text-primary">{campaign.winner}</dd>
+          <dd className="mt-0.5 text-sm font-semibold text-text-primary">{winnerLabel(campaign)}</dd>
         </div>
         <div>
           <dt className="text-xs text-text-secondary">Responses</dt>
           <dd className="mt-0.5 text-sm font-semibold tabular-nums text-text-primary">
-            {campaign.responses.toLocaleString()} / {campaign.target.toLocaleString()}
+            {(campaign.responses ?? 0).toLocaleString()} / {(campaign.target ?? 0).toLocaleString()}
           </dd>
         </div>
       </dl>

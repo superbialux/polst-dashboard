@@ -141,12 +141,12 @@ const teamColumns: Array<DataColumn<TeamMember>> = [
   {
     header: "Title",
     cell: (row) => (
-      <span className="text-text-secondary">{row.label ?? "—"}</span>
+      <span className="text-text-secondary">{"—"}</span>
     ),
   },
   {
     header: "Last active",
-    cell: (row) => <span className="text-text-secondary">{row.lastActive}</span>,
+    cell: (row) => <span className="text-text-secondary">{"—"}</span>,
   },
   {
     header: "",

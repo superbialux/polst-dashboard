@@ -33,7 +33,7 @@ function barClasses(item: CalendarItem): string {
     item.kind === "polst"
       ? "bg-cal-polst text-cal-polst-fg"
       : "bg-cal-campaign text-cal-campaign-fg";
-  return cn(base, item.status === "Completed" && "opacity-60");
+  return cn(base, item.status === "Ended" && "opacity-60");
 }
 
 type PlacedBar = CalendarItem & { startCol: number; endCol: number; lane: number };
@@ -346,7 +346,7 @@ const DayPopover = forwardRef<
                     {item.kind === "date" ? "Key date" : item.kind}
                   </span>
                 </span>
-                <StatusBadge status={item.status} />
+                {item.status ? <StatusBadge status={item.status} /> : null}
               </div>
             );
             return item.to ? (

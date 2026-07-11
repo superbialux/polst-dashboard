@@ -46,7 +46,7 @@ const POLST_CREATED: Record<string, string> = {
 };
 const createdDate = (polst: SinglePolst) => POLST_CREATED[polst.id] ?? "Jun 1, 2026";
 const viewCount = (polst: SinglePolst) => polst.responses ? Math.round(polst.responses / 0.18) : 0;
-const displayStatus = (polst: SinglePolst) => polst.status === "Completed" ? "Ended" : polst.status;
+const displayStatus = (polst: SinglePolst) => polst.status;
 
 /** The operational default: the object's identity is a small paired thumb,
  *  the row is owned by status, scope, evidence, and recency. */
@@ -146,7 +146,7 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
 /** A Polst exactly as its voters see the results — the real option pair
  *  with animated bars — plus the operator's row of numbers. */
 function PolstGridCard({ polst }: { polst: SinglePolst }) {
-  const hasVotes = polst.responses > 0;
+  const hasVotes = (polst.responses ?? 0) > 0;
   return (
     <DashboardCard className="lg:col-span-4">
       <div className="flex items-start justify-between gap-3">
@@ -198,7 +198,7 @@ export function PolstsPage() {
         ? SINGLE_POLSTS.filter((polst) => polst.status === (draftFilter === "Archived" ? "Archived" : "Draft"))
         : filterByStatus(SINGLE_POLSTS, active);
     return scoped.filter((polst) =>
-      !normalized || [polst.question, polst.optionA, polst.optionB, polst.topSource]
+      !normalized || [polst.question, polst.optionA, polst.optionB, polst.topSource ?? ""]
         .some((value) => value.toLowerCase().includes(normalized)),
     );
   }, [active, draftFilter, query]);
@@ -285,12 +285,12 @@ export function PolstDetailPage() {
   const { id } = useParams();
   const toast = useToast();
   const polst = SINGLE_POLSTS.find((p) => p.id === id) ?? SINGLE_POLSTS[0];
-  const hasVotes = polst.responses > 0;
+  const hasVotes = (polst.responses ?? 0) > 0;
   const [shareOpen, setShareOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [lifetime, setLifetime] = useState("7 days");
-  const splitA = Number.parseInt(polst.split, 10) || 0;
-  const optionAVotes = Math.round(polst.responses * splitA / 100);
+  const splitA = Number.parseInt(polst.split ?? "", 10) || 0;
+  const optionAVotes = Math.round((polst.responses ?? 0) * splitA / 100);
 
   return (
     <DashboardPage
@@ -329,7 +329,7 @@ export function PolstDetailPage() {
           <p className="font-display text-3xl font-semibold tabular-nums text-text-primary">{formatNumber(optionAVotes)}</p>
         </DashboardCard>
         <DashboardCard title={polst.optionB} className="lg:col-span-4">
-          <p className="font-display text-3xl font-semibold tabular-nums text-text-primary">{formatNumber(polst.responses - optionAVotes)}</p>
+          <p className="font-display text-3xl font-semibold tabular-nums text-text-primary">{formatNumber((polst.responses ?? 0) - optionAVotes)}</p>
         </DashboardCard>
       </SectionGrid>
 
@@ -366,9 +366,9 @@ export function PolstDetailPage() {
             question={polst.question}
             options={polstOptions(polst)}
             tags={[]}
-            likes={Math.round(polst.responses * 0.16)}
-            reposts={Math.round(polst.responses * 0.04)}
-            votes={polst.responses}
+            likes={Math.round((polst.responses ?? 0) * 0.16)}
+            reposts={Math.round((polst.responses ?? 0) * 0.04)}
+            votes={polst.responses ?? 0}
             timeLeft="2d"
           />
         </DashboardCard>

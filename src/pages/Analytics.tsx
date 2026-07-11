@@ -31,6 +31,7 @@ import {
   HEATMAP_PEAK,
   TIME_HEATMAP,
   formatNumber,
+  winnerLabel,
   type Campaign,
   type ChurnRisk,
   type Finding,
@@ -133,7 +134,7 @@ const campaignPerformanceColumns: Array<DataColumn<Campaign>> = [
   },
   {
     header: "Winning direction",
-    cell: (row) => <span className="text-text-secondary">{row.winner}</span>,
+    cell: (row) => <span className="text-text-secondary">{winnerLabel(row)}</span>,
   },
   {
     header: "Signal",
@@ -282,7 +283,7 @@ export function AnalyticsOverviewPage() {
                   {campaign.name}
                 </Link>
                 <p className="mt-0.5 text-xs text-text-secondary">
-                  {campaign.winner} · {formatNumber(campaign.responses)} scoped responses
+                  {winnerLabel(campaign)} · {formatNumber(campaign.responses)} scoped responses
                 </p>
               </div>
               <div className="flex w-full flex-wrap items-center justify-start gap-3 sm:w-auto">
@@ -729,7 +730,7 @@ const recommendationColumns: Array<DataColumn<Campaign>> = [
   },
   {
     header: "Recommendation",
-    cell: (row) => <span className="text-text-secondary">{row.winner}</span>,
+    cell: (row) => <span className="text-text-secondary">{winnerLabel(row)}</span>,
   },
   {
     header: "Signal",
@@ -778,7 +779,7 @@ export function AnalyticsInsightsPage() {
             <ActionCard
               title={insight.title}
               reason={insight.context}
-              status={insight.status}
+              meta={insight.status}
               primary={{ label: insight.action, to: insight.to }}
               className="h-full"
             />
@@ -846,7 +847,7 @@ export function AnalyticsReportsPage() {
     id: `report-${campaign.id}`,
     name: campaign.name,
     linkedObject: `${campaign.name} · Campaign`,
-    status: campaign.status === "Completed" ? "Ready" : "Draft",
+    status: campaign.status === "Ended" ? "Ready" : "Draft",
     updated: "Today",
     primaryAction: "Preview",
   }));
@@ -862,14 +863,14 @@ export function AnalyticsReportsPage() {
       {rows.length ? <SectionGrid>
         <DashboardCard title="Report preview" className="lg:col-span-5">
           <div className="space-y-4">
-            <StatusBadge status={preview.status === "Completed" ? "Ready" : "Draft"} />
+            <StatusBadge status={preview.status === "Ended" ? "Ready" : "Draft"} />
             <h3 className="font-display text-xl font-bold text-text-primary">
               {preview.name}
             </h3>
             <DetailList
               items={[
                 ["Responses", formatNumber(preview.responses)],
-                ["Winning direction", preview.winner],
+                ["Winning direction", winnerLabel(preview)],
                 ["Completion", preview.completion],
                 ["Top source", preview.topSource],
               ]}

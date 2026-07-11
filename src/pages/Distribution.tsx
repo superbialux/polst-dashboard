@@ -39,7 +39,7 @@ import {
   SINGLE_POLSTS,
   TIER_BENCHMARKS,
   formatNumber,
-  type Channel,
+  type ChannelRow,
   type Creator,
   type DistributionSource,
   type EmailPerformance,
@@ -99,7 +99,7 @@ export const sourceColumns: Array<DataColumn<DistributionSource>> = [
   },
 ];
 
-const channelColumns: Array<DataColumn<Channel>> = [
+const channelColumns: Array<DataColumn<ChannelRow>> = [
   {
     header: "Channel",
     cell: (row) => (
@@ -295,13 +295,13 @@ export function DistributionPage() {
   const [embedOpen, setEmbedOpen] = useState(false);
   const polstColumns: Array<DataColumn<(typeof SINGLE_POLSTS)[number]>> = [
     { header: "Polst", cell: (row) => <div><p className="font-display font-semibold text-text-primary">{row.question}</p><p className="mt-0.5 text-xs text-text-secondary">{row.optionA} vs {row.optionB}</p></div> },
-    { header: "Status", cell: (row) => <StatusBadge status={row.status === "Completed" ? "Ended" : row.status} /> },
+    { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
     { header: "Votes", align: "right", cell: (row) => formatNumber(row.responses) },
     { header: "", align: "right", cell: (row) => <div className="flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setSharePolst(row)}>Distribute</Button><Button variant="secondary" size="sm" onClick={() => setQrTarget({ name: row.question, id: row.id, kind: "p" })}>QR code</Button></div> },
   ];
   const campaignColumns: Array<DataColumn<(typeof CAMPAIGNS)[number]>> = [
     { header: "Campaign", cell: (row) => <div><p className="font-display font-semibold text-text-primary">{row.name}</p><p className="mt-0.5 text-xs text-text-secondary">{row.polsts} Polsts</p></div> },
-    { header: "Status", cell: (row) => <StatusBadge status={row.status === "Completed" ? "Ended" : row.status} /> },
+    { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
     { header: "Voters", align: "right", cell: (row) => formatNumber(row.responses) },
     { header: "", align: "right", cell: (row) => <div className="flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setEmbedOpen(true)}>Share / embed</Button><Button variant="secondary" size="sm" onClick={() => setQrTarget({ name: row.name, id: row.id, kind: "campaign" })}>QR code</Button></div> },
   ];

@@ -8,6 +8,7 @@ import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
 import { SelectMenu, TextInput } from "@/components/Field";
 import { HeaderActions } from "./Shell";
+import { STATUS_TONE, type StatusTone } from "@/lib/canon";
 import type { AnalyticsFilters, AnalyticsRange } from "@/lib/analytics";
 import {
   formatNumber,
@@ -121,33 +122,19 @@ export function SectionGrid({
 
 /* ── Status tone ─────────────────────────────────────────────────── */
 
-type Tone = "success" | "accent" | "danger" | "neutral";
-
-const STATUS_TONE: Record<string, Tone> = {
-  Active: "success",
-  Covered: "success",
-  Ready: "success",
-  Completed: "success",
-  Assigned: "success",
-  Scheduled: "accent",
-  "Needs attention": "danger",
-  Draft: "neutral",
-  Archived: "neutral",
-  Unassigned: "neutral",
-  Inconclusive: "neutral",
-};
-
-const TONE_CHIP: Record<Tone, string> = {
+const TONE_CHIP: Record<StatusTone, string> = {
   success: "bg-status-success-soft text-status-success",
   accent: "bg-accent-soft text-accent-default",
+  warning: "bg-status-warning-soft text-status-warning",
   danger: "bg-status-danger-soft text-status-danger",
   neutral: "bg-surface-subtle text-text-secondary",
 };
 
-/** One place owns object-state → tone. Pass a status string, get the
- *  right soft pill (with a leading dot) for free. */
+/** Canon's STATUS_TONE owns object-state → tone (Ended is neutral,
+ *  Scheduled accent). Non-canonical strings from unmigrated pages fall
+ *  back to a neutral pill instead of crashing. */
 export function StatusBadge({ status }: { status: Status | string }) {
-  const tone = STATUS_TONE[status] ?? "neutral";
+  const tone: StatusTone = (STATUS_TONE as Record<string, StatusTone>)[status] ?? "neutral";
   return (
     <span
       className={cn(
@@ -1237,8 +1224,8 @@ export function PollThumb({ options }: { options: [PollOption, PollOption] }) {
  *  question, its status, and the current split — or its state before it runs.
  *  Reuses the mini-poll anatomy (thumb · question · shares). */
 export function PolstMiniRow({ polst }: { polst: SinglePolst }) {
-  const hasSplit = polst.split.includes("/");
-  const [a, b] = hasSplit ? polst.split.split("/").map((s) => s.trim()) : ["", ""];
+  const hasSplit = (polst.split ?? "").includes("/");
+  const [a, b] = hasSplit ? (polst.split ?? "").split("/").map((s) => s.trim()) : ["", ""];
   return (
     <Link
       to={`/polsts/${polst.id}`}

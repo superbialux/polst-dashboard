@@ -51,6 +51,7 @@ import {
   formatNumber,
   funnelForSource,
   polstOptions,
+  winnerLabel,
   type Campaign,
   type CampaignDetail,
   type ChainPolst,
@@ -63,7 +64,7 @@ const EVENT_OPTIONS = [
   ...KEY_DATES.map((date) => ({ value: date.title, label: date.title })),
 ];
 const CAMPAIGN_FILTERS = ["All", "Draft", "Active", "Ended"] as const;
-const campaignStatus = (campaign: Campaign) => campaign.status === "Completed" ? "Ended" : campaign.status;
+const campaignStatus = (campaign: Campaign) => campaign.status;
 const CAMPAIGN_CREATED: Record<string, string> = {
   "summer-launch-draft": "Jul 10",
   "packaging-direction": "Jun 3",
@@ -118,10 +119,10 @@ export function CampaignsPage() {
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const scoped = active === "Ended"
-      ? CAMPAIGNS.filter((campaign) => campaign.status === "Completed")
+      ? CAMPAIGNS.filter((campaign) => campaign.status === "Ended")
       : filterByStatus(CAMPAIGNS, active);
     return scoped.filter((campaign) =>
-      !normalized || [campaign.name, campaign.decision, campaign.event, campaign.vertical]
+      !normalized || [campaign.name, campaign.decision, campaign.event ?? "", campaign.vertical]
         .some((value) => value.toLowerCase().includes(normalized)),
     );
   }, [active, query]);
@@ -230,7 +231,7 @@ function CampaignOverview({
   detail: CampaignDetail;
   onGoTo: (tab: (typeof DETAIL_TABS)[number]) => void;
 }) {
-  const hasSignal = campaign.responses > 0;
+  const hasSignal = (campaign.responses ?? 0) > 0;
   const [funnelSource, setFunnelSource] = useState<FunnelSource>("All sources");
   const allSteps = funnelSteps(detail);
   const steps = allSteps.map((step, i) => ({
@@ -252,8 +253,8 @@ function CampaignOverview({
   const headline = !hasSignal
     ? "No signal yet — nothing is collecting responses"
     : campaign.signal === "Too close"
-      ? `Too close to call — ${campaign.winner}`
-      : `Recommended: ${campaign.winner}`;
+      ? `Too close to call — ${winnerLabel(campaign)}`
+      : `Recommended: ${winnerLabel(campaign)}`;
   return (
     <>
       <DecisionBrief
@@ -283,20 +284,20 @@ function CampaignOverview({
                 },
                 {
                   label: "Completion",
-                  value: campaign.completion,
+                  value: campaign.completion ?? "—",
                   info: "Voters who finished every question ÷ voters who started the sequence.",
                 },
-                { label: "Top source", value: campaign.topSource },
-                { label: "Runs", value: campaign.dates },
+                { label: "Top source", value: campaign.topSource ?? "—" },
+                { label: "Runs", value: campaign.dates ?? "—" },
               ]
             : [
-                { label: "Launches", value: campaign.dates },
+                { label: "Launches", value: campaign.dates ?? "—" },
                 { label: "Polsts ready", value: String(campaign.polsts) },
                 { label: "Sources assigned", value: "0" },
               ]
         }
         primary={{
-          label: campaign.nextAction,
+          label: campaign.nextAction ?? "Open",
           onClick: () => onGoTo(hasSignal ? "Analytics" : "Polsts"),
         }}
         secondary={
@@ -586,14 +587,14 @@ function CampaignInsights({
   campaign: Campaign;
   detail: CampaignDetail;
 }) {
-  const hasSignal = campaign.responses > 0;
+  const hasSignal = (campaign.responses ?? 0) > 0;
   return (
     <>
       <SectionGrid>
         <DashboardCard title="Recommended decision" className="lg:col-span-7">
           <div className="space-y-4 text-sm leading-6 text-text-secondary">
             <h3 className="font-display text-lg font-bold text-text-primary">
-              {hasSignal ? campaign.winner : "No recommendation yet"}
+              {hasSignal ? winnerLabel(campaign) : "No recommendation yet"}
             </h3>
             <p>{detail.summary}</p>
             <p>
@@ -605,7 +606,7 @@ function CampaignInsights({
         <DashboardCard title="Readiness" className="lg:col-span-5">
           <DetailList
             items={[
-              ["Winning direction", campaign.winner],
+              ["Winning direction", winnerLabel(campaign)],
               ["Signal", <SignalBadge key="sig" signal={campaign.signal} />],
               ["Confidence", campaign.confidence],
               [
@@ -679,7 +680,7 @@ function CampaignReport({
   detail: CampaignDetail;
 }) {
   const toast = useToast();
-  const hasSignal = campaign.responses > 0;
+  const hasSignal = (campaign.responses ?? 0) > 0;
   return (
     <DashboardCard
       title="Report preview"
@@ -734,7 +735,7 @@ function CampaignReport({
                   `${formatNumber(campaign.responses)} of ${formatNumber(campaign.target)}`,
                 ],
                 ["Completion", campaign.completion],
-                ["Winning direction", campaign.winner],
+                ["Winning direction", winnerLabel(campaign)],
                 ["Signal", campaign.signal],
                 ["Confidence", campaign.confidence],
                 ["Top source", campaign.topSource],
@@ -918,7 +919,7 @@ function CampaignAnalytics({ campaign, detail }: { campaign: Campaign; detail: C
       <SectionGrid>
         <StatTile className="lg:col-span-3" label="Started" value={formatNumber(detail.journey.started)} />
         <StatTile className="lg:col-span-3" label="Completed" value={formatNumber(detail.journey.completed)} />
-        <StatTile className="lg:col-span-3" label="Completion" value={campaign.completion} />
+        <StatTile className="lg:col-span-3" label="Completion" value={campaign.completion ?? "—"} />
         <StatTile className="lg:col-span-3" label="Average time" value={campaign.responses ? "14s" : "—"} />
       </SectionGrid>
       <DashboardCard title="Conversion funnel"><Funnel steps={steps} /></DashboardCard>
@@ -931,7 +932,7 @@ function CampaignAnalytics({ campaign, detail }: { campaign: Campaign; detail: C
 
 function CampaignLifecycle({ campaign }: { campaign: Campaign }) {
   const toast = useToast();
-  const state = campaign.status === "Draft" ? "Draft" : campaign.status === "Completed" ? "Ended" : "Active";
+  const state = campaign.status === "Draft" ? "Draft" : campaign.status === "Ended" ? "Ended" : "Active";
   return (
     <>
       <DashboardCard>

@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { ToastProvider } from "@/components/Toast";
 import { ModulesProvider } from "@/lib/modules";
+import { WorkspaceProvider } from "@/lib/store";
 import { AnalyticsProvider } from "@/lib/analytics-context";
 import { DashboardShell } from "@/components/dashboard";
 import { HomePage } from "@/pages/Home";
@@ -29,6 +30,7 @@ export function App() {
   return (
     <ModulesProvider>
       <ToastProvider>
+        <WorkspaceProvider>
         <AnalyticsProvider>
           <DashboardShell>
             <Routes>
@@ -58,6 +60,7 @@ export function App() {
             </Routes>
           </DashboardShell>
         </AnalyticsProvider>
+        </WorkspaceProvider>
       </ToastProvider>
     </ModulesProvider>
   );
