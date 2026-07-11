@@ -1293,7 +1293,9 @@ export function NextStepsCard({
       </div>
 
       {!collapsed ? (
-        <ol className="mt-3 space-y-0.5">
+        // Rows bleed 8px past the card's content edge (the Campaigns-card row
+        // pattern): bullets align with the header above, backgrounds don't.
+        <ol className="-mx-2 mt-3 space-y-0.5">
           {steps.map((step, i) => {
             const open = i === openIdx;
             return (
@@ -1306,7 +1308,7 @@ export function NextStepsCard({
                       onClick={() => setOpenIdx(open ? -1 : i)}
                       aria-expanded={open}
                       className={cn(
-                        "flex w-full items-start gap-3 py-2 text-left transition-colors",
+                        "flex w-full items-start gap-3 px-2 py-2 text-left transition-colors",
                         !open && "rounded-md hover:bg-surface-subtle",
                       )}
                     >
@@ -1321,7 +1323,7 @@ export function NextStepsCard({
                       </span>
                     </button>
                     {open && (step.description || step.cta) ? (
-                      <div className="pb-2 pl-7">
+                      <div className="pb-2 pl-10 pr-2">
                         {step.description ? (
                           <p className="text-sm leading-5 text-text-secondary">{step.description}</p>
                         ) : null}
