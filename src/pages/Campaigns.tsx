@@ -31,6 +31,7 @@ import {
   PageTabs,
   PollResults,
   PollThumb,
+  ReportPreview,
   SearchAndFilters,
   SectionGrid,
   SegmentedControl,
@@ -223,11 +224,17 @@ export function CreateCampaignPage() {
     setEvent(KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "");
   }, [eventParam]);
 
+  const [submitting, setSubmitting] = useState(false);
+
   const endAt = durationEnd(duration, startAt, customEnd);
+  // Only a Custom duration can invert the range — refuse it at the source.
+  const endBeforeStart = Boolean(endAt && startAt && endAt < startAt);
 
   const drafts = campaigns.filter((c) => c.status === "Draft").slice(0, 3);
 
   const submit = () => {
+    if (submitting) return; // a double-click must not mint a duplicate draft
+    setSubmitting(true);
     const id = createCampaign({
       name,
       decision: decision.trim() || undefined,
@@ -315,6 +322,9 @@ export function CreateCampaignPage() {
                 startAt={startAt}
                 subject="campaign"
               />
+              {endBeforeStart ? (
+                <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
+              ) : null}
               <Field label="Key date">
                 {(id) => (
                   <SelectMenu
@@ -329,7 +339,11 @@ export function CreateCampaignPage() {
             </div>
           </DashboardCard>
           <div className="flex justify-end">
-            <Button disabled={!name.trim()} onClick={submit}>
+            <Button
+              disabled={!name.trim() || endBeforeStart || submitting}
+              title={endBeforeStart ? "The end date is before the start." : undefined}
+              onClick={submit}
+            >
               Create campaign
             </Button>
           </div>
@@ -393,18 +407,26 @@ export function CampaignDetailPage() {
   if (!campaign) return <NotFoundCard kind="campaign" />;
 
   const sources = campaignSources(store.sources, campaign.id);
-  const canPublish = campaign.chain.length > 0 && !!campaign.startAt;
+  const invalidRange =
+    !!campaign.startAt && !!campaign.endAt && campaign.endAt < campaign.startAt;
+  const canPublish = campaign.chain.length > 0 && !!campaign.startAt && !invalidRange;
   const shareable = campaign.status !== "Draft" && campaign.status !== "Archived";
 
   const publish = () => {
     const result = store.publishCampaign(campaign.id);
-    if (result.ok) {
-      toast(
-        campaign.startAt! > TODAY
-          ? `Published — starts ${fmtDate(campaign.startAt!)}`
-          : "Campaign is live",
-      );
+    if (!result.ok) {
+      // Every refusal reaches the user — a dead button explains nothing.
+      toast(result.reason);
+      return;
     }
+    // Speak the resolved status, never the intent: past dates land as Ended.
+    toast(
+      result.status === "Scheduled"
+        ? `Published — starts ${fmtDate(campaign.startAt!)}`
+        : result.status === "Ended"
+          ? "Published — the run's dates are already past, so it's Ended"
+          : "Campaign is live",
+    );
   };
 
   const copyLink = () => {
@@ -440,7 +462,9 @@ export function CampaignDetailPage() {
                   ? undefined
                   : campaign.chain.length === 0
                     ? "Add at least one Polst first"
-                    : "Set a start date first"
+                    : !campaign.startAt
+                      ? "Set a start date first"
+                      : "The end date is before the start — fix the schedule in Settings"
               }
               onClick={publish}
             >
@@ -448,13 +472,15 @@ export function CampaignDetailPage() {
             </Button>
           ) : null}
           {/* Ready campaigns end through the DecisionBrief's "End campaign
-              & decide" — one owner, so two end affordances never compete. */}
+              & decide" — one owner, so two end affordances never compete.
+              Ended campaigns export through the brief's primary for the
+              same reason; the header holds no duplicate. */}
           {campaign.status === "Active" && !isReadyToDecide(campaign) ? (
             <Button variant="destructive-secondary" onClick={() => setEndOpen(true)}>
               End campaign
             </Button>
           ) : null}
-          {campaign.status === "Ended" ? (
+          {campaign.status === "Ended" && campaign.voters === 0 ? (
             <Button onClick={() => setReportOpen(true)}>Export report</Button>
           ) : null}
         </>
@@ -520,7 +546,7 @@ export function CampaignDetailPage() {
           {fmtInt(campaign.voters)} voters collected so far are kept.
         </p>
       </Modal>
-      <ReportModal
+      <ReportPreview
         open={reportOpen}
         onClose={() => setReportOpen(false)}
         campaign={campaign}
@@ -705,8 +731,8 @@ function LaunchChecklist({
       title: "Add at least one Polst",
       done: hasPolsts,
       description: hasPolsts
-        ? `${polstCount} ${polstCount === 1 ? "question" : "questions"} staged — voters answer them in order.`
-        : "The campaign needs at least one question before it can publish.",
+        ? `${polstCount} ${polstCount === 1 ? "Polst is" : "Polsts are"} staged — voters answer them in order.`
+        : "The campaign needs at least one Polst before it can publish.",
       cta: { label: hasPolsts ? "View Polsts" : "Add Polsts", onClick: () => onGoTo("Polsts") },
     },
     {
@@ -861,7 +887,7 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
           <EmptyState
             icon="ballot"
             title="No Polsts yet"
-            hint="Voters answer the chain in order — start with one question."
+            hint="Voters answer the chain in order — start with one Polst."
             action={
               editable
                 ? { label: "Create a Polst", onClick: () => setComposerOpen(true) }
@@ -898,9 +924,16 @@ function AddPolstModal({
   const [question, setQuestion] = useState("");
   const [optionA, setOptionA] = useState("");
   const [optionB, setOptionB] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const complete = question.trim() && optionA.trim() && optionB.trim();
 
+  useEffect(() => {
+    if (open) setSubmitting(false);
+  }, [open]);
+
   const add = () => {
+    if (submitting) return; // a double-click must not stage the Polst twice
+    setSubmitting(true);
     addQuestionToCampaign(campaign.id, {
       question: question.trim(),
       optionA: optionA.trim(),
@@ -924,7 +957,7 @@ function AddPolstModal({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={!complete} onClick={add}>
+          <Button disabled={!complete || submitting} onClick={add}>
             Add Polst
           </Button>
         </div>
@@ -1181,8 +1214,15 @@ function AssignSourceModal({
   const [name, setName] = useState("");
   const [kind, setKind] = useState<string>("QR code");
   const [channel, setChannel] = useState<string>("Website");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) setSubmitting(false);
+  }, [open]);
 
   const create = () => {
+    if (submitting) return; // a double-click must not mint a duplicate source
+    setSubmitting(true);
     addSource({
       name: name.trim(),
       kind: kind as Source["kind"],
@@ -1266,7 +1306,7 @@ function AssignSourceModal({
             </Field>
           </div>
           <div className="flex justify-end">
-            <Button disabled={!name.trim()} onClick={create}>
+            <Button disabled={!name.trim() || submitting} onClick={create}>
               Create &amp; assign
             </Button>
           </div>
@@ -1297,6 +1337,8 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
     target !== (campaign.target ? String(campaign.target) : "") ||
     event !== (campaign.event ?? "");
 
+  const invalidRange = Boolean(startAt && endAt && endAt < startAt);
+
   const save = () => {
     store.updateCampaign(campaign.id, {
       name: name.trim(),
@@ -1310,82 +1352,114 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
   };
 
   const live = campaign.status === "Scheduled" || campaign.status === "Active";
+  // A finished run is the record — "becomes read-only" must be true.
+  const readOnly = campaign.status === "Ended" || campaign.status === "Archived";
 
   return (
     <SectionGrid className="items-start">
-      <DashboardCard title="Campaign settings" className="lg:col-span-7">
-        <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-          <Field label="Name">
-            {(id) => <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} />}
-          </Field>
-          <Field label="Key date">
-            {(id) => (
-              <SelectMenu
-                id={id}
-                label="Key date"
-                value={event}
-                onValueChange={setEvent}
-                options={EVENT_OPTIONS}
-              />
-            )}
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Decision question">
+      {readOnly ? (
+        <DashboardCard title="Campaign settings" className="lg:col-span-7">
+          <DetailList
+            items={[
+              ["Name", campaign.name],
+              ["Decision", campaign.decision || "Not set"],
+              ["Start date", campaign.startAt ? fmtDate(campaign.startAt) : "—"],
+              ["End date", campaign.endAt ? fmtDate(campaign.endAt) : "—"],
+              ["Voter target", campaign.target ? fmtInt(campaign.target) : "—"],
+              ["Key date", eventTitle(campaign.event)],
+            ]}
+          />
+          <p className="mt-4 text-xs text-text-secondary">
+            {campaign.status === "Ended" ? "Ended" : "Archived"} runs can&rsquo;t be edited.
+          </p>
+        </DashboardCard>
+      ) : (
+        <DashboardCard title="Campaign settings" className="lg:col-span-7">
+          <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
+            <Field label="Name">
               {(id) => (
-                <textarea
+                <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} />
+              )}
+            </Field>
+            <Field label="Key date">
+              {(id) => (
+                <SelectMenu
                   id={id}
-                  value={decision}
-                  onChange={(e) => setDecision(e.target.value)}
-                  rows={2}
-                  placeholder="What should this campaign decide?"
-                  className={cn(CONTROL, "h-auto min-h-16 resize-none px-3 py-2.5")}
+                  label="Key date"
+                  value={event}
+                  onValueChange={setEvent}
+                  options={EVENT_OPTIONS}
+                />
+              )}
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Decision question">
+                {(id) => (
+                  <textarea
+                    id={id}
+                    value={decision}
+                    onChange={(e) => setDecision(e.target.value)}
+                    rows={2}
+                    placeholder="What should this campaign decide?"
+                    className={cn(CONTROL, "h-auto min-h-16 resize-none px-3 py-2.5")}
+                  />
+                )}
+              </Field>
+            </div>
+            <Field label="Start date">
+              {(id) => (
+                <TextInput
+                  id={id}
+                  type="date"
+                  value={startAt}
+                  onChange={(e) => setStartAt(e.target.value)}
+                />
+              )}
+            </Field>
+            <Field
+              label="End date"
+              helper={
+                invalidRange ? (
+                  <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
+                ) : (
+                  <FieldHelper tone="neutral">Voters can submit until this date.</FieldHelper>
+                )
+              }
+            >
+              {(id) => (
+                <TextInput
+                  id={id}
+                  type="date"
+                  value={endAt}
+                  onChange={(e) => setEndAt(e.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Voter target">
+              {(id) => (
+                <TextInput
+                  id={id}
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value)}
+                  placeholder="1,000"
                 />
               )}
             </Field>
           </div>
-          <Field label="Start date">
-            {(id) => (
-              <TextInput
-                id={id}
-                type="date"
-                value={startAt}
-                onChange={(e) => setStartAt(e.target.value)}
-              />
-            )}
-          </Field>
-          <Field
-            label="End date"
-            helper={<FieldHelper tone="neutral">Voters can submit until this date.</FieldHelper>}
-          >
-            {(id) => (
-              <TextInput
-                id={id}
-                type="date"
-                value={endAt}
-                onChange={(e) => setEndAt(e.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Voter target">
-            {(id) => (
-              <TextInput
-                id={id}
-                type="number"
-                min={0}
-                inputMode="numeric"
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                placeholder="1,000"
-              />
-            )}
-          </Field>
-        </div>
-        <div className="mt-5 flex justify-end">
-          <Button disabled={!dirty || !name.trim()} onClick={save}>
-            Save changes
-          </Button>
-        </div>
-      </DashboardCard>
+          <div className="mt-5 flex justify-end">
+            <Button
+              disabled={!dirty || !name.trim() || invalidRange}
+              title={invalidRange ? "The end date is before the start." : undefined}
+              onClick={save}
+            >
+              Save changes
+            </Button>
+          </div>
+        </DashboardCard>
+      )}
 
       <div className="space-y-4 lg:col-span-5">
         <DashboardCard title="About">
@@ -1402,7 +1476,18 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
         <DashboardCard title="Lifecycle">
           <div className="flex flex-wrap gap-2">
             {live ? (
-              <Button variant="secondary" size="sm" onClick={() => setConfirm("unpublish")}>
+              // A voted run never rewinds to Draft — the votes are evidence.
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={campaign.voters > 0}
+                title={
+                  campaign.voters > 0
+                    ? "This run has collected votes — end it instead."
+                    : undefined
+                }
+                onClick={() => setConfirm("unpublish")}
+              >
                 Unpublish to draft
               </Button>
             ) : null}
@@ -1416,15 +1501,21 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
               </Button>
             ) : null}
             {campaign.status === "Archived" ? (
+              // The label and toast speak the true destination: a voted run
+              // restores to Ended, a clean one to Draft.
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  store.unpublishCampaign(campaign.id);
-                  toast("Campaign restored as a draft");
+                  const status = store.restoreCampaign(campaign.id);
+                  toast(
+                    status === "Ended"
+                      ? "Restored — the run keeps its results (Ended)"
+                      : "Campaign restored as a draft",
+                  );
                 }}
               >
-                Restore to draft
+                {campaign.voters > 0 ? "Restore" : "Restore to draft"}
               </Button>
             ) : null}
           </div>
@@ -1448,8 +1539,8 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
                   store.archiveCampaign(campaign.id);
                   toast("Campaign archived");
                 } else {
-                  store.unpublishCampaign(campaign.id);
-                  toast("Campaign unpublished — back to draft");
+                  const result = store.unpublishCampaign(campaign.id);
+                  toast(result.ok ? "Campaign unpublished — back to draft" : result.reason);
                 }
                 setConfirm(null);
               }}
@@ -1462,127 +1553,12 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
         <p className="p-4 text-sm leading-6 text-text-secondary">
           {confirm === "archive"
             ? `${campaign.name} moves out of the active views. Its results are kept.`
-            : `Voters can no longer reach ${campaign.name} until you publish it again. Votes already cast are kept.`}
+            : `Voters can no longer reach ${campaign.name} until you publish it again.`}
         </p>
       </Modal>
     </SectionGrid>
   );
 }
 
-/* ── Report preview (Ended campaigns) ────────────────────────────── */
-
-function ReportModal({
-  open,
-  onClose,
-  campaign,
-  sources,
-}: {
-  open: boolean;
-  onClose: () => void;
-  campaign: Campaign;
-  sources: Source[];
-}) {
-  const toast = useToast();
-  const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
-
-  const summaryText = [
-    `${campaign.name} — decision report`,
-    campaign.decision,
-    `Winner: ${winnerLabel(campaign)} · Signal: ${campaign.signal} · Confidence: ${campaign.confidence}`,
-    `Voters: ${fmtInt(campaign.voters)}${campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""} · Completion: ${pct(campaign.completed, campaign.voters)}`,
-    ...(campaign.findings.length ? ["", "Findings:", ...campaign.findings.map((f) => `- ${f}`)] : []),
-    ...(campaign.caveats.length ? ["", "Caveats:", ...campaign.caveats.map((c) => `- ${c}`)] : []),
-  ].join("\n");
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      label="Decision report"
-      title="Decision report"
-      className="lg:max-w-2xl"
-      footer={
-        <div className="flex justify-end gap-2 p-4">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              copyText(summaryText);
-              toast("Summary copied");
-            }}
-          >
-            <Icon name="content_copy" size={18} />
-            Copy summary
-          </Button>
-          <Button onClick={onClose}>Done</Button>
-        </div>
-      }
-    >
-      <div className="space-y-5 p-5">
-        <header>
-          <h3 className="font-display text-xl font-semibold leading-7 text-text-primary">
-            {campaign.name}
-          </h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            {campaign.decision} · {fmtDateRange(campaign.startAt, campaign.endAt)}
-          </p>
-        </header>
-        <DetailList
-          items={[
-            ["Winning direction", winnerLabel(campaign)],
-            ["Signal", <SignalBadge key="signal" signal={campaign.signal} />],
-            ["Confidence", campaign.confidence],
-            [
-              "Voters",
-              campaign.target
-                ? `${fmtInt(campaign.voters)} of ${fmtInt(campaign.target)}`
-                : fmtInt(campaign.voters),
-            ],
-            ["Completion", pct(campaign.completed, campaign.voters)],
-            ["Top source", topSource && topSource.voters > 0 ? topSource.name : "—"],
-          ]}
-        />
-        {campaign.findings.length > 0 ? (
-          <section>
-            <h4 className="font-display text-sm font-semibold text-text-secondary">
-              Key findings
-            </h4>
-            <ul className="mt-2 space-y-2">
-              {campaign.findings.map((finding) => (
-                <li key={finding} className="flex items-start gap-2.5 text-sm leading-6">
-                  <Icon
-                    name="check_circle"
-                    size={20}
-                    filled
-                    className="mt-0.5 shrink-0 text-status-success"
-                  />
-                  <span className="text-text-secondary">{finding}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-        {campaign.caveats.length > 0 ? (
-          <section>
-            <h4 className="font-display text-sm font-semibold text-text-secondary">Caveats</h4>
-            <ul className="mt-2 space-y-2">
-              {campaign.caveats.map((caveat) => (
-                <li key={caveat} className="flex items-start gap-2.5 text-sm leading-6">
-                  <Icon
-                    name="error"
-                    size={20}
-                    filled
-                    className="mt-0.5 shrink-0 text-status-warning"
-                  />
-                  <span className="text-text-secondary">{caveat}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-        <p className="text-sm leading-6 text-text-secondary">
-          <span className="font-semibold text-text-primary">Next step:</span> {campaign.nextStep}
-        </p>
-      </div>
-    </Modal>
-  );
-}
+/* The report dialog itself is the kit's shared `ReportPreview` — one
+   anatomy for the campaign detail and Analytics → Reports. */

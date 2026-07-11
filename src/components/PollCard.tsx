@@ -92,7 +92,8 @@ export type PollCardProps = {
   likes: number;
   reposts: number;
   votes: number;
-  /** Human time left, e.g. "2h". Rendered as "Ends 2h". */
+  /** Human time left, e.g. "2h", rendered as "2h left". Omit it and the
+   *  card shows no countdown — drafts and unscheduled runs have none. */
   timeLeft?: string;
 };
 
@@ -138,7 +139,7 @@ export function PollCard({
   likes,
   reposts,
   votes,
-  timeLeft = "2h",
+  timeLeft,
 }: PollCardProps) {
   const [selected, setSelected] = useState<number | null>(null);
   const [liked, setLiked] = useState(false);
@@ -350,8 +351,12 @@ export function PollCard({
           </p>
           <p className="flex shrink-0 items-center gap-1.5">
             <span>{formatCount(votes)} votes</span>
-            <Dot />
-            <span>{timeLeft} left</span>
+            {timeLeft && (
+              <>
+                <Dot />
+                <span>{timeLeft} left</span>
+              </>
+            )}
           </p>
         </div>
       </div>

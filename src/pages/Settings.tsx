@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
+import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
@@ -153,9 +154,14 @@ function TeamSection() {
       header: "Member",
       cell: (row) => (
         <div className="flex items-center gap-3">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-avatar-bg font-display text-xs font-semibold text-text-inverse">
-            {row.name.split(" ").map((w) => w[0]).join("")}
-          </span>
+          {/* The shared Avatar, on the same accent tone as the rail's
+              account row — one monogram treatment per person, app-wide. */}
+          <Avatar
+            color="var(--accent-default)"
+            textColor="var(--text-on-accent)"
+            label={row.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+            size={32}
+          />
           <div className="min-w-0">
             <p className="font-display font-semibold text-text-primary">{row.name}</p>
             <p className="truncate text-xs text-text-secondary">{row.email}</p>

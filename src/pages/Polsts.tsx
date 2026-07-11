@@ -9,7 +9,7 @@ import {
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Field, TextInput } from "@/components/Field";
+import { Field, FieldHelper, TextInput } from "@/components/Field";
 import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
 import { PollCard } from "@/components/PollCard";
 import { PollComposer, type ComposerState } from "@/components/PollComposer";
@@ -57,7 +57,7 @@ import {
   type SinglePolst,
   type Vertical,
 } from "@/lib/workspace";
-import { useWorkspace } from "@/lib/store";
+import { publishedStatus, useWorkspace } from "@/lib/store";
 
 /* ── Shared vocabulary ───────────────────────────────────────────── */
 
@@ -99,10 +99,13 @@ function PolstRowMenu({
       toast(result.reason);
       return;
     }
+    // Speak the resolved status, never the intent: past dates land as Ended.
     toast(
-      polst.startAt && polst.startAt > TODAY
-        ? `Polst scheduled — starts ${fmtDate(polst.startAt)}`
-        : "Polst published — it's live",
+      result.status === "Scheduled"
+        ? `Polst scheduled — starts ${fmtDate(polst.startAt!)}`
+        : result.status === "Ended"
+          ? "Polst published — its dates are already past, so it's Ended"
+          : "Polst published — it's live",
     );
   };
   const archive = () => {
@@ -136,12 +139,17 @@ function PolstRowMenu({
       ) : polst.status === "Archived" ? (
         <>
           <MenuItem icon="visibility" label="View" onClick={() => navigate(`/polsts/${polst.id}`)} />
+          {/* A voted run restores to Ended, not Draft — say so. */}
           <MenuItem
             icon="restore"
-            label="Restore to drafts"
+            label={polst.votes > 0 ? "Restore" : "Restore to drafts"}
             onClick={() => {
-              restorePolst(polst.id);
-              toast("Restored to drafts");
+              const status = restorePolst(polst.id);
+              toast(
+                status === "Ended"
+                  ? "Restored — back under Ended (its votes are part of the record)"
+                  : "Restored to drafts",
+              );
             }}
           />
         </>
@@ -352,6 +360,7 @@ export function PolstsPage() {
         open={Boolean(sharePolst)}
         onClose={() => setSharePolst(null)}
         objectName={sharePolst?.question ?? "this Polst"}
+        url={sharePolst ? shareUrl("polst", sharePolst.id) : ""}
       />
       <QrCodeModal
         open={Boolean(qrPolst)}
@@ -423,12 +432,13 @@ export function PolstDetailPage() {
     polst.startAt && polst.startAt <= TODAY ? daysBetween(polst.startAt, TODAY) : 0;
   const previewReposts = Math.round(polst.interactions / 4);
   const previewLikes = polst.interactions - previewReposts;
+  /* "Time left" only exists once a run is live — a Draft or Scheduled
+   * Polst has no countdown, so the preview carries no time-left chip. */
   const previewTimeLeft = (() => {
     if (isActive && polst.endAt) {
       const left = daysBetween(TODAY, polst.endAt);
       return left > 0 ? `${left}d` : "<1d";
     }
-    if (polst.startAt && polst.endAt) return `${daysBetween(polst.startAt, polst.endAt)}d`;
     return undefined;
   })();
 
@@ -449,8 +459,10 @@ export function PolstDetailPage() {
             </>
           ) : null}
           {isDraft ? (
-            <Button asChild>
-              <Link to={`/polsts/new?edit=${polst.id}`}>Edit Polst</Link>
+            // The banner's "Finish & publish" owns the page's primary path
+            // to the same editor — the header stays a quiet secondary.
+            <Button variant="secondary" asChild>
+              <Link to={`/polsts/new?edit=${polst.id}`}>Edit draft</Link>
             </Button>
           ) : null}
           {isEnded ? (
@@ -466,13 +478,18 @@ export function PolstDetailPage() {
             </Button>
           ) : null}
           {isArchived ? (
+            // A voted run restores to Ended, not Draft — say so.
             <Button
               onClick={() => {
-                restorePolst(polst.id);
-                toast("Restored to drafts");
+                const status = restorePolst(polst.id);
+                toast(
+                  status === "Ended"
+                    ? "Restored — back under Ended (its votes are part of the record)"
+                    : "Restored to drafts",
+                );
               }}
             >
-              Restore to drafts
+              {polst.votes > 0 ? "Restore" : "Restore to drafts"}
             </Button>
           ) : null}
         </>
@@ -508,8 +525,18 @@ export function PolstDetailPage() {
 
       {hasRun(polst) ? (
         <SectionGrid>
-          <StatTile className="lg:col-span-3" label="Views" value={fmtInt(polst.views)} />
-          <StatTile className="lg:col-span-3" label="Votes" value={fmtInt(polst.votes)} />
+          <StatTile
+            className="lg:col-span-3"
+            label="Views"
+            value={fmtInt(polst.views)}
+            info={METRIC_INFO.views}
+          />
+          <StatTile
+            className="lg:col-span-3"
+            label="Votes"
+            value={fmtInt(polst.votes)}
+            info={METRIC_INFO.votes}
+          />
           <StatTile
             className="lg:col-span-3"
             label="Interactions"
@@ -599,6 +626,7 @@ export function PolstDetailPage() {
         open={shareOpen}
         onClose={() => setShareOpen(false)}
         objectName={polst.question}
+        url={shareUrl("polst", polst.id)}
       />
       <QrCodeModal
         open={qrOpen}
@@ -645,16 +673,20 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
     draft ? durationPresetFor(draft.startAt, draft.endAt) : "7 days",
   );
   const [customEnd, setCustomEnd] = useState(draft?.endAt ?? "");
+  const [submitting, setSubmitting] = useState(false);
 
   const endDate = durationEnd(duration, startDate, customEnd);
+  // Only a Custom duration can invert the range — refuse it at the source
+  // so an impossible run (ends before it starts) can never be authored.
+  const endBeforeStart = Boolean(endDate && startDate && endDate < startDate);
 
   const checks: Array<[string, boolean]> = [
     ["Question written", composer.question !== ""],
     ["Both options set", composer.optionsSet],
     ["Images added", composer.imagesSet],
   ];
-  const canSave = composer.question !== "" && composer.optionsSet;
-  const canPublish = checks.every(([, done]) => done);
+  const canSave = composer.question !== "" && composer.optionsSet && !endBeforeStart;
+  const canPublish = checks.every(([, done]) => done) && !endBeforeStart;
 
   const input = () => ({
     question: composer.question,
@@ -666,6 +698,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
   });
 
   const saveDraft = () => {
+    if (submitting) return; // a double-click must not mint a duplicate draft
     let id: string;
     if (draft) {
       updatePolst(draft.id, input());
@@ -673,14 +706,17 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
     } else {
       id = createPolst(input());
     }
+    setSubmitting(true);
     toast("Draft saved");
     navigate(`/polsts/${id}`);
   };
 
   const publish = () => {
+    if (submitting) return; // a double-click must not publish twice
+    const data = input();
     let id: string;
     if (draft) {
-      updatePolst(draft.id, input());
+      updatePolst(draft.id, data);
       const result = publishPolst(draft.id);
       if (!result.ok) {
         toast(result.reason);
@@ -688,12 +724,17 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
       }
       id = draft.id;
     } else {
-      id = createPolst(input(), { publish: true });
+      id = createPolst(data, { publish: true });
     }
+    setSubmitting(true);
+    // Speak the resolved status, never the intent: past dates land as Ended.
+    const resolved = publishedStatus(data.startAt, data.endAt);
     toast(
-      startDate && startDate > TODAY
-        ? `Polst scheduled — starts ${fmtDate(startDate)}`
-        : "Polst published — it's live",
+      resolved === "Scheduled"
+        ? `Polst scheduled — starts ${fmtDate(data.startAt!)}`
+        : resolved === "Ended"
+          ? "Polst published — its dates are already past, so it's Ended"
+          : "Polst published — it's live",
     );
     navigate(`/polsts/${id}`);
   };
@@ -748,13 +789,25 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
                 startAt={startDate}
                 subject="Polst"
               />
+              {endBeforeStart ? (
+                <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
+              ) : null}
             </div>
           </DashboardCard>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" disabled={!canSave} onClick={saveDraft}>
+            <Button
+              variant="secondary"
+              disabled={!canSave || submitting}
+              title={endBeforeStart ? "The end date is before the start." : undefined}
+              onClick={saveDraft}
+            >
               Save draft
             </Button>
-            <Button disabled={!canPublish} onClick={publish}>
+            <Button
+              disabled={!canPublish || submitting}
+              title={endBeforeStart ? "The end date is before the start." : undefined}
+              onClick={publish}
+            >
               Publish Polst
             </Button>
           </div>

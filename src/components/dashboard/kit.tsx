@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { cn, copyText } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
@@ -1560,7 +1560,8 @@ export function MixBars({
 /* ── Snippet card ────────────────────────────────────────────────── */
 
 /** A labeled code block with a copy affordance — embed snippets, share
- *  links. Copying only raises a toast in this mockup. */
+ *  links. Copy writes the real clipboard and the toast reports what
+ *  actually happened. */
 export function SnippetCard({
   title,
   description,
@@ -1583,7 +1584,11 @@ export function SnippetCard({
         <Button
           variant="secondary"
           size="sm"
-          onClick={() => toast(`${title} copied`)}
+          onClick={async () =>
+            toast(
+              (await copyText(code)) ? `${title} copied` : "Couldn't copy — try again",
+            )
+          }
         >
           <Icon name="content_copy" size={18} />
           Copy
@@ -1797,7 +1802,10 @@ export function Switch({
 export function ConnectCard({ integration }: { integration: Integration }) {
   const toast = useToast();
   return (
-    <div className="flex items-center gap-3 rounded-md border border-border-default bg-surface-raised p-4">
+    // min-w-0: as a grid item this card must shrink to its track — without
+    // it the nowrap name/action row forces the card wider than the column
+    // and the parent card's overflow-hidden clips the Connect button.
+    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border-default bg-surface-raised p-4">
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-primary">
         <Icon name={integration.icon} size={22} />
       </span>

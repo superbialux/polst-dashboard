@@ -26,10 +26,10 @@ import {
 } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import {
-  ATTENTION_ITEMS,
-  DASHBOARD_STATS,
   KEY_DATES,
   STAT_XTICKS,
+  attentionItems,
+  dashboardStats,
   winnerLabel,
   workspaceWindow,
   type Campaign,
@@ -49,6 +49,9 @@ const campaignSources = (sources: Source[], id: string) =>
 
 const polstSources = (sources: Source[], id: string) =>
   sources.filter((s) => s.linked?.type === "polst" && s.linked.id === id);
+
+/** "1 Polst" / "3 Polsts" — counts and nouns agree everywhere on the page. */
+const pluralize = (n: number, singular: string) => (n === 1 ? singular : `${singular}s`);
 
 /** A dot separator between inline stats. */
 const StatDot = () => (
@@ -164,7 +167,7 @@ function HomeCampaignRow({ campaign, sourceCount }: { campaign: Campaign; source
               <span className="font-semibold tabular-nums text-text-primary">
                 {campaign.chain.length}
               </span>{" "}
-              Polsts live
+              {pluralize(campaign.chain.length, "Polst")} live
             </span>
           </>
         ) : (
@@ -175,12 +178,12 @@ function HomeCampaignRow({ campaign, sourceCount }: { campaign: Campaign; source
               <span className="font-semibold tabular-nums text-text-primary">
                 {campaign.chain.length}
               </span>{" "}
-              Polsts staged
+              {pluralize(campaign.chain.length, "Polst")} staged
             </span>
             <StatDot />
             <span>
               <span className="font-semibold tabular-nums text-text-primary">{sourceCount}</span>{" "}
-              sources
+              {pluralize(sourceCount, "source")}
             </span>
           </>
         )}
@@ -200,7 +203,7 @@ function launchSteps(campaign: Campaign, sourceCount: number): SetupStep[] {
       title: "Stage the Polsts",
       done: campaign.chain.length > 0,
       description: campaign.chain.length
-        ? `${campaign.chain.length} Polsts are staged in the voting sequence.`
+        ? `${campaign.chain.length} ${pluralize(campaign.chain.length, "Polst")} ${campaign.chain.length === 1 ? "is" : "are"} staged in the voting sequence.`
         : "The campaign can't be published without at least one Polst.",
       cta: {
         label: campaign.chain.length ? "Review Polsts" : "Add Polsts",
@@ -282,6 +285,17 @@ export function HomePage() {
   const [campaignView, setCampaignView] = useState<"Active" | "Queued">("Active");
   const { campaigns, polsts, sources } = useWorkspace();
 
+  /* Stats and the attention queue derive from the LIVE store — fixing an
+     item (assigning a source, finishing a draft) clears it immediately. */
+  const stats = useMemo(
+    () => dashboardStats(range, campaigns, polsts, sources),
+    [range, campaigns, polsts, sources],
+  );
+  const attention = useMemo(
+    () => attentionItems(campaigns, polsts, sources),
+    [campaigns, polsts, sources],
+  );
+
   const activeCampaigns = campaigns.filter((c) => c.status === "Active");
   const queuedCampaigns = useMemo(
     () =>
@@ -356,7 +370,7 @@ export function HomePage() {
           <DateRangeMenu value={range} onChange={setRange} />
         </div>
         <StatsStrip
-          stats={DASHBOARD_STATS[range]}
+          stats={stats}
           xTicks={STAT_XTICKS[range]}
           scopeLabel={workspaceWindow(range).compareLabel ?? undefined}
         />
@@ -368,15 +382,19 @@ export function HomePage() {
           <ReadyDecisionCard campaign={readyCampaign} more={readyToDecide.length - 1} />
         ) : null}
         <DashboardCard
-          title={`${ATTENTION_ITEMS.length} need attention`}
+          title={attention.length ? `${attention.length} need attention` : "Needs attention"}
           className={readyCampaign ? "lg:col-span-8" : "lg:col-span-12"}
           bodyClassName="pt-2"
         >
-          <ul className="divide-y divide-border-default">
-            {ATTENTION_ITEMS.map((item) => (
-              <AttentionRow key={item.id} item={item} />
-            ))}
-          </ul>
+          {attention.length ? (
+            <ul className="divide-y divide-border-default">
+              {attention.map((item) => (
+                <AttentionRow key={item.id} item={item} />
+              ))}
+            </ul>
+          ) : (
+            <EmptyState icon="verified" title="Nothing needs attention right now" />
+          )}
         </DashboardCard>
       </SectionGrid>
 

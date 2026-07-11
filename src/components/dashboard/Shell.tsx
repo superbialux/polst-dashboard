@@ -19,7 +19,7 @@ import { useModules } from "@/lib/modules";
 import { relativeToToday } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import { SegmentedControl } from "@/components/dashboard/kit";
-import { ATTENTION_ITEMS, WORKSPACE, WORKSPACES } from "@/lib/workspace";
+import { WORKSPACE, WORKSPACES, attentionItems } from "@/lib/workspace";
 
 type NavItem = {
   label: string;
@@ -831,11 +831,17 @@ function WorkspaceMenu() {
 }
 
 /** Compact, dismissible triage prompt anchored above the signed-in user.
- *  The review action lands on Home, where the full attention list lives. */
+ *  The review action lands on Home, where the full attention list lives.
+ *  Derived from the live store, so fixing an item updates the nag too. */
 function SidebarSuggestions() {
   const [visible, setVisible] = useState(true);
-  if (!visible || ATTENTION_ITEMS.length === 0) return null;
-  const firstItem = ATTENTION_ITEMS[0];
+  const { campaigns, polsts, sources } = useWorkspace();
+  const items = useMemo(
+    () => attentionItems(campaigns, polsts, sources),
+    [campaigns, polsts, sources],
+  );
+  if (!visible || items.length === 0) return null;
+  const firstItem = items[0];
 
   return (
     <section
@@ -846,12 +852,12 @@ function SidebarSuggestions() {
         id="sidebar-suggestions-title"
         className="text-sm font-semibold text-sidenav-fg"
       >
-        {ATTENTION_ITEMS.length} items need attention
+        {items.length} {items.length === 1 ? "item needs" : "items need"} attention
       </p>
       <p className="mt-1 text-xs leading-5 text-sidenav-muted">
         {firstItem.title}{" "}
-        {ATTENTION_ITEMS.length > 1 ? (
-          <span className="text-sidenav-fg">+{ATTENTION_ITEMS.length - 1} more</span>
+        {items.length > 1 ? (
+          <span className="text-sidenav-fg">+{items.length - 1} more</span>
         ) : null}
       </p>
       <div className="mt-3 flex gap-2">
@@ -859,7 +865,7 @@ function SidebarSuggestions() {
           to="/"
           className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-md border border-sidenav-active bg-sidenav-active px-3 text-xs font-semibold text-sidenav-fg transition-colors hover:border-sidenav-muted"
         >
-          Review {ATTENTION_ITEMS.length} items
+          Review {items.length} {items.length === 1 ? "item" : "items"}
         </Link>
         <button
           type="button"

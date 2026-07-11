@@ -1,5 +1,6 @@
 import type { PollOption } from "@/lib/poll";
 import {
+  METRIC_INFO,
   TODAY,
   confidenceFor,
   daysBetween,
@@ -229,9 +230,9 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     findings: [
       "Minimal label wins premium feel by 16 points; Bold label still reads faster on shelf by 18.",
       "Instagram voters narrow the premium lead to about +6 — watch the mix.",
-      "Website Embed — Packaging drives 42% of voters at the strongest completion.",
+      "Website Embed — Packaging drives 42% of voters at 76% completion; QR — Shelf Talker completes highest at 78%.",
     ],
-    caveats: ["Creator traffic completes 10 points below the campaign average."],
+    caveats: ["Creator traffic completes at 60% — 11 points below the 71% campaign average."],
     sampleNote: "1,486 voters across 4 sources — past the 1,200 target.",
   },
   {
@@ -772,34 +773,45 @@ const deltaParts = (current: number, previous: number | null) => {
   };
 };
 
-/* Derived facts the stat insights speak from — computed once, all real. */
-const channelVoters = (() => {
-  const byChannel = new Map<Channel, number>();
-  for (const s of SOURCES) byChannel.set(s.channel, (byChannel.get(s.channel) ?? 0) + s.voters);
-  const total = [...byChannel.values()].reduce((a, b) => a + b, 0);
-  const [topChannel, topVoters] = [...byChannel.entries()].sort((a, b) => b[1] - a[1])[0];
-  return { topChannel, topShare: total > 0 ? Math.round((topVoters / total) * 100) : 0 };
-})();
+/* Derived facts the stat insights and attention queue speak from. They take
+   the entity arrays as arguments so pages can pass LIVE store state — assign
+   a source or finish a draft and the line clears immediately. The module
+   constants below apply the same rules to the seed snapshot. */
 
-const uncoveredScheduled = CAMPAIGNS.find(
-  (c) => c.status === "Scheduled" && !!c.startAt && daysBetween(TODAY, c.startAt) <= 14 && c.sources.length === 0,
-);
+const sourcesLinkedTo = (sources: Source[], type: "campaign" | "polst", id: string) =>
+  sources.filter((s) => s.linked?.type === type && s.linked.id === id);
 
-const biggestShortfall = CAMPAIGNS.filter((c) => c.status === "Active" && (c.target ?? 0) > c.voters)
-  .sort((a, b) => (b.target! - b.voters) - (a.target! - a.voters))[0];
-
-const bestEngagementCampaign = CAMPAIGNS.filter((c) => c.status === "Active" && c.views > 0)
-  .sort((a, b) => b.votes / b.views - a.votes / a.views)[0];
-
-const lowestCompletionActive = CAMPAIGNS.filter((c) => c.status === "Active" && c.completionRate !== null)
-  .sort((a, b) => a.completionRate! - b.completionRate!)[0];
+/** A linked object's completion rate (%), resolved from the passed arrays. */
+const linkedRate = (
+  linked: NonNullable<Source["linked"]>,
+  campaigns: Campaign[],
+  polsts: SinglePolst[],
+): number | null => {
+  if (linked.type === "campaign") {
+    const c = campaigns.find((x) => x.id === linked.id);
+    return c && c.voters > 0 ? (c.completed / c.voters) * 100 : null;
+  }
+  const p = polsts.find((x) => x.id === linked.id);
+  return p && p.votes > 0 ? 100 : null; // a single question completes as it votes
+};
 
 /** Sources whose completion trails their object by ≥15 pts on real volume. */
-const laggingSources = SOURCES.filter((s) => {
-  if (!s.linked || s.voters < 100 || s.completionRate === null) return false;
-  const rate = linkedTotals(s.linked).rate;
-  return s.completionRate <= rate - 15;
-});
+const laggingSources = (campaigns: Campaign[], polsts: SinglePolst[], sources: Source[]) =>
+  sources.filter((s) => {
+    if (!s.linked || s.voters < 100 || s.completionRate === null) return false;
+    const rate = linkedRate(s.linked, campaigns, polsts);
+    return rate !== null && s.completionRate <= rate - 15;
+  });
+
+/** Scheduled campaigns starting ≤14 days out with nothing collecting voters. */
+const uncoveredScheduledFor = (campaigns: Campaign[], sources: Source[]) =>
+  campaigns.find(
+    (c) =>
+      c.status === "Scheduled" &&
+      !!c.startAt &&
+      daysBetween(TODAY, c.startAt) <= 14 &&
+      sourcesLinkedTo(sources, "campaign", c.id).length === 0,
+  );
 
 const trendLine = (subject: string, stat: Stat, range: StatRange) => {
   const movement = stat.trend === "down" ? "fell" : stat.trend === "up" ? "rose" : "held steady";
@@ -809,8 +821,32 @@ const trendLine = (subject: string, stat: Stat, range: StatRange) => {
     : `${subject} ${movement}${change} versus the previous period.`;
 };
 
-const buildStats = (range: StatRange): Stat[] => {
+const buildStats = (
+  range: StatRange,
+  campaigns: Campaign[],
+  polsts: SinglePolst[],
+  sources: Source[],
+): Stat[] => {
   const w = workspaceWindow(range);
+  // Insight facts — recomputed from the passed (live) arrays each call.
+  const channelVoters = (() => {
+    const byChannel = new Map<Channel, number>();
+    for (const s of sources) byChannel.set(s.channel, (byChannel.get(s.channel) ?? 0) + s.voters);
+    const total = [...byChannel.values()].reduce((a, b) => a + b, 0);
+    const [topChannel, topVoters] = [...byChannel.entries()].sort((a, b) => b[1] - a[1])[0];
+    return { topChannel, topShare: total > 0 ? Math.round((topVoters / total) * 100) : 0 };
+  })();
+  const uncoveredScheduled = uncoveredScheduledFor(campaigns, sources);
+  const biggestShortfall = campaigns
+    .filter((c) => c.status === "Active" && (c.target ?? 0) > c.voters)
+    .sort((a, b) => (b.target! - b.voters) - (a.target! - a.voters))[0];
+  const bestEngagementCampaign = campaigns
+    .filter((c) => c.status === "Active" && c.views > 0)
+    .sort((a, b) => b.votes / b.views - a.votes / a.views)[0];
+  const lowestCompletionActive = campaigns
+    .filter((c) => c.status === "Active" && c.completionRate !== null)
+    .sort((a, b) => a.completionRate! - b.completionRate!)[0];
+  const lagging = laggingSources(campaigns, polsts, sources);
   const [prevStart, prevEnd] = windowBounds(range, 1);
   const hasPrev = range !== "All";
   const cur = {
@@ -883,8 +919,8 @@ const buildStats = (range: StatRange): Stat[] => {
     ...(lowestCompletionActive
       ? [{ text: `${lowestCompletionActive.name} completes at ${fmtPct(lowestCompletionActive.completionRate!, 0)} — the lowest of any active campaign.`, to: `/campaigns/${lowestCompletionActive.id}`, tone: "warning" as const }]
       : []),
-    ...laggingSources.slice(0, 1).map((s) => ({
-      text: `${s.name} completes at ${fmtPct(s.completionRate!, 0)} — its campaign averages ${fmtPct(linkedTotals(s.linked!).rate, 0)}.`,
+    ...lagging.slice(0, 1).map((s) => ({
+      text: `${s.name} completes at ${fmtPct(s.completionRate!, 0)} — its campaign averages ${fmtPct(linkedRate(s.linked!, campaigns, polsts) ?? 0, 0)}.`,
       to: "/distribution",
       tone: "danger" as const,
     })),
@@ -894,20 +930,18 @@ const buildStats = (range: StatRange): Stat[] => {
   return stats.map((stat) => ({ ...stat, info: STAT_INFO[stat.label] }));
 };
 
-/** One definition per metric — attached to every stat on the strip. */
+/** One definition per metric — canon's words, never restated locally. */
 const STAT_INFO: Record<string, string> = {
-  "Total views": "Times a Polst was shown, across every campaign, standalone Polst, and source in this workspace.",
-  "Total votes": "Option taps. A voter answering a three-question campaign counts as three votes.",
-  "Engagement rate": "Total votes ÷ total views for the period.",
-  "Completion rate": "Voters who completed the full sequence ÷ voters who started it.",
+  "Total views": METRIC_INFO.views,
+  "Total votes": METRIC_INFO.votes,
+  "Engagement rate": METRIC_INFO.engagementRate,
+  "Completion rate": METRIC_INFO.completionRate,
 };
 
-export const DASHBOARD_STATS: Record<StatRange, Stat[]> = {
-  "7D": buildStats("7D"),
-  "30D": buildStats("30D"),
-  "90D": buildStats("90D"),
-  All: buildStats("All"),
-};
+/** The live stat strip — Home passes the store's entity arrays so insight
+ *  lines clear the moment a mutation fixes them. Window totals still derive
+ *  from the seed series (store-created objects carry zero traffic). */
+export const dashboardStats = buildStats;
 
 /** Axis labels for the expanded chart — first / middle / last window day. */
 export const STAT_XTICKS: Record<StatRange, string[]> = Object.fromEntries(
@@ -931,25 +965,37 @@ export type ListItem = {
   to: string;
 };
 
-/** Rule-derived queue, ordered by severity (a→e in the derivation), cap 5. */
-export const ATTENTION_ITEMS: ListItem[] = (() => {
+/** Rule-derived queue, ordered by severity (a→e in the derivation), cap 5.
+ *  Pure over the entity arrays: Home and the Shell nag pass the LIVE store
+ *  state, so assigning a source, adding a Polst, or finishing a draft clears
+ *  its item immediately. */
+export function attentionItems(
+  campaigns: Campaign[],
+  polsts: SinglePolst[],
+  sources: Source[],
+): ListItem[] {
   const items: ListItem[] = [];
   // a) Scheduled campaign starting ≤14 days with no sources — launch is blocked.
-  for (const c of CAMPAIGNS) {
-    if (c.status === "Scheduled" && c.startAt && daysBetween(TODAY, c.startAt) <= 14 && !c.sources.length) {
+  for (const c of campaigns) {
+    if (
+      c.status === "Scheduled" &&
+      c.startAt &&
+      daysBetween(TODAY, c.startAt) <= 14 &&
+      sourcesLinkedTo(sources, "campaign", c.id).length === 0
+    ) {
       items.push({
         id: `${c.id}-no-sources`,
         title: `${c.name} starts ${relativeToToday(c.startAt)} with no sources`,
         reason: `Nothing is set up to collect voters before the ${fmtDate(c.startAt)} start. Add a QR code, link, or embed.`,
         tone: "danger",
         action: "Add sources",
-        to: `/campaigns/${c.id}`,
+        to: `/campaigns/${c.id}?tab=sources`,
       });
     }
   }
   // b) A source eroding its campaign's completion on real volume.
-  for (const s of laggingSources) {
-    const rate = linkedTotals(s.linked!).rate;
+  for (const s of laggingSources(campaigns, polsts, sources)) {
+    const rate = linkedRate(s.linked!, campaigns, polsts) ?? 0;
     items.push({
       id: `${s.id}-completion`,
       title: `${s.name} completion is ${fmtPct(s.completionRate!, 0)} — the campaign averages ${fmtPct(rate, 0)}`,
@@ -961,8 +1007,8 @@ export const ATTENTION_ITEMS: ListItem[] = (() => {
   }
   // c) The nearest key date (≤21 days out) with nothing planned against it.
   const attachedEvents = new Set([
-    ...CAMPAIGNS.map((c) => c.event),
-    ...SINGLE_POLSTS.map((p) => p.event),
+    ...campaigns.filter((c) => c.status !== "Archived").map((c) => c.event),
+    ...polsts.filter((p) => p.status !== "Archived").map((p) => p.event),
   ]);
   const uncovered = KEY_DATES.filter(
     (k) => daysBetween(TODAY, k.start) >= 0 && daysBetween(TODAY, k.start) <= 21 && !attachedEvents.has(k.id),
@@ -978,7 +1024,7 @@ export const ATTENTION_ITEMS: ListItem[] = (() => {
     });
   }
   // d) Draft campaigns with nothing inside them.
-  for (const c of CAMPAIGNS) {
+  for (const c of campaigns) {
     if (c.status === "Draft" && !c.chain.length) {
       items.push({
         id: `${c.id}-empty`,
@@ -986,12 +1032,12 @@ export const ATTENTION_ITEMS: ListItem[] = (() => {
         reason: "The draft can't be scheduled until it has at least one question.",
         tone: "neutral",
         action: "Add Polsts",
-        to: `/campaigns/${c.id}`,
+        to: `/campaigns/${c.id}?tab=polsts`,
       });
     }
   }
   // e) Draft Polsts still missing a schedule.
-  for (const p of SINGLE_POLSTS) {
+  for (const p of polsts) {
     if (p.status === "Draft" && !p.startAt) {
       items.push({
         id: `${p.id}-unfinished`,
@@ -1004,7 +1050,10 @@ export const ATTENTION_ITEMS: ListItem[] = (() => {
     }
   }
   return items.slice(0, 5);
-})();
+}
+
+/** Seed-time snapshot of the queue (verify-model and static consumers). */
+export const ATTENTION_ITEMS: ListItem[] = attentionItems(CAMPAIGNS, SINGLE_POLSTS, SOURCES);
 
 /* ── Calendar (Home) ─────────────────────────────────────────────── */
 
@@ -1051,12 +1100,19 @@ export const CALENDAR_ITEMS: CalendarItem[] = [
 
 export type WhatChanged = { id: string; text: string; at: string; to: string };
 
-export const WHAT_CHANGED: WhatChanged[] = [
+/** Feeds render newest-first; sorting here keeps every consumer honest. */
+const byMostRecent = <T extends { at: string }>(items: T[]): T[] =>
+  [...items].sort((a, b) => b.at.localeCompare(a.at));
+
+/* Milestone stamps agree with the derived daily series: cumulative voters
+   cross 1,200 (Packaging) on Jun 13 and 2,000 (Summer) on Jun 15 — checked
+   by scripts/verify-model.ts. */
+export const WHAT_CHANGED: WhatChanged[] = byMostRecent([
   { id: "wc-packaging-target", text: "Packaging Direction Test passed its 1,200-voter target", at: "2026-06-13", to: "/campaigns/packaging-direction" },
   { id: "wc-conference", text: "QR — Conference Booth completion fell to 41%", at: "2026-06-14", to: "/distribution" },
   { id: "wc-flavor-report", text: "Flavor Launch Recap report is ready", at: "2026-06-11", to: "/analytics/reports" },
-  { id: "wc-summer-2k", text: "Summer Flavor Lineup passed 2,000 voters", at: "2026-06-12", to: "/campaigns/summer-flavor-lineup" },
-];
+  { id: "wc-summer-2k", text: "Summer Flavor Lineup passed 2,000 voters", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup" },
+]);
 
 export type WorkspaceNotification = {
   id: string;
@@ -1067,13 +1123,16 @@ export type WorkspaceNotification = {
   read: boolean;
 };
 
-export const WORKSPACE_NOTIFICATIONS: WorkspaceNotification[] = [
+/* Stamps agree with the derived series: Summer crosses 2,000 voters on
+   Jun 15 (2,103 is today's total), and Holiday first clears the Leading
+   threshold (≥70% of its 1,200 target: 892 voters = 74%) on Jun 15. */
+export const WORKSPACE_NOTIFICATIONS: WorkspaceNotification[] = byMostRecent([
   { id: "nt-packaging-target", title: "Packaging Direction Test passed its target", body: "1,486 of 1,200 voters — the recommendation is ready to review.", at: "2026-06-13", to: "/campaigns/packaging-direction", read: false },
   { id: "nt-conference", title: "QR — Conference Booth completion fell to 41%", body: "Scans keep coming, but most voters stop before the last question.", at: "2026-06-14", to: "/distribution", read: false },
   { id: "nt-flavor-report", title: "Flavor Launch Recap report is ready", body: "The decision report for the ended run is ready to preview.", at: "2026-06-11", to: "/analytics/reports", read: true },
-  { id: "nt-summer-2k", title: "Summer Flavor Lineup passed 2,000 voters", body: "2,103 voters so far, against a 2,500 target.", at: "2026-06-12", to: "/campaigns/summer-flavor-lineup", read: false },
-  { id: "nt-holiday-leading", title: "Holiday Gifting Bundles moved to Leading", body: "Trio Box leads by 10 points with 74% of the voter target reached.", at: "2026-06-14", to: "/campaigns/holiday-gifting-bundles", read: false },
-];
+  { id: "nt-summer-2k", title: "Summer Flavor Lineup passed 2,000 voters", body: "2,103 voters so far, against a 2,500 target.", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup", read: false },
+  { id: "nt-holiday-leading", title: "Holiday Gifting Bundles moved to Leading", body: "Trio Box leads by 10 points with 74% of the voter target reached.", at: "2026-06-15", to: "/campaigns/holiday-gifting-bundles", read: false },
+]);
 
 /* ── Reports ─────────────────────────────────────────────────────── */
 

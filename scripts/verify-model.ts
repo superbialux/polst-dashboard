@@ -19,6 +19,9 @@ import {
   REPORTS,
   SINGLE_POLSTS,
   SOURCES,
+  WHAT_CHANGED,
+  WORKSPACE_NOTIFICATIONS,
+  attentionItems,
   browserMix,
   campaignSeries,
   countryMix,
@@ -234,6 +237,52 @@ for (const p of SINGLE_POLSTS) {
     `polst ${p.id}: perHour24 ${v?.perHour24} ≠ Σ trailing 24h / 24`,
   );
 }
+
+/* ── 16. Feeds are newest-first; milestone stamps match the series ── */
+const newestFirst = (xs: Array<{ at: string }>) =>
+  xs.every((x, i) => i === 0 || xs[i - 1].at >= x.at);
+check(newestFirst(WHAT_CHANGED), "WHAT_CHANGED is not sorted newest-first");
+check(newestFirst(WORKSPACE_NOTIFICATIONS), "WORKSPACE_NOTIFICATIONS is not sorted newest-first");
+
+/** First date the campaign's cumulative voters reach `threshold`. */
+const voterCrossDate = (campaignId: string, threshold: number): string | undefined => {
+  const c = CAMPAIGNS.find((x) => x.id === campaignId)!;
+  const s = campaignSeries(c, "voters");
+  let cum = 0;
+  for (let i = 0; i < s.dates.length; i++) {
+    cum += s.values[i];
+    if (cum >= threshold) return s.dates[i];
+  }
+  return undefined;
+};
+const stampOf = (id: string) =>
+  WHAT_CHANGED.find((w) => w.id === id)?.at ??
+  WORKSPACE_NOTIFICATIONS.find((n) => n.id === id)?.at;
+for (const [id, campaignId, threshold] of [
+  ["wc-summer-2k", "summer-flavor-lineup", 2000],
+  ["nt-summer-2k", "summer-flavor-lineup", 2000],
+  ["wc-packaging-target", "packaging-direction", 1200],
+  ["nt-packaging-target", "packaging-direction", 1200],
+] as const) {
+  const cross = voterCrossDate(campaignId, threshold);
+  check(
+    stampOf(id) === cross,
+    `feed ${id}: stamped ${stampOf(id)} but the series crosses ${threshold} voters on ${cross}`,
+  );
+}
+// "Moved to Leading" is stamped on the day 70% of the voter target is reached.
+const holiday = CAMPAIGNS.find((c) => c.id === "holiday-gifting-bundles")!;
+const leadingDate = voterCrossDate(holiday.id, Math.ceil(0.7 * holiday.target!));
+check(
+  stampOf("nt-holiday-leading") === leadingDate,
+  `feed nt-holiday-leading: stamped ${stampOf("nt-holiday-leading")} but 70% of target is reached on ${leadingDate}`,
+);
+
+/* ── 17. Attention snapshot equals the pure derivation over the seed ── */
+check(
+  JSON.stringify(ATTENTION_ITEMS) === JSON.stringify(attentionItems(CAMPAIGNS, SINGLE_POLSTS, SOURCES)),
+  "ATTENTION_ITEMS ≠ attentionItems(seed state)",
+);
 
 if (failures) {
   console.error(`\n${failures} invariant(s) violated.`);

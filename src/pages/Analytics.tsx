@@ -3,7 +3,6 @@ import { Link, Navigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Menu, MenuItem } from "@/components/Menu";
-import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import {
@@ -13,14 +12,13 @@ import {
   DashboardCard,
   DashboardPage,
   DataTable,
-  DetailList,
   EmptyState,
   FilterBar,
   Funnel,
   InfoHint,
   LockedCard,
   MixBars,
-  PollResults,
+  ReportPreview,
   SectionGrid,
   SignalBadge,
   StatTile,
@@ -31,7 +29,6 @@ import {
 import {
   METRIC_INFO,
   fmtDate,
-  fmtDateRange,
   fmtInt,
   fmtPct,
   isReadyToDecide,
@@ -51,7 +48,6 @@ import {
   WHAT_CHANGED,
   WORKSPACE,
   campaignSeries,
-  polstOptions,
   polstSeries,
   winnerLabel,
   type Campaign,
@@ -352,7 +348,7 @@ function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
             </Link>
             <p className="mt-0.5 text-xs text-text-secondary">
               {winnerLabel(campaign)} · {fmtInt(campaign.voters)} voters
-              {campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""}
+              {campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""} · run to date
             </p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
@@ -405,7 +401,8 @@ export function AnalyticsOverviewPage() {
       `${WORKSPACE.brand} — analytics (${scopeLine(filters)})`,
       `Views ${fmtInt(views)} · Votes ${fmtInt(votes)} · Engagement ${pct(votes, views, 1)} · Completion ${pct(completed, voters, 1)}`,
       ...ready.map(
-        (c) => `Ready to decide: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters)`,
+        (c) =>
+          `Ready to decide: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters run to date)`,
       ),
     ].join("\n");
 
@@ -516,6 +513,12 @@ export function AnalyticsOverviewPage() {
           columns={campaignPerfColumns}
           emptyLabel="No campaigns collected votes in this view"
         />
+        {campaignPerf.length ? (
+          <p className="border-t border-border-default px-5 py-3 text-xs text-text-secondary">
+            Voters and completion are scoped to the selected window; status, signal, and winner
+            reflect the whole run.
+          </p>
+        ) : null}
       </DashboardCard>
 
       <DashboardCard
@@ -682,160 +685,9 @@ export function AnalyticsInsightsPage() {
 const reportPath = (report: WorkspaceReport) =>
   `/${report.linked.type === "campaign" ? "campaigns" : "polsts"}/${report.linked.id}`;
 
-function CampaignReportBody({ campaign }: { campaign: Campaign }) {
-  const topSource = [...campaign.sources].sort((a, b) => b.voters - a.voters)[0];
-  return (
-    <div className="space-y-4">
-      <div>
-        <SignalBadge
-          signal={campaign.signal}
-          detail={campaign.confidence !== "—" ? `${campaign.confidence} confidence` : undefined}
-        />
-        <h3 className="mt-2 font-display text-lg font-semibold leading-6 text-text-primary">
-          {winnerLabel(campaign)}
-        </h3>
-        <p className="mt-1 text-sm leading-6 text-text-secondary">{campaign.summary}</p>
-        {campaign.caveats[0] ? (
-          <p className="mt-2 flex items-start gap-1.5 text-sm leading-5 text-status-warning">
-            <Icon name="error" size={18} className="shrink-0" />
-            <span>{campaign.caveats[0]}</span>
-          </p>
-        ) : null}
-      </div>
-      <DetailList
-        items={[
-          [
-            "Voters",
-            `${fmtInt(campaign.voters)}${campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""}`,
-          ],
-          [
-            "Completion",
-            campaign.completionRate !== null ? fmtPct(campaign.completionRate, 0) : "—",
-          ],
-          ["Top source", topSource && topSource.voters > 0 ? topSource.name : "—"],
-          ["Run dates", fmtDateRange(campaign.startAt, campaign.endAt)],
-        ]}
-      />
-      <div>
-        <p className="mb-2 text-xs font-semibold text-text-secondary">Voter journey</p>
-        <Funnel
-          steps={campaign.chain.map((q, i) => ({
-            label: q.question,
-            count: campaign.votesByQuestion[i] ?? 0,
-          }))}
-        />
-      </div>
-      {campaign.sources.length ? (
-        <div>
-          <p className="mb-2 text-xs font-semibold text-text-secondary">Sources</p>
-          <ul className="divide-y divide-border-default rounded-md border border-border-default">
-            {campaign.sources.map((source) => (
-              <li key={source.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                <span className="min-w-0 truncate text-sm font-medium text-text-primary">
-                  {source.name}
-                </span>
-                <span className="shrink-0 text-xs tabular-nums text-text-secondary">
-                  {fmtInt(source.voters)} voters ·{" "}
-                  {source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—"}{" "}
-                  completion
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function PolstReportBody({ polst }: { polst: SinglePolst }) {
-  return (
-    <div className="space-y-4">
-      <h3 className="font-display text-lg font-semibold leading-6 text-text-primary">
-        {polst.question}
-      </h3>
-      <PollResults options={polstOptions(polst)} dense className="mx-auto max-w-sm" />
-      <DetailList
-        items={[
-          ["Views", fmtInt(polst.views)],
-          ["Votes", fmtInt(polst.votes)],
-          [
-            "Votes / view",
-            polst.engagementRate !== null ? fmtPct(polst.engagementRate, 1) : "—",
-          ],
-          ["Interactions", fmtInt(polst.interactions)],
-          ["Run dates", fmtDateRange(polst.startAt, polst.endAt)],
-        ]}
-      />
-    </div>
-  );
-}
-
-function ReportPreviewModal({
-  report,
-  onClose,
-}: {
-  report: WorkspaceReport | null;
-  onClose: () => void;
-}) {
-  const { campaignById, polstById } = useWorkspace();
-  const copy = useCopyText();
-  const campaign = report?.linked.type === "campaign" ? campaignById(report.linked.id) : undefined;
-  const polst = report?.linked.type === "polst" ? polstById(report.linked.id) : undefined;
-
-  const summary = () => {
-    if (campaign) {
-      return [
-        report!.name,
-        `${winnerLabel(campaign)} — ${campaign.decision}`,
-        campaign.summary,
-        `Voters ${fmtInt(campaign.voters)}${campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""} · Completion ${
-          campaign.completionRate !== null ? fmtPct(campaign.completionRate, 0) : "—"
-        }`,
-        ...campaign.findings.map((finding) => `• ${finding}`),
-        ...(campaign.caveats[0] ? [`Caveat: ${campaign.caveats[0]}`] : []),
-      ].join("\n");
-    }
-    if (polst) {
-      return [
-        report!.name,
-        `${polst.question} — ${polst.optionA} ${polst.splitA}% / ${polst.optionB} ${100 - polst.splitA}%`,
-        `Views ${fmtInt(polst.views)} · Votes ${fmtInt(polst.votes)} · Interactions ${fmtInt(polst.interactions)}`,
-      ].join("\n");
-    }
-    return "";
-  };
-
-  return (
-    <Modal
-      open={Boolean(report)}
-      onClose={onClose}
-      label="Report preview"
-      title={report?.name ?? "Report"}
-      className="max-w-2xl"
-      footer={
-        <div className="flex justify-end gap-2 p-4">
-          <Button variant="secondary" onClick={() => window.print()}>
-            Print
-          </Button>
-          <Button onClick={() => void copy(summary())}>Copy summary</Button>
-        </div>
-      }
-    >
-      <div className="p-4 pt-3">
-        {campaign ? (
-          <CampaignReportBody campaign={campaign} />
-        ) : polst ? (
-          <PolstReportBody polst={polst} />
-        ) : null}
-      </div>
-    </Modal>
-  );
-}
-
 export function AnalyticsReportsPage() {
   const { filters, rows, resetFilters } = useAnalytics();
-  const { campaignById, polstById } = useWorkspace();
+  const { campaignById, polstById, sources } = useWorkspace();
   const [previewId, setPreviewId] = useState<string | null>(null);
 
   // A report follows its object: it shows when the linked campaign/Polst
@@ -850,6 +702,17 @@ export function AnalyticsReportsPage() {
     [rows],
   );
   const preview = scoped.find((report) => report.id === previewId) ?? null;
+  /* The shared ReportPreview speaks the live entity: the linked object and
+   * its sources come from the store, never the stale seed back-refs. */
+  const previewCampaign =
+    preview?.linked.type === "campaign" ? campaignById(preview.linked.id) : undefined;
+  const previewPolst =
+    preview?.linked.type === "polst" ? polstById(preview.linked.id) : undefined;
+  const previewSources = previewCampaign
+    ? sources.filter(
+        (s) => s.linked?.type === "campaign" && s.linked.id === previewCampaign.id,
+      )
+    : undefined;
 
   const linkedName = (report: WorkspaceReport) =>
     report.linked.type === "campaign"
@@ -924,7 +787,14 @@ export function AnalyticsReportsPage() {
         </DashboardCard>
       )}
 
-      <ReportPreviewModal report={preview} onClose={() => setPreviewId(null)} />
+      <ReportPreview
+        open={Boolean(preview)}
+        onClose={() => setPreviewId(null)}
+        title={preview?.name}
+        campaign={previewCampaign}
+        sources={previewSources}
+        polst={previewPolst}
+      />
     </DashboardPage>
   );
 }

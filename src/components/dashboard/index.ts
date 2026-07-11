@@ -1,6 +1,7 @@
 export * from "./kit";
 export * from "./Calendar";
 export * from "./NotFound";
+export { ReportPreview } from "./ReportPreview";
 export * from "./Shell";
 // Kit-adjacent primitives every page composes with.
 export { Chip, type ChipProps } from "@/components/ui/badge";

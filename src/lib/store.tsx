@@ -14,7 +14,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { TODAY, signalFor, type Status } from "@/lib/canon";
+import { TODAY, fmtDate, fmtInt, signalFor, type Status } from "@/lib/canon";
 import {
   CAMPAIGNS,
   SINGLE_POLSTS,
@@ -101,8 +101,10 @@ const blankPolst = (id: string, input: CreatePolstInput): SinglePolst => ({
 });
 
 /** Publishing resolves from the object's dates: a future start is Scheduled,
- *  a past end is Ended (never a falsely "Active" run), otherwise Active. */
-const publishedStatus = (startAt?: string, endAt?: string): Status =>
+ *  a past end is Ended (never a falsely "Active" run), otherwise Active.
+ *  Exported so pages can speak the resolved outcome (toasts never claim
+ *  "live" for a run the store resolved to Ended). */
+export const publishedStatus = (startAt?: string, endAt?: string): Status =>
   endAt && endAt < TODAY ? "Ended" : startAt && startAt > TODAY ? "Scheduled" : "Active";
 
 /* ── Public shape ─────────────────────────────────────────────────── */
@@ -149,16 +151,17 @@ type WorkspaceStore = {
   addLibraryPolstToCampaign: (campaignId: string, polstId: string) => void;
   removeChainQuestion: (campaignId: string, questionId: string) => void;
   reorderChain: (campaignId: string, from: number, to: number) => void;
-  publishCampaign: (id: string) => { ok: true } | { ok: false; reason: string };
-  unpublishCampaign: (id: string) => void;
+  publishCampaign: (id: string) => { ok: true; status: Status } | { ok: false; reason: string };
+  unpublishCampaign: (id: string) => { ok: true } | { ok: false; reason: string };
+  restoreCampaign: (id: string) => Status;
   endCampaign: (id: string) => void;
   archiveCampaign: (id: string) => void;
 
   createPolst: (input: CreatePolstInput, opts?: { publish?: boolean }) => string;
   updatePolst: (id: string, patch: Partial<CreatePolstInput>) => void;
-  publishPolst: (id: string) => { ok: true } | { ok: false; reason: string };
+  publishPolst: (id: string) => { ok: true; status: Status } | { ok: false; reason: string };
   archivePolst: (id: string) => void;
-  restorePolst: (id: string) => void;
+  restorePolst: (id: string) => Status;
 
   addSource: (input: AddSourceInput) => string;
   assignSource: (sourceId: string, linked: NonNullable<Source["linked"]>) => void;
@@ -300,18 +303,48 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (!c.startAt) return { ok: false as const, reason: "Set a schedule first." };
         if (c.endAt && c.endAt < c.startAt)
           return { ok: false as const, reason: "The end date is before the start." };
-        patchCampaign(id, (x) => {
-          const status = publishedStatus(x.startAt, x.endAt);
+        const status = publishedStatus(c.startAt, c.endAt);
+        patchCampaign(id, (x) => ({
+          ...x,
+          status,
+          signal: signalFor({ status, voters: x.voters, target: x.target, marginPts: 0 }),
+        }));
+        return { ok: true as const, status };
+      },
+      // A run that collected votes never rewinds to Draft — the evidence is
+      // part of the record. Ending it is the honest exit.
+      unpublishCampaign: (id) => {
+        const c = campaigns.find((x) => x.id === id);
+        if (!c) return { ok: false as const, reason: "Campaign not found." };
+        if (c.voters > 0)
           return {
-            ...x,
-            status,
-            signal: signalFor({ status, voters: x.voters, target: x.target, marginPts: 0 }),
+            ok: false as const,
+            reason: "This run has collected votes — end it instead.",
           };
-        });
+        patchCampaign(id, (x) => ({ ...x, status: "Draft", signal: "Not started" }));
         return { ok: true as const };
       },
-      unpublishCampaign: (id) =>
-        patchCampaign(id, (c) => ({ ...c, status: "Draft", signal: "Not started" })),
+      // Restoring from the archive mirrors restorePolst: a voted run comes
+      // back as Ended (its results are the record), a clean one as Draft.
+      restoreCampaign: (id) => {
+        const c = campaigns.find((x) => x.id === id);
+        const status: Status = c && c.voters > 0 ? "Ended" : "Draft";
+        patchCampaign(id, (x) =>
+          x.voters > 0
+            ? {
+                ...x,
+                status: "Ended",
+                signal: signalFor({
+                  status: "Ended",
+                  voters: x.voters,
+                  target: x.target,
+                  marginPts: x.winner?.marginPts ?? 0,
+                }),
+              }
+            : { ...x, status: "Draft", signal: "Not started" },
+        );
+        return status;
+      },
       endCampaign: (id) =>
         patchCampaign(id, (c) => ({
           ...c,
@@ -323,6 +356,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             target: c.target,
             marginPts: c.winner?.marginPts ?? 0,
           }),
+          // The authored summary/next step speak in mid-run voice ("two days
+          // remain…"), which turns false the moment the run ends in-session.
+          // The brief and report switch to ended-voice facts instead.
+          summary: `Voting closed ${fmtDate(TODAY)} with ${fmtInt(c.voters)} voters${
+            c.target ? ` of the ${fmtInt(c.target)} target` : ""
+          }.`,
+          nextStep: "Review the recommendation and lock the direction.",
         })),
       archiveCampaign: (id) => patchCampaign(id, (c) => ({ ...c, status: "Archived" })),
 
@@ -345,14 +385,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           return { ok: false as const, reason: "Finish the question and both options first." };
         if (p.endAt && p.startAt && p.endAt < p.startAt)
           return { ok: false as const, reason: "The end date is before the start." };
+        const status = publishedStatus(p.startAt, p.endAt);
         patchPolst(id, (x) => ({ ...x, status: publishedStatus(x.startAt, x.endAt) }));
-        return { ok: true as const };
+        return { ok: true as const, status };
       },
       archivePolst: (id) => patchPolst(id, (p) => ({ ...p, status: "Archived" })),
       // A run that collected votes can't go back to Draft — its evidence is
-      // part of the record, so it restores as Ended instead.
-      restorePolst: (id) =>
-        patchPolst(id, (p) => ({ ...p, status: p.votes > 0 ? "Ended" : "Draft" })),
+      // part of the record, so it restores as Ended instead. Returns the
+      // resulting status so the UI speaks the true destination.
+      restorePolst: (id) => {
+        const p = polsts.find((x) => x.id === id);
+        const status: Status = p && p.votes > 0 ? "Ended" : "Draft";
+        patchPolst(id, (x) => ({ ...x, status: x.votes > 0 ? "Ended" : "Draft" }));
+        return status;
+      },
 
       addSource: (input) => {
         const id = uniqueId(input.name, new Set(sources.map((s) => s.id)));
