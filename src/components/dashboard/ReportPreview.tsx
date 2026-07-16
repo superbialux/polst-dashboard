@@ -11,7 +11,7 @@ import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { fmtDateRange, fmtInt, fmtPct, pct } from "@/lib/canon";
+import { METRIC_INFO, fmtDateRange, fmtInt, fmtPct, pct } from "@/lib/canon";
 import {
   decisionEyebrow,
   headlineLabel,
@@ -21,7 +21,7 @@ import {
   type SinglePolst,
   type Source,
 } from "@/lib/workspace";
-import { DetailList, Funnel, PollResults, type FunnelStep } from "./kit";
+import { DetailList, Funnel, InfoHint, PollResults, type FunnelStep } from "./kit";
 
 const campaignSummary = (c: Campaign, sources: Source[]): string => {
   const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
@@ -75,11 +75,14 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
       <header>
         <p
           className={cn(
-            "text-sm font-semibold",
+            "flex items-center gap-1 text-sm font-semibold",
             eyebrow.ready ? "text-status-success" : "text-text-primary",
           )}
         >
           {eyebrow.label}
+          {eyebrow.ready && campaign.confidence !== "—" ? (
+            <InfoHint label="Confidence" text={METRIC_INFO.confidence} />
+          ) : null}
         </p>
         <h3 className="mt-2 font-display text-lg font-semibold leading-6 text-text-primary">
           {zeroVoters ? "No result — nothing was collected" : headlineLabel(campaign)}

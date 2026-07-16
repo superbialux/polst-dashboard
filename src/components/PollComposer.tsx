@@ -183,7 +183,7 @@ export type ComposerState = {
   question: string;
   optionA: string;
   optionB: string;
-  /** First selected category — stores persist it as the vertical. */
+  /** First selected category — stores persist it as the category. */
   category: string | null;
   optionsSet: boolean;
 };
@@ -204,7 +204,7 @@ export function PollComposer({
   onChange,
   className,
 }: {
-  /** Category choices for the select (e.g. workspace verticals). */
+  /** Category choices for the select (e.g. workspace categories). */
   categories: string[];
   /** Starting values when editing an existing draft. */
   initial?: ComposerInitial;

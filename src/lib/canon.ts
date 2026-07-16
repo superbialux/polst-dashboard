@@ -102,6 +102,8 @@ export const METRIC_INFO = {
     "Total votes ÷ voters for the period. A voter answering a three-question campaign counts as three votes.",
   voteVelocity:
     "Average votes per hour over the trailing window, from this Polst's daily votes.",
+  confidence:
+    "Evidence volume, not statistics. High: voter target reached with 2+ sources. Medium: 70% of target, or 2+ sources. Low: below both. No significance test is run.",
 } as const;
 
 /* ── Formatters (the only number/date renderers) ──────────────────── */

@@ -14,7 +14,6 @@ import {
   DataTable,
   EmptyState,
   FilterBar,
-  Funnel,
   InfoHint,
   LockedCard,
   MixBars,
@@ -49,6 +48,7 @@ import {
   campaignSeries,
   clipToRun,
   polstSeries,
+  readyTitle,
   verdictLabel,
   winnerLabel,
   type Campaign,
@@ -57,14 +57,14 @@ import {
 } from "@/lib/workspace";
 import {
   ANALYTICS_CHANNELS,
-  ANALYTICS_VERTICALS,
+  ANALYTICS_CATEGORIES,
   analyticsRows,
   mixBy,
   segmentTotal,
-  verticalRows,
+  categoryRows,
   type AnalyticsFilters,
   type SegmentRow,
-  type VerticalRow,
+  type CategoryRow,
 } from "@/lib/analytics";
 import { useAnalytics } from "@/lib/analytics-context";
 import { useModules } from "@/lib/modules";
@@ -79,7 +79,7 @@ function AnalyticsFilterBar() {
       filters={filters}
       onChange={setFilters}
       channels={ANALYTICS_CHANNELS}
-      verticals={ANALYTICS_VERTICALS}
+      categories={ANALYTICS_CATEGORIES}
     />
   );
 }
@@ -92,7 +92,7 @@ function EmptyAnalytics() {
       <EmptyState
         icon="filter_alt_off"
         title="No activity matches these filters"
-        hint="Nothing collected votes in this window for the selected channel and vertical."
+        hint="Nothing collected votes in this window for the selected channel and category."
         action={{ label: "Reset filters", onClick: resetFilters }}
       />
     </DashboardCard>
@@ -137,7 +137,7 @@ function scopeLine(filters: AnalyticsFilters): string {
   return [
     `${fmtDate(start)} – ${fmtDate(end)}`,
     filters.channel !== "All channels" ? filters.channel : null,
-    filters.vertical !== "All verticals" ? filters.vertical : null,
+    filters.category !== "All categories" ? filters.category : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -145,7 +145,7 @@ function scopeLine(filters: AnalyticsFilters): string {
 
 /* ── Windowed series (derived, never fabricated) ─────────────────────
    Every object's daily votes come from the same series the Home stats
-   read; a channel/vertical filter keeps each object's share by exact
+   read; a channel/category filter keeps each object's share by exact
    integer allocation, so the chart total equals the table totals. */
 
 const OBJECTS = new Map<string, { kind: "campaign" | "polst"; object: Campaign | SinglePolst }>([
@@ -297,11 +297,11 @@ const polstPerfColumns: Array<DataColumn<PolstPerfRow>> = [
   },
 ];
 
-const verticalColumns: Array<DataColumn<VerticalRow>> = [
+const categoryColumns: Array<DataColumn<CategoryRow>> = [
   {
-    header: "Vertical",
+    header: "Category",
     cell: (row) => (
-      <span className="font-display font-semibold text-text-primary">{row.vertical}</span>
+      <span className="font-display font-semibold text-text-primary">{row.category}</span>
     ),
   },
   {
@@ -321,7 +321,7 @@ const verticalColumns: Array<DataColumn<VerticalRow>> = [
     ),
   },
   {
-    // An aggregate across every content in the vertical — canon's
+    // An aggregate across every content in the category — canon's
     // "engagement rate", not the per-content "votes / view".
     header: "Engagement",
     align: "right",
@@ -333,9 +333,10 @@ const verticalColumns: Array<DataColumn<VerticalRow>> = [
   },
 ];
 
-/** The Home ready-to-decide vocabulary, windowless: entity truth per row.
- *  An Ended run's call is made — its row says "Decided" and points at the
- *  report; "Ready to decide" is reserved for live runs. */
+/** The Home ready-state vocabulary, windowless: entity truth per row. An
+ *  Ended run's results are in ("Results ready" → report); a live run states
+ *  its evidence fact ("Target reached" / "Strong lead"), never a claim its
+ *  lifecycle contradicts. */
 function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
   return (
     <ul className="divide-y divide-border-default">
@@ -359,9 +360,12 @@ function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
               </p>
             </div>
             <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-              <span className="whitespace-nowrap text-sm font-semibold text-status-success">
-                {decided ? "Decided" : "Ready to decide"}
+              <span className="flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-status-success">
+                {readyTitle(campaign)}
                 {campaign.confidence !== "—" ? ` · ${campaign.confidence} confidence` : ""}
+                {campaign.confidence !== "—" ? (
+                  <InfoHint label="Confidence" text={METRIC_INFO.confidence} />
+                ) : null}
               </span>
               <Button variant="secondary" size="sm" asChild>
                 <Link to={`/campaigns/${campaign.id}`}>
@@ -384,7 +388,6 @@ export function AnalyticsOverviewPage() {
   const votes = segmentTotal(rows, "votes");
   const voters = segmentTotal(rows, "voters");
   const completed = segmentTotal(rows, "completed");
-  const shares = segmentTotal(rows, "shares");
 
   /* The previous window of equal length under the same filters — the same
      vs-previous contract Home's stat strip states for these four metrics. */
@@ -434,18 +437,9 @@ export function AnalyticsOverviewPage() {
     [prevRows, comparable, filters.range],
   );
   const sourceMix = useMemo(() => mixBy(rows, (row) => row.channel, "voters"), [rows]);
-  const verticals = useMemo(() => verticalRows(rows), [rows]);
+  const categories = useMemo(() => categoryRows(rows), [rows]);
   const campaignPerf = useMemo(() => buildCampaignPerf(rows, campaigns), [rows, campaigns]);
   const polstPerf = useMemo(() => buildPolstPerf(rows, polsts), [rows, polsts]);
-
-  /* Voting steps only, so the biggest-drop marker compares like with
-   * like: views are impressions (not people) and would flag views→started
-   * as the biggest drop forever, drowning the voting-step drops. Views
-   * and share taps (interactions, not voters) stand as plain numbers. */
-  const journey = [
-    { label: "Started voting", count: voters },
-    { label: "Completed", count: completed },
-  ];
 
   const summary = () =>
     [
@@ -453,7 +447,7 @@ export function AnalyticsOverviewPage() {
       `Views ${fmtInt(views)} · Votes ${fmtInt(votes)} · Engagement ${pct(votes, views, 1)} · Completion ${pct(completed, voters, 1)}`,
       ...ready.map(
         (c) =>
-          `${c.status === "Ended" ? "Decided" : "Ready to decide"}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters run to date)`,
+          `${readyTitle(c)}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters run to date)`,
       ),
     ].join("\n");
 
@@ -471,12 +465,13 @@ export function AnalyticsOverviewPage() {
       <AnalyticsFilterBar />
 
       {/* Decisions first, telemetry after. The title follows the rows'
-          truth: all-Ended runs are Decided, never "ready to decide". */}
+          truth: all-Ended runs have results ready; live rows state their
+          own evidence fact. */}
       <DashboardCard
         title={
           ready.length > 0 && ready.every((c) => c.status === "Ended")
-            ? "Decided"
-            : "Ready to decide"
+            ? "Results ready"
+            : "Ready for a decision"
         }
         padded={false}
         bodyClassName="pb-1"
@@ -485,7 +480,7 @@ export function AnalyticsOverviewPage() {
           <ReadyToDecideList campaigns={ready} />
         ) : (
           <EmptyState
-            title="No campaigns are ready to decide"
+            title="No campaigns are ready for a decision"
             hint="Campaigns appear here once a clear leader emerges on enough voters."
             action={{ label: "View campaigns", to: "/campaigns" }}
           />
@@ -549,35 +544,17 @@ export function AnalyticsOverviewPage() {
         </DashboardCard>
       </SectionGrid>
 
-      <SectionGrid>
-        <DashboardCard title="Voter journey" className="lg:col-span-5">
-          <div className="mb-4 flex items-baseline justify-between gap-3 text-sm">
-            <span className="flex items-center gap-1.5 font-semibold text-text-primary">
-              Views
-              <InfoHint label="Views" text={METRIC_INFO.views} />
-            </span>
-            <span className="tabular-nums text-text-secondary">
-              {fmtInt(views)} · {pct(voters, views, 1)} started voting
-            </span>
-          </div>
-          <Funnel steps={journey} />
-          <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-border-default pt-3 text-sm">
-            <span className="flex items-center gap-1.5 font-semibold text-text-primary">
-              Interactions
-              <InfoHint label="Interactions" text={METRIC_INFO.interactions} />
-            </span>
-            <span className="tabular-nums text-text-secondary">{fmtInt(shares)}</span>
-          </div>
-        </DashboardCard>
-        <DashboardCard
-          title="Verticals"
-          className="lg:col-span-7"
-          padded={false}
-          action={<InfoHint label="Engagement" text={METRIC_INFO.engagementRate} />}
-        >
-          <DataTable rows={verticals} columns={verticalColumns} />
-        </DashboardCard>
-      </SectionGrid>
+      {/* The brand-wide "voter journey" is retired: a two-step funnel over
+          unrelated runs answered nothing (real feedback: "бесполезный
+          фанел"). Step drop-off lives on each campaign's overview, where
+          the steps share one sequence. */}
+      <DashboardCard
+        title="Categories"
+        padded={false}
+        action={<InfoHint label="Engagement" text={METRIC_INFO.engagementRate} />}
+      >
+        <DataTable rows={categories} columns={categoryColumns} />
+      </DashboardCard>
 
       <DashboardCard title="Campaign performance" padded={false}>
         <DataTable
@@ -695,7 +672,7 @@ export function AnalyticsInsightsPage() {
       `${WORKSPACE.brand} — insights`,
       ...ready.map(
         (c) =>
-          `${c.status === "Ended" ? "Decided" : "Ready to decide"}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
+          `${readyTitle(c)}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
       ),
       ...attention.map((item) => `Needs attention: ${item.title}`),
       ...changed.map((item) => `${fmtDate(item.at)} — ${item.text}`),
@@ -709,7 +686,7 @@ export function AnalyticsInsightsPage() {
             <ActionCard
               key={campaign.id}
               className="h-full lg:col-span-4"
-              eyebrow={campaign.status === "Ended" ? "Decided" : "Ready to decide"}
+              eyebrow={readyTitle(campaign)}
               title={campaign.name}
               reason={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters · ${campaign.confidence} confidence`}
               primary={{

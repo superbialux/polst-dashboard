@@ -61,7 +61,7 @@ const blankCampaign = (
   startAt: input.startAt,
   endAt: input.endAt,
   target: input.target,
-  vertical: input.vertical ?? "Food & drink",
+  category: input.category ?? "Food & drink",
   chain: [],
   decisionIndex: 0,
   voters: 0,
@@ -94,7 +94,7 @@ const blankPolst = (id: string, input: CreatePolstInput): SinglePolst => ({
   startAt: input.startAt,
   endAt: input.endAt,
   event: input.event,
-  vertical: input.vertical ?? "Food & drink",
+  category: input.category ?? "Food & drink",
   votes: 0,
   viewsFactor: 2.2,
   interactions: 0,
@@ -144,7 +144,7 @@ export type CreateCampaignInput = {
   endAt?: string;
   target?: number;
   event?: string;
-  vertical?: Campaign["vertical"];
+  category?: Campaign["category"];
 };
 
 export type CreatePolstInput = {
@@ -154,7 +154,7 @@ export type CreatePolstInput = {
   startAt?: string;
   endAt?: string;
   event?: string;
-  vertical?: SinglePolst["vertical"];
+  category?: SinglePolst["category"];
 };
 
 export type AddSourceInput = {
@@ -304,7 +304,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             endAt: nextEnd,
             target,
             event: patch.event !== undefined ? patch.event : x.event,
-            vertical: patch.vertical ?? x.vertical,
+            category: patch.category ?? x.category,
             status: result.status,
             // The signal always re-derives (status or target may have moved),
             // mirroring publishCampaign/endCampaign — never a stale verdict.
@@ -458,7 +458,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           startAt: patch.startAt !== undefined ? patch.startAt : p.startAt,
           endAt: patch.endAt !== undefined ? patch.endAt : p.endAt,
           event: patch.event !== undefined ? patch.event : p.event,
-          vertical: patch.vertical ?? p.vertical,
+          category: patch.category ?? p.category,
         })),
       publishPolst: (id) => {
         const p = polsts.find((x) => x.id === id);

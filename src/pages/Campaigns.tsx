@@ -25,6 +25,7 @@ import {
   DurationField,
   EmptyState,
   Funnel,
+  InfoHint,
   durationEnd,
   durationPresetFor,
   NextStepsCard,
@@ -145,7 +146,7 @@ export function CampaignsPage() {
     return filterByStatus(campaigns, active).filter(
       (c) =>
         !q ||
-        [c.name, c.decision, eventTitle(c.event), c.vertical].some((v) =>
+        [c.name, c.decision, eventTitle(c.event), c.category].some((v) =>
           v.toLowerCase().includes(q),
         ),
     );
@@ -573,10 +574,22 @@ export function CampaignDetailPage() {
 
 /** The brief's eyebrow is the shared status-aware `decisionEyebrow`
  *  (workspace.ts) — the exact words the decision report opens with, so the
- *  two surfaces can never drift. Ready states take the success tone. */
+ *  two surfaces can never drift. Ready states take the success tone; a
+ *  stated confidence carries its method (canon METRIC_INFO) on hover. */
 const briefEyebrow = (c: Campaign): ReactNode => {
   const { label, ready } = decisionEyebrow(c);
-  return ready ? <span className="text-status-success">{label}</span> : label;
+  const hint =
+    ready && c.confidence !== "—" ? (
+      <InfoHint label="Confidence" text={METRIC_INFO.confidence} />
+    ) : null;
+  return ready ? (
+    <span className="inline-flex items-center gap-1 text-status-success">
+      {label}
+      {hint}
+    </span>
+  ) : (
+    label
+  );
 };
 
 function CampaignOverview({
@@ -1643,7 +1656,7 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
             items={[
               ["Status", <StatusBadge key="status" status={campaign.status} />],
               ["Created", fmtDate(campaign.createdAt)],
-              ["Vertical", campaign.vertical],
+              ["Category", campaign.category],
               ["Voters", fmtInt(campaign.voters)],
               ["Views", fmtInt(campaign.views)],
             ]}

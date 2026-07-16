@@ -7,6 +7,7 @@ import {
   DashboardPage,
   DateRangeMenu,
   EmptyState,
+  InfoHint,
   NextStepsCard,
   SectionGrid,
   SegmentedControl,
@@ -17,7 +18,9 @@ import {
 } from "@/components/dashboard";
 import { cn } from "@/lib/utils";
 import {
+  METRIC_INFO,
   TODAY,
+  fmtDate,
   fmtDateRange,
   fmtInt,
   isReadyToDecide,
@@ -30,6 +33,7 @@ import {
   STAT_XTICKS,
   attentionItems,
   dashboardStats,
+  readyTitle,
   winnerLabel,
   workspaceWindow,
   type Campaign,
@@ -90,16 +94,23 @@ function AttentionRow({ item }: { item: ListItem }) {
 /* ── Ready to decide ─────────────────────────────────────────────── */
 
 function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more?: string }) {
-  // An Ended run's call is made — the card says "Decided" and points at the
-  // report instead of nagging "Review decision" forever.
+  // An Ended run's results are in — the card says so and points at the
+  // report. A live run states the evidence fact ("Target reached"), never
+  // "ready to decide" — that read belongs to a finished race.
   const decided = campaign.status === "Ended";
   return (
-    <DashboardCard title={decided ? "Decided" : "Ready to decide"} className="lg:col-span-4">
-      {/* The card title already carries the state — this line adds only the
-          evidence strength, never a repeat of the title. */}
+    <DashboardCard title={readyTitle(campaign)} className="lg:col-span-4">
+      {/* The card title already carries the state — this line adds the
+          evidence strength with its method one hover away. */}
       {campaign.confidence !== "—" ? (
-        <p className="text-sm font-semibold text-status-success">
+        <p className="flex items-center gap-1 text-sm font-semibold text-status-success">
           {campaign.confidence} confidence
+          <InfoHint label="Confidence" text={METRIC_INFO.confidence} />
+        </p>
+      ) : null}
+      {!decided && campaign.endAt ? (
+        <p className="mt-0.5 text-xs text-text-secondary">
+          Collecting until {fmtDate(campaign.endAt)}
         </p>
       ) : null}
       <Link
@@ -330,16 +341,16 @@ export function HomePage() {
   );
   const readyCampaign = readyToDecide[0];
 
-  /* The "more" link states each group truthfully: a Decided (Ended) run is
-     never counted as "ready to decide" — that call is already made. */
+  /* The "more" link states each group truthfully: a finished run has
+     results ready; a live run merely has a strong lead so far. */
   const moreReady = useMemo(() => {
     const rest = readyToDecide.slice(1);
     const live = rest.filter((c) => c.status !== "Ended").length;
     const decided = rest.length - live;
     return (
       [
-        live > 0 ? `${live} more ready to decide` : null,
-        decided > 0 ? `${decided} decided ${decided === 1 ? "run" : "runs"} to review` : null,
+        live > 0 ? `${live} more with a strong lead` : null,
+        decided > 0 ? `${decided} more ${decided === 1 ? "result" : "results"} ready` : null,
       ]
         .filter(Boolean)
         .join(" · ") || undefined

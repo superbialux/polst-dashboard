@@ -18,7 +18,7 @@ import {
 type AnalyticsContextValue = {
   filters: AnalyticsFilters;
   setFilters: (next: AnalyticsFilters) => void;
-  /** Restore the default 30-day, all-channels, all-verticals scope. */
+  /** Restore the default 30-day, all-channels, all-categories scope. */
   resetFilters: () => void;
   rows: SegmentRow[];
 };

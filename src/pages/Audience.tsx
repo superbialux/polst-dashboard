@@ -5,7 +5,6 @@ import {
   DashboardPage,
   DataTable,
   DateRangeMenu,
-  LockedCard,
   MixBars,
   SectionGrid,
   StatTile,
@@ -174,18 +173,6 @@ export function AudiencePage() {
         </DashboardCard>
       </SectionGrid>
 
-      <DashboardCard title="Demographics">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <LockedCard
-            title="Age & gender"
-            description="Voting is anonymous today — these arrive with respondent-level collection."
-          />
-          <LockedCard
-            title="Household income"
-            description="Needs voters who link a profile; nothing is inferred from anonymous votes."
-          />
-        </div>
-      </DashboardCard>
     </DashboardPage>
   );
 }

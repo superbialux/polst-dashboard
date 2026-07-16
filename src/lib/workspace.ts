@@ -42,7 +42,7 @@ import {
 export type { Confidence, DecisionSignal, Status } from "@/lib/canon";
 export type { WindowRange } from "@/lib/engine";
 
-export type Vertical = "Food & drink" | "Lifestyle" | "Shopping & deals";
+export type Category = "Food & drink" | "Lifestyle" | "Shopping & deals";
 export type Channel = "Website" | "Email" | "Instagram" | "QR" | "Influencer";
 
 /* ── Workspace identity ──────────────────────────────────────────── */
@@ -85,7 +85,7 @@ export type Campaign = {
   startAt?: string;
   endAt?: string; // ISO
   target?: number; // voter goal set at creation
-  vertical: Vertical;
+  category: Category;
   chain: ChainQuestion[];
   decisionIndex: number; // which chain question answers `decision`
   // Observed totals for the run so far (authored):
@@ -122,7 +122,7 @@ export type SinglePolst = {
   startAt?: string;
   endAt?: string;
   event?: string;
-  vertical: Vertical;
+  category: Category;
   votes: number; // single question: votes = voters
   viewsFactor: number;
   interactions: number; // shares/reposts
@@ -180,7 +180,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     startAt: "2026-05-28",
     endAt: "2026-06-10",
     target: 1000,
-    vertical: "Food & drink",
+    category: "Food & drink",
     viewsFactor: 2.1,
     voters: 1184,
     completed: 935,
@@ -213,7 +213,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     startAt: "2026-06-03",
     endAt: "2026-06-17",
     target: 1200,
-    vertical: "Food & drink",
+    category: "Food & drink",
     viewsFactor: 2.3,
     voters: 1486,
     completed: 1055,
@@ -244,7 +244,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     startAt: "2026-06-01",
     endAt: "2026-06-30",
     target: 2500,
-    vertical: "Food & drink",
+    category: "Food & drink",
     viewsFactor: 2.2,
     voters: 2103,
     completed: 1220,
@@ -280,7 +280,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     startAt: "2026-06-12",
     endAt: "2026-06-24",
     target: 1200,
-    vertical: "Shopping & deals",
+    category: "Shopping & deals",
     viewsFactor: 2.4,
     voters: 640,
     completed: 301,
@@ -310,7 +310,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     startAt: "2026-06-08",
     endAt: "2026-06-20",
     target: 1200,
-    vertical: "Shopping & deals",
+    category: "Shopping & deals",
     viewsFactor: 2.2,
     voters: 892,
     completed: 571,
@@ -342,7 +342,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     startAt: "2026-06-17",
     endAt: "2026-06-26",
     target: 1000,
-    vertical: "Lifestyle",
+    category: "Lifestyle",
     event: "world-cup",
     viewsFactor: 2.2,
     voters: 0,
@@ -370,7 +370,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     startAt: "2026-06-30",
     endAt: "2026-07-14",
     target: 800,
-    vertical: "Lifestyle",
+    category: "Lifestyle",
     viewsFactor: 2.2,
     voters: 0,
     completed: 0,
@@ -395,7 +395,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     startAt: "2026-07-20",
     endAt: "2026-08-03",
     target: 1000,
-    vertical: "Food & drink",
+    category: "Food & drink",
     viewsFactor: 2.2,
     voters: 0,
     completed: 0,
@@ -418,7 +418,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     decision: "",
     status: "Draft",
     createdAt: "2026-06-13",
-    vertical: "Lifestyle",
+    category: "Lifestyle",
     viewsFactor: 2.2,
     voters: 0,
     completed: 0,
@@ -438,7 +438,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     status: "Draft",
     createdAt: "2026-06-04",
     target: 1000,
-    vertical: "Lifestyle",
+    category: "Lifestyle",
     viewsFactor: 2.2,
     voters: 0,
     completed: 0,
@@ -461,17 +461,17 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
 type PolstSeed = Omit<SinglePolst, "views" | "engagementRate" | "sources">;
 
 const POLST_SEEDS: PolstSeed[] = [
-  { id: "which-headline-wins", question: "Which headline wins?", optionA: "Fuel your morning", optionB: "Mornings, handled", splitA: 57, status: "Active", createdAt: "2026-06-03", startAt: "2026-06-05", endAt: "2026-06-19", vertical: "Food & drink", votes: 428, viewsFactor: 2.2, interactions: 17 },
-  { id: "price-point-fair", question: "Which price point feels fair?", optionA: "$4.99", optionB: "$5.49", splitA: 49, status: "Active", createdAt: "2026-05-30", startAt: "2026-06-03", endAt: "2026-06-20", vertical: "Food & drink", votes: 1204, viewsFactor: 2.1, interactions: 48 },
-  { id: "snack-size-sells", question: "Which snack size sells better?", optionA: "Single serve", optionB: "Share bag", splitA: 54, status: "Active", createdAt: "2026-06-02", startAt: "2026-06-06", endAt: "2026-06-21", vertical: "Food & drink", votes: 512, viewsFactor: 2.3, interactions: 20 },
-  { id: "hero-image-ad", question: "Best hero image for the ad?", optionA: "Product close-up", optionB: "Lifestyle shot", splitA: 61, status: "Active", createdAt: "2026-06-05", startAt: "2026-06-09", endAt: "2026-06-18", vertical: "Food & drink", votes: 738, viewsFactor: 2.2, interactions: 30 },
-  { id: "sweet-or-savory", question: "Sweet or savory launch?", optionA: "Sweet", optionB: "Savory", splitA: 58, status: "Active", createdAt: "2026-06-08", startAt: "2026-06-11", endAt: "2026-06-22", vertical: "Food & drink", votes: 430, viewsFactor: 2.4, interactions: 17 },
-  { id: "label-layout", question: "Which label reads faster on shelf?", optionA: "Icon-led", optionB: "Type-led", splitA: 62, status: "Ended", createdAt: "2026-05-14", startAt: "2026-05-20", endAt: "2026-05-29", vertical: "Food & drink", votes: 906, viewsFactor: 2.2, interactions: 36 },
-  { id: "packaging-color-premium", question: "Which packaging color feels more premium?", optionA: "Deep navy", optionB: "Warm cream", splitA: 0, status: "Scheduled", createdAt: "2026-06-04", startAt: "2026-06-22", endAt: "2026-06-26", event: "product-launch", vertical: "Food & drink", votes: 0, viewsFactor: 2.2, interactions: 0 },
-  { id: "mascot-preference", question: "Which mascot do people like?", optionA: "The Fox", optionB: "The Bear", splitA: 0, status: "Scheduled", createdAt: "2026-06-08", startAt: "2026-06-28", endAt: "2026-07-05", vertical: "Lifestyle", votes: 0, viewsFactor: 2.2, interactions: 0 },
-  { id: "event-hook", question: "Which tagline should we use?", optionA: "Taste the season", optionB: "Made for the moment", splitA: 0, status: "Draft", createdAt: "2026-06-09", vertical: "Food & drink", votes: 0, viewsFactor: 2.2, interactions: 0 },
-  { id: "bundle-vs-single", question: "Bundle or single pack?", optionA: "Bundle", optionB: "Single", splitA: 0, status: "Draft", createdAt: "2026-06-11", vertical: "Shopping & deals", votes: 0, viewsFactor: 2.2, interactions: 0 },
-  { id: "archived-draft", question: "Which seasonal badge feels clearer?", optionA: "Limited batch", optionB: "Seasonal pick", splitA: 0, status: "Archived", createdAt: "2026-05-08", vertical: "Food & drink", votes: 0, viewsFactor: 2.2, interactions: 0 },
+  { id: "which-headline-wins", question: "Which headline wins?", optionA: "Fuel your morning", optionB: "Mornings, handled", splitA: 57, status: "Active", createdAt: "2026-06-03", startAt: "2026-06-05", endAt: "2026-06-19", category: "Food & drink", votes: 428, viewsFactor: 2.2, interactions: 17 },
+  { id: "price-point-fair", question: "Which price point feels fair?", optionA: "$4.99", optionB: "$5.49", splitA: 49, status: "Active", createdAt: "2026-05-30", startAt: "2026-06-03", endAt: "2026-06-20", category: "Food & drink", votes: 1204, viewsFactor: 2.1, interactions: 48 },
+  { id: "snack-size-sells", question: "Which snack size sells better?", optionA: "Single serve", optionB: "Share bag", splitA: 54, status: "Active", createdAt: "2026-06-02", startAt: "2026-06-06", endAt: "2026-06-21", category: "Food & drink", votes: 512, viewsFactor: 2.3, interactions: 20 },
+  { id: "hero-image-ad", question: "Best hero image for the ad?", optionA: "Product close-up", optionB: "Lifestyle shot", splitA: 61, status: "Active", createdAt: "2026-06-05", startAt: "2026-06-09", endAt: "2026-06-18", category: "Food & drink", votes: 738, viewsFactor: 2.2, interactions: 30 },
+  { id: "sweet-or-savory", question: "Sweet or savory launch?", optionA: "Sweet", optionB: "Savory", splitA: 58, status: "Active", createdAt: "2026-06-08", startAt: "2026-06-11", endAt: "2026-06-22", category: "Food & drink", votes: 430, viewsFactor: 2.4, interactions: 17 },
+  { id: "label-layout", question: "Which label reads faster on shelf?", optionA: "Icon-led", optionB: "Type-led", splitA: 62, status: "Ended", createdAt: "2026-05-14", startAt: "2026-05-20", endAt: "2026-05-29", category: "Food & drink", votes: 906, viewsFactor: 2.2, interactions: 36 },
+  { id: "packaging-color-premium", question: "Which packaging color feels more premium?", optionA: "Deep navy", optionB: "Warm cream", splitA: 0, status: "Scheduled", createdAt: "2026-06-04", startAt: "2026-06-22", endAt: "2026-06-26", event: "product-launch", category: "Food & drink", votes: 0, viewsFactor: 2.2, interactions: 0 },
+  { id: "mascot-preference", question: "Which mascot do people like?", optionA: "The Fox", optionB: "The Bear", splitA: 0, status: "Scheduled", createdAt: "2026-06-08", startAt: "2026-06-28", endAt: "2026-07-05", category: "Lifestyle", votes: 0, viewsFactor: 2.2, interactions: 0 },
+  { id: "event-hook", question: "Which tagline should we use?", optionA: "Taste the season", optionB: "Made for the moment", splitA: 0, status: "Draft", createdAt: "2026-06-09", category: "Food & drink", votes: 0, viewsFactor: 2.2, interactions: 0 },
+  { id: "bundle-vs-single", question: "Bundle or single pack?", optionA: "Bundle", optionB: "Single", splitA: 0, status: "Draft", createdAt: "2026-06-11", category: "Shopping & deals", votes: 0, viewsFactor: 2.2, interactions: 0 },
+  { id: "archived-draft", question: "Which seasonal badge feels clearer?", optionA: "Limited batch", optionB: "Seasonal pick", splitA: 0, status: "Archived", createdAt: "2026-05-08", category: "Food & drink", votes: 0, viewsFactor: 2.2, interactions: 0 },
 ];
 
 /* ── Source seeds (attribution inputs) ───────────────────────────── */
@@ -1350,9 +1350,13 @@ export const embedScript = (id: string) => `<div id="polst-campaign"></div>
 <script async src="https://polst.app/embed.js"
   data-campaign="${id}"></script>`;
 
-/** "Minimal label +16 pts" | "—" — the one string form of a winner. */
+/** "Minimal label · 16-point lead" | "—" — the one string form of a winner.
+ *  The margin is percentage points on the decision question ("Points?" was
+ *  real feedback): spelled out once here so no surface prints a bare unit. */
 export const winnerLabel = (c: { winner: { option: string; marginPts: number } | null }) =>
-  c.winner ? `${c.winner.option} +${c.winner.marginPts} pts` : "—";
+  c.winner
+    ? `${c.winner.option} · ${c.winner.marginPts} percentage-point lead`
+    : "—";
 
 /** The plain-language verdict campaign-facing surfaces speak — "Result so
  *  far" columns, brief eyebrows, ready strips. The internal `DecisionSignal`
@@ -1385,7 +1389,8 @@ export const verdictLabel = (c: {
 };
 
 /** The one headline framing of the call — the DecisionBrief and the decision
- *  report speak the same words ("Decided: Trio Box +10 pts"), so the report
+ *  report speak the same words ("Decided: Trio Box · 10 percentage-point
+ *  lead"), so the report
  *  never prints the raw lead label twice (eyebrow verdict + headline call).
  *  Live voice ("Early read") is reserved for runs still collecting; a
  *  finished run's read is final, just not necessarily decisive. */
@@ -1418,12 +1423,23 @@ export const headlineLabel = (c: {
   }
 };
 
+/** The short ready-state title every ready surface speaks. "Ready to decide"
+ *  on a still-collecting run read as "campaign ended, results ready" — it
+ *  wasn't. Ended runs say so; live runs state the evidence fact instead:
+ *  the target is reached, or the lead is strong on volume short of it. */
+export const readyTitle = (c: { status: Status; voters: number; target?: number }) =>
+  c.status === "Ended"
+    ? "Results ready"
+    : c.target && c.voters >= c.target
+      ? "Target reached"
+      : "Strong lead";
+
 /** The one status-aware eyebrow above `headlineLabel`. The DecisionBrief and
- *  the decision report both speak it — "Decided · High confidence" once an
- *  ended run's call is made, "Ready to decide · …" while a live run's
- *  evidence supports the call, otherwise the plain verdict with its evidence
- *  volume — so the two surfaces can never drift, and the report never opens
- *  with the raw lead label directly above the headline that carries it. */
+ *  the decision report both speak it — "Results ready · High confidence" once
+ *  a run has ended, "Target reached · … — collecting until …" while a live
+ *  run's evidence supports the call, otherwise the plain verdict with its
+ *  evidence volume — so the two surfaces can never drift, and the report
+ *  never opens with the raw lead label directly above the headline. */
 export const decisionEyebrow = (c: {
   status: Status;
   signal: DecisionSignal;
@@ -1431,13 +1447,14 @@ export const decisionEyebrow = (c: {
   winner: { option: string; marginPts: number } | null;
   voters: number;
   target?: number;
+  endAt?: string;
 }): { label: string; ready: boolean } =>
   isReadyToDecide(c)
     ? {
         ready: true,
-        label: `${c.status === "Ended" ? "Decided" : "Ready to decide"}${
+        label: `${readyTitle(c)}${
           c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""
-        }`,
+        }${c.status !== "Ended" && c.endAt ? ` — collecting until ${fmtDate(c.endAt)}` : ""}`,
       }
     : {
         ready: false,

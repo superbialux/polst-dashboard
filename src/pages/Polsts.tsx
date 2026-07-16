@@ -60,7 +60,7 @@ import {
   type Channel,
   type SinglePolst,
   type Source,
-  type Vertical,
+  type Category,
 } from "@/lib/workspace";
 import { publishedStatus, useWorkspace } from "@/lib/store";
 
@@ -69,7 +69,7 @@ import { publishedStatus, useWorkspace } from "@/lib/store";
 /** Every lifecycle state is reachable — "All" really means everything. */
 const POLST_FILTERS = ["All", "Active", "Scheduled", "Drafts", "Ended", "Archived"] as const;
 
-const VERTICALS: Vertical[] = ["Food & drink", "Lifestyle", "Shopping & deals"];
+const CATEGORIES: Category[] = ["Food & drink", "Lifestyle", "Shopping & deals"];
 
 /** Nothing has run yet — analytics columns render as "—", not zeros. */
 const hasRun = (polst: SinglePolst) => polst.views > 0 || polst.votes > 0;
@@ -618,7 +618,7 @@ export function PolstDetailPage() {
               authorColor="var(--color-purple-tint)"
               isFollowing
               postedAgo={startedDaysAgo > 0 ? `${startedDaysAgo}d` : undefined}
-              categories={[polst.vertical]}
+              categories={[polst.category]}
               question={polst.question}
               options={polstOptions(polst)}
               tags={[]}
@@ -829,7 +829,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
     question: draft?.question ?? "",
     optionA: draft?.optionA ?? "",
     optionB: draft?.optionB ?? "",
-    category: draft?.vertical ?? null,
+    category: draft?.category ?? null,
     optionsSet: Boolean(draft),
   });
   const [startDate, setStartDate] = useState(draft?.startAt ?? TODAY);
@@ -861,7 +861,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
     optionB: composer.optionB,
     startAt: startDate || undefined,
     endAt: endDate,
-    vertical: VERTICALS.find((vertical) => vertical === composer.category),
+    category: CATEGORIES.find((category) => category === composer.category),
   });
 
   const saveDraft = () => {
@@ -918,7 +918,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
         <div className="space-y-4 lg:col-span-8">
           <DashboardCard>
             <PollComposer
-              categories={VERTICALS}
+              categories={CATEGORIES}
               initial={
                 draft
                   ? {
@@ -927,7 +927,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
                       optionB: draft.optionB,
                       imageA: polstImage(draft.id, "a"),
                       imageB: polstImage(draft.id, "b"),
-                      categories: [draft.vertical],
+                      categories: [draft.category],
                     }
                   : undefined
               }

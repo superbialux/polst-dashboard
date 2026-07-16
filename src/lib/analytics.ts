@@ -14,19 +14,19 @@ import {
   type Campaign,
   type Channel,
   type SinglePolst,
-  type Vertical,
+  type Category,
 } from "@/lib/workspace";
 
 export type AnalyticsFilters = {
   range: WindowRange;
   channel: string;
-  vertical: string;
+  category: string;
 };
 
 export const ANALYTICS_DEFAULTS: AnalyticsFilters = {
   range: "30D",
   channel: "All channels",
-  vertical: "All verticals",
+  category: "All categories",
 };
 
 export type SegmentMetrics = {
@@ -43,7 +43,7 @@ export type SegmentRow = {
   objectId: string;
   name: string;
   channel: Channel;
-  vertical: Vertical;
+  category: Category;
   metrics: SegmentMetrics;
 };
 
@@ -56,7 +56,7 @@ function objectRows(
   object: Campaign | SinglePolst,
   kind: "campaign" | "polst",
   name: string,
-  vertical: Vertical,
+  category: Category,
   start: string,
   end: string,
 ): SegmentRow[] {
@@ -95,7 +95,7 @@ function objectRows(
     objectId: object.id,
     name,
     channel,
-    vertical,
+    category,
     metrics: Object.fromEntries(METRIC_KEYS.map((k) => [k, split[k][i]])) as SegmentMetrics,
   }));
 }
@@ -108,21 +108,21 @@ const rowsForRange = (range: WindowRange, offset = 0): SegmentRow[] => {
   if (hit) return hit;
   const [start, end] = windowBounds(range, offset);
   const rows = [
-    ...CAMPAIGNS.flatMap((c) => objectRows(c, "campaign", c.name, c.vertical, start, end)),
-    ...SINGLE_POLSTS.flatMap((p) => objectRows(p, "polst", p.question, p.vertical, start, end)),
+    ...CAMPAIGNS.flatMap((c) => objectRows(c, "campaign", c.name, c.category, start, end)),
+    ...SINGLE_POLSTS.flatMap((p) => objectRows(p, "polst", p.question, p.category, start, end)),
   ];
   rowsCache.set(key, rows);
   return rows;
 };
 
 /** Filtered segment rows for the window; `offset: 1` yields the previous
- *  window of equal length under the SAME channel/vertical filter, so
+ *  window of equal length under the SAME channel/category filter, so
  *  vs-previous deltas stay honest even on a filtered view. */
 export function analyticsRows(filters: AnalyticsFilters, offset = 0): SegmentRow[] {
   return rowsForRange(filters.range, offset).filter(
     (row) =>
       (filters.channel === "All channels" || row.channel === filters.channel) &&
-      (filters.vertical === "All verticals" || row.vertical === filters.vertical),
+      (filters.category === "All categories" || row.category === filters.category),
   );
 }
 
@@ -150,25 +150,25 @@ export function mixBy<T extends { metrics: Record<string, number> }>(
     .sort((a, b) => b.value - a.value);
 }
 
-export type VerticalRow = SegmentMetrics & {
+export type CategoryRow = SegmentMetrics & {
   id: string;
-  vertical: Vertical;
+  category: Category;
   completionRate: number | null;
   engagementRate: number | null;
 };
 
-/** Per-vertical rollup of the given rows (the Analytics verticals table). */
-export function verticalRows(rows: SegmentRow[]): VerticalRow[] {
-  const groups = new Map<Vertical, SegmentRow[]>();
-  for (const row of rows) groups.set(row.vertical, [...(groups.get(row.vertical) ?? []), row]);
+/** Per-category rollup of the given rows (the Analytics categories table). */
+export function categoryRows(rows: SegmentRow[]): CategoryRow[] {
+  const groups = new Map<Category, SegmentRow[]>();
+  for (const row of rows) groups.set(row.category, [...(groups.get(row.category) ?? []), row]);
   return [...groups.entries()]
-    .map(([vertical, grouped]) => {
+    .map(([category, grouped]) => {
       const metrics = Object.fromEntries(
         METRIC_KEYS.map((k) => [k, segmentTotal(grouped, k)]),
       ) as SegmentMetrics;
       return {
-        id: vertical.toLowerCase().replace(/[^a-z]+/g, "-"),
-        vertical,
+        id: category.toLowerCase().replace(/[^a-z]+/g, "-"),
+        category,
         ...metrics,
         completionRate: metrics.voters > 0 ? Math.round((metrics.completed / metrics.voters) * 1000) / 10 : null,
         engagementRate: metrics.views > 0 ? Math.round((metrics.votes / metrics.views) * 1000) / 10 : null,
@@ -179,6 +179,6 @@ export function verticalRows(rows: SegmentRow[]): VerticalRow[] {
 
 /** Filter options, derived from the entities that actually exist. */
 export const ANALYTICS_CHANNELS = [...new Set(SOURCES.map((s) => s.channel))];
-export const ANALYTICS_VERTICALS = [
-  ...new Set([...CAMPAIGNS.map((c) => c.vertical), ...SINGLE_POLSTS.map((p) => p.vertical)]),
+export const ANALYTICS_CATEGORIES = [
+  ...new Set([...CAMPAIGNS.map((c) => c.category), ...SINGLE_POLSTS.map((p) => p.category)]),
 ];

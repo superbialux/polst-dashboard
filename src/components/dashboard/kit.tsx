@@ -199,9 +199,10 @@ export function DecisionBrief({
   secondary,
   className,
 }: {
-  /** The plain-language read above the headline — "Ready to decide · High
-   *  confidence", or verdict + progress ("Collecting votes — 640 of 1,200
-   *  voters"). Never a raw DecisionSignal taxonomy label. */
+  /** The plain-language read above the headline — "Target reached · High
+   *  confidence — collecting until Jun 17", or verdict + progress
+   *  ("Collecting votes — 640 of 1,200 voters"). Never a raw
+   *  DecisionSignal taxonomy label. */
   eyebrow: ReactNode;
   headline: string;
   /** What changed and the likely cause, in plain words. */
@@ -343,10 +344,12 @@ export function FilterTabs({
 
 /* ── Duration field ──────────────────────────────────────────────── */
 
-/** The one run-length vocabulary. "No end" is an explicit preset — an
- *  open-ended run is a choice, never a Custom field left blank. */
-export const DURATION_PRESETS = ["3 days", "7 days", "10 days", "No end", "Custom"] as const;
-export type DurationPreset = (typeof DURATION_PRESETS)[number];
+/** The one run-length vocabulary users can CHOOSE: fixed presets only.
+ *  "Custom" and "No end" are retired from creation (explicit marketing
+ *  feedback — fixed durations guide users); "Custom" survives only as the
+ *  honest representation of an already-saved non-preset schedule. */
+export const DURATION_PRESETS = ["3 days", "7 days", "10 days"] as const;
+export type DurationPreset = (typeof DURATION_PRESETS)[number] | "Custom";
 const DURATION_PRESET_DAYS: Partial<Record<DurationPreset, number>> = {
   "3 days": 3,
   "7 days": 7,
@@ -354,21 +357,22 @@ const DURATION_PRESET_DAYS: Partial<Record<DurationPreset, number>> = {
 };
 
 /** End date a preset implies (inclusive span: "7 days" = start..start+6);
- *  undefined for "No end", the picked date for "Custom". */
+ *  the picked date for "Custom". */
 export const durationEnd = (
   preset: DurationPreset,
   startAt: string,
   customEnd: string,
 ): string | undefined => {
-  if (preset === "No end") return undefined;
   if (preset === "Custom") return customEnd || undefined;
   return startAt ? addDays(startAt, DURATION_PRESET_DAYS[preset]! - 1) : undefined;
 };
 
-/** The preset a saved schedule round-trips to — exact. */
+/** The preset a saved schedule round-trips to — exact. A span no preset
+ *  produces (or a legacy open end) reads back as Custom so the schedule
+ *  editor states the record's truth instead of the nearest preset. */
 export const durationPresetFor = (startAt?: string, endAt?: string): DurationPreset => {
   if (!startAt) return "7 days"; // nothing scheduled yet — the default
-  if (!endAt) return "No end";
+  if (!endAt) return "Custom";
   const days = daysBetween(startAt, endAt) + 1;
   const hit = (Object.entries(DURATION_PRESET_DAYS) as Array<[DurationPreset, number]>).find(
     ([, presetDays]) => presetDays === days,
@@ -376,9 +380,11 @@ export const durationPresetFor = (startAt?: string, endAt?: string): DurationPre
   return hit ? hit[0] : "Custom";
 };
 
-/** The one run-length control (create Campaign / create Polst): preset
- *  segments, a date input that appears for Custom, and an honest helper
- *  line saying exactly what the choice means. */
+/** The one run-length control (create Campaign / create Polst): fixed
+ *  preset segments and an honest helper line saying exactly what the
+ *  choice means. The Custom segment (with its date input) appears only
+ *  when the schedule being edited already holds a non-preset span —
+ *  creation never offers it. */
 export function DurationField({
   value,
   onChange,
@@ -397,20 +403,19 @@ export function DurationField({
   subject: string;
 }) {
   const end = durationEnd(value, startAt, customEnd);
-  const line =
-    value === "No end"
-      ? `No end date — the ${subject} collects votes until you end it.`
-      : end
-        ? `Runs ${fmtDateRange(startAt || undefined, end)}. Voting closes when the ${subject} ends.`
-        : value === "Custom"
-          ? "Pick the last day voters can submit."
-          : "Voting closes at the end of the run — set a start date to see it.";
+  const line = end
+    ? `Runs ${fmtDateRange(startAt || undefined, end)}. Voting closes when the ${subject} ends.`
+    : value === "Custom"
+      ? "Pick the last day voters can submit."
+      : "Voting closes at the end of the run — set a start date to see it.";
+  const tabs: DurationPreset[] =
+    value === "Custom" ? [...DURATION_PRESETS, "Custom"] : [...DURATION_PRESETS];
   return (
     <div className="flex flex-col gap-1.5">
       <p className="font-display text-sm font-semibold leading-5 text-text-primary">
         How long should it run?
       </p>
-      <SegmentedControl tabs={DURATION_PRESETS} active={value} onChange={onChange} size="form" />
+      <SegmentedControl tabs={tabs} active={value} onChange={onChange} size="form" />
       {value === "Custom" ? (
         <div className="mt-2 max-w-56">
           <TextInput
@@ -1602,18 +1607,19 @@ export function SnippetCard({
 
 /* ── Locked section ──────────────────────────────────────────────── */
 
-/** A gated capability: quiet surface, lock icon, one-line promise, and a
- *  plan chip. Used for demographics we don't collect yet and Pro-tier
- *  surfaces like the API — present, honest, never clickbait. */
+/** A gated capability: quiet surface, lock icon, one line on what's
+ *  missing, and a state chip. The chip is required and must state a fact
+ *  ("Not connected") — "Coming soon" roadmap promises are retired; a
+ *  capability we can't honestly gate simply doesn't render. */
 export function LockedCard({
   title,
   description,
-  chip = "Coming soon",
+  chip,
   className,
 }: {
   title: string;
   description: string;
-  chip?: string;
+  chip: string;
   className?: string;
 }) {
   return (
@@ -1873,13 +1879,13 @@ export function DateRangeMenu({
 export function FilterBar({
   filters,
   onChange,
-  verticals,
+  categories,
   channels,
   className,
 }: {
   filters: AnalyticsFilters;
   onChange: (next: AnalyticsFilters) => void;
-  verticals?: string[];
+  categories?: string[];
   channels?: string[];
   className?: string;
 }) {
@@ -1898,12 +1904,12 @@ export function FilterBar({
           compact
         />
       ) : null}
-      {verticals?.length ? (
+      {categories?.length ? (
         <SelectMenu
-          label="Vertical"
-          value={filters.vertical}
-          onValueChange={(vertical) => onChange({ ...filters, vertical })}
-          options={["All verticals", ...verticals].map((name) => ({ value: name, label: name }))}
+          label="Category"
+          value={filters.category}
+          onValueChange={(category) => onChange({ ...filters, category })}
+          options={["All categories", ...categories].map((name) => ({ value: name, label: name }))}
           align="end"
           compact
         />
