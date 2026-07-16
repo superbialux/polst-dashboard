@@ -33,9 +33,11 @@ import {
   PageTabs,
   PollResults,
   PollThumb,
+  CreatedRange,
   ReportPreview,
   SearchAndFilters,
   SectionGrid,
+  filterByCreated,
   SegmentedControl,
   SnippetCard,
   StatusBadge,
@@ -140,19 +142,22 @@ export function CampaignsPage() {
   const navigate = useNavigate();
   const [active, setActive] = useState<string>("All");
   const [query, setQuery] = useState("");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return filterByStatus(campaigns, active).filter(
+    return filterByCreated(filterByStatus(campaigns, active), createdFrom, createdTo).filter(
       (c) =>
         !q ||
         [c.name, c.decision, eventTitle(c.event), c.category].some((v) =>
           v.toLowerCase().includes(q),
         ),
     );
-  }, [campaigns, active, query]);
+  }, [campaigns, active, query, createdFrom, createdTo]);
 
   const searching = query.trim().length > 0;
+  const dateFiltered = Boolean(createdFrom || createdTo);
 
   return (
     <DashboardPage
@@ -170,6 +175,14 @@ export function CampaignsPage() {
           placeholder="Search campaigns"
           query={query}
           onQueryChange={setQuery}
+          action={
+            <CreatedRange
+              from={createdFrom}
+              to={createdTo}
+              onFromChange={setCreatedFrom}
+              onToChange={setCreatedTo}
+            />
+          }
         />
         {searching && rows.length > 0 ? (
           <p className="border-b border-border-default px-5 py-2 text-xs text-text-secondary">
@@ -183,11 +196,22 @@ export function CampaignsPage() {
             columns={listColumns}
             onRowClick={(row) => navigate(`/campaigns/${row.id}`)}
           />
-        ) : searching ? (
+        ) : searching || dateFiltered ? (
           <EmptyState
             icon="search"
-            title={`No campaigns match “${query.trim()}”`}
-            action={{ label: "Clear search", onClick: () => setQuery("") }}
+            title={
+              searching
+                ? `No campaigns match “${query.trim()}”`
+                : "No campaigns were created in this date range"
+            }
+            action={{
+              label: "Clear filters",
+              onClick: () => {
+                setQuery("");
+                setCreatedFrom("");
+                setCreatedTo("");
+              },
+            }}
           />
         ) : (
           <EmptyState
@@ -271,7 +295,7 @@ export function CreateCampaignPage() {
         <div className="space-y-4 lg:col-span-8">
           <DashboardCard title="Campaign details">
             <div className="space-y-5">
-              <Field label="Campaign name">
+              <Field label="Campaign name" required>
                 {(id) => (
                   <TextInput
                     id={id}
@@ -312,7 +336,14 @@ export function CreateCampaignPage() {
                     />
                   )}
                 </Field>
-                <Field label="Voter target">
+                <Field
+                  label="Voter target"
+                  helper={
+                    <FieldHelper tone="neutral">
+                      Optional evidence goal — the decision brief tracks progress against it.
+                    </FieldHelper>
+                  }
+                >
                   {(id) => (
                     <TextInput
                       id={id}
@@ -337,7 +368,15 @@ export function CreateCampaignPage() {
               {endBeforeStart ? (
                 <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
               ) : null}
-              <Field label="Key date">
+              <Field
+                label="Key date"
+                helper={
+                  <FieldHelper tone="neutral">
+                    Optional planning event this campaign targets — it ties the run to a date
+                    on the Home calendar.
+                  </FieldHelper>
+                }
+              >
                 {(id) => (
                   <SelectMenu
                     id={id}

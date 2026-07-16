@@ -491,6 +491,54 @@ export function filterByStatus<T extends { status: string }>(
   return rows.filter((row) => row.status === normalized);
 }
 
+/** Created-date range inputs (staging parity): from/to on the toolbar's
+ *  37px control height. An empty side is an open bound. */
+export function CreatedRange({
+  from,
+  to,
+  onFromChange,
+  onToChange,
+}: {
+  from: string;
+  to: string;
+  onFromChange: (iso: string) => void;
+  onToChange: (iso: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <TextInput
+        type="date"
+        aria-label="Created from"
+        value={from}
+        max={to || undefined}
+        onChange={(e) => onFromChange(e.target.value)}
+        className="h-[37px] w-36 text-ui"
+      />
+      <span aria-hidden className="text-text-tertiary">
+        –
+      </span>
+      <TextInput
+        type="date"
+        aria-label="Created to"
+        value={to}
+        min={from || undefined}
+        onChange={(e) => onToChange(e.target.value)}
+        className="h-[37px] w-36 text-ui"
+      />
+    </div>
+  );
+}
+
+/** Apply an inclusive created-date range (ISO bounds; "" = open). */
+export function filterByCreated<T extends { createdAt: string }>(
+  rows: T[],
+  from: string,
+  to: string,
+): T[] {
+  if (!from && !to) return rows;
+  return rows.filter((r) => (!from || r.createdAt >= from) && (!to || r.createdAt <= to));
+}
+
 /* ── Data table ──────────────────────────────────────────────────── */
 
 export type DataColumn<T> = {

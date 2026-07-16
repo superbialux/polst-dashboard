@@ -17,6 +17,7 @@ import { PollComposer, type ComposerState } from "@/components/PollComposer";
 import { QrCodeModal, SocialShareModal } from "@/components/DistributionActions";
 import {
   ActionCard,
+  CreatedRange,
   DashboardCard,
   DashboardPage,
   DataTable,
@@ -34,6 +35,7 @@ import {
   StatusBadge,
   durationEnd,
   durationPresetFor,
+  filterByCreated,
   filterByStatus,
   type DataColumn,
   type DurationPreset,
@@ -278,48 +280,112 @@ function PolstGridCard({ polst }: { polst: SinglePolst }) {
 
 /* ── List page ───────────────────────────────────────────────────── */
 
+const PAGE_SIZE = 8;
+
 export function PolstsPage() {
   const { polsts } = useWorkspace();
   const navigate = useNavigate();
   const [active, setActive] = useState<string>("All");
   const [view, setView] = useState<View>("list");
   const [query, setQuery] = useState("");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [page, setPage] = useState(0);
   const [sharePolst, setSharePolst] = useState<SinglePolst | null>(null);
   const [qrPolst, setQrPolst] = useState<SinglePolst | null>(null);
 
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return filterByStatus(polsts, active).filter(
+    return filterByCreated(filterByStatus(polsts, active), createdFrom, createdTo).filter(
       (polst) =>
         !normalized ||
         [polst.question, polst.optionA, polst.optionB].some((value) =>
           value.toLowerCase().includes(normalized),
         ),
     );
-  }, [polsts, active, query]);
+  }, [polsts, active, query, createdFrom, createdTo]);
 
+  /* Pagination clamps to the filtered list — a filter change that shrinks
+     the result below the current page snaps back instead of showing air. */
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = rows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const setFilterAndResetPage = <T,>(setter: (v: T) => void) => (value: T) => {
+    setter(value);
+    setPage(0);
+  };
+
+  const dateFiltered = Boolean(createdFrom || createdTo);
   const emptyTitle = query.trim()
     ? `No Polsts match “${query.trim()}”`
-    : active === "All"
-      ? "No Polsts yet"
-      : active === "Drafts"
-        ? "No drafts"
-        : `No ${active.toLowerCase()} Polsts`;
-  const emptyAction: EmptyStateAction = query.trim()
-    ? { label: "Clear search", onClick: () => setQuery("") }
+    : dateFiltered
+      ? "No Polsts were created in this date range"
+      : active === "All"
+        ? "No Polsts yet"
+        : active === "Drafts"
+          ? "No drafts"
+          : `No ${active.toLowerCase()} Polsts`;
+  const emptyAction: EmptyStateAction = query.trim() || dateFiltered
+    ? {
+        label: "Clear filters",
+        onClick: () => {
+          setQuery("");
+          setCreatedFrom("");
+          setCreatedTo("");
+          setPage(0);
+        },
+      }
     : active === "Archived"
       ? { label: "View all Polsts", onClick: () => setActive("All") }
       : { label: "Create a Polst", to: "/polsts/new" };
+
+  const pager =
+    rows.length > PAGE_SIZE ? (
+      <div className="flex items-center justify-between gap-3 border-t border-border-default px-5 py-3">
+        <p className="text-xs tabular-nums text-text-secondary">
+          {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, rows.length)} of{" "}
+          {rows.length} Polsts
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={safePage === 0}
+            onClick={() => setPage(safePage - 1)}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={safePage >= pageCount - 1}
+            onClick={() => setPage(safePage + 1)}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    ) : null;
 
   const toolbar = (
     <SearchAndFilters
       tabs={POLST_FILTERS}
       active={active}
-      onChange={setActive}
+      onChange={setFilterAndResetPage(setActive)}
       placeholder="Search Polsts"
       query={query}
-      onQueryChange={setQuery}
-      action={<SegmentedControl tabs={VIEWS} active={view} onChange={setView} />}
+      onQueryChange={setFilterAndResetPage(setQuery)}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <CreatedRange
+            from={createdFrom}
+            to={createdTo}
+            onFromChange={setFilterAndResetPage(setCreatedFrom)}
+            onToChange={setFilterAndResetPage(setCreatedTo)}
+          />
+          <SegmentedControl tabs={VIEWS} active={view} onChange={setView} />
+        </div>
+      }
       className={view === "grid" ? "border-b-0" : undefined}
     />
   );
@@ -334,10 +400,13 @@ export function PolstsPage() {
     >
       {view === "grid" ? (
         <>
-          <DashboardCard padded={false}>{toolbar}</DashboardCard>
+          <DashboardCard padded={false}>
+            {toolbar}
+            {pager}
+          </DashboardCard>
           {rows.length ? (
             <SectionGrid>
-              {rows.map((polst) => (
+              {pageRows.map((polst) => (
                 <PolstGridCard key={polst.id} polst={polst} />
               ))}
             </SectionGrid>
@@ -351,11 +420,14 @@ export function PolstsPage() {
         <DashboardCard padded={false}>
           {toolbar}
           {rows.length ? (
-            <DataTable
-              rows={rows}
-              columns={columns(setSharePolst, setQrPolst)}
-              onRowClick={(row) => navigate(`/polsts/${row.id}`)}
-            />
+            <>
+              <DataTable
+                rows={pageRows}
+                columns={columns(setSharePolst, setQrPolst)}
+                onRowClick={(row) => navigate(`/polsts/${row.id}`)}
+              />
+              {pager}
+            </>
           ) : (
             <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
           )}
@@ -906,10 +978,12 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
 
   // "Images added" is deliberately not a gate: every Polst's imagery is
   // derived through polstImage(), so the composer's mock attach can neither
-  // block a publish honestly nor survive a draft round-trip.
+  // block a publish honestly nor survive a draft round-trip. A category is
+  // required to publish (staging's rule) but never blocks saving a draft.
   const checks: Array<[string, boolean]> = [
     ["Question written", composer.question !== ""],
     ["Both options set", composer.optionsSet],
+    ["Category selected", composer.category !== null],
   ];
   const canSave = composer.question !== "" && composer.optionsSet && !endBeforeStart;
   const canPublish = checks.every(([, done]) => done) && !endBeforeStart;

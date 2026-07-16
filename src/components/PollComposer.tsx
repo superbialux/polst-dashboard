@@ -13,9 +13,10 @@ import { Button } from "./ui/button";
 
 const seedImg = (seed: string) => curatedImage(seed, 600, 450);
 
-/** Twitter-style budgets: tight enough that polls stay scannable. */
+/** Twitter-style budgets: tight enough that polls stay scannable.
+ *  Limits match staging exactly — 70 for the question, 40 per option. */
 const QUESTION_LIMIT = 70;
-const CHOICE_LIMIT = 30;
+const CHOICE_LIMIT = 40;
 
 type Choice = { label: string; image: string | null };
 
@@ -49,9 +50,10 @@ function useLimitShake(value: string, limit: number) {
   return { shake, onLimitKeyDown };
 }
 
-/** Twitter-style budget ring: fills as you type and blushes toward danger
- *  near the limit; the last 10 characters count down beside it, and the
- *  whole thing shakes when a keystroke lands on a spent budget. */
+/** Twitter-style budget ring with a live counter: the "12/70" count is
+ *  always visible (real feedback: "character limits are missing"), the
+ *  ring fills as you type and blushes toward danger near the limit, and
+ *  the whole thing shakes when a keystroke lands on a spent budget. */
 function CharRing({
   value,
   limit,
@@ -82,14 +84,14 @@ function CharRing({
         className,
       )}
     >
-      {remaining <= 10 && (
-        <span
-          className="font-sans text-xs font-semibold leading-4 tabular-nums"
-          style={{ color }}
-        >
-          {remaining}
+      <span
+        className="font-sans text-xs font-medium leading-4 tabular-nums"
+        style={mix > 0 ? { color } : undefined}
+      >
+        <span className={mix > 0 ? undefined : "text-text-tertiary"}>
+          {value.length}/{limit}
         </span>
-      )}
+      </span>
       <svg viewBox="0 0 18 18" className="h-[18px] w-[18px] -rotate-90">
         <circle
           cx="9"
@@ -137,14 +139,12 @@ function ChoiceTile({
           value={choice.label}
           onChange={(e) => onLabel(e.target.value)}
           onKeyDown={onLimitKeyDown}
-          placeholder={`Option ${index === 0 ? "A" : "B"}`}
-          aria-label={`Option ${index === 0 ? "A" : "B"} label`}
+          placeholder={`Option ${index === 0 ? "A" : "B"} (required)`}
+          aria-label={`Option ${index === 0 ? "A" : "B"} label (required)`}
           maxLength={CHOICE_LIMIT}
           className="min-w-0 flex-1 bg-transparent px-3 py-2.5 font-display text-base font-semibold leading-5 text-text-primary outline-none placeholder:text-text-tertiary lg:text-sm"
         />
-        {choice.label.length > 0 && (
-          <CharRing value={choice.label} limit={CHOICE_LIMIT} shake={shake} />
-        )}
+        <CharRing value={choice.label} limit={CHOICE_LIMIT} shake={shake} />
       </div>
       <button
         type="button"
@@ -265,7 +265,7 @@ export function PollComposer({
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={questionShake.onLimitKeyDown}
-          placeholder="Ask a question…"
+          placeholder="Ask a question (required)…"
           aria-label="Question (required)"
           maxLength={QUESTION_LIMIT}
           className="min-w-0 flex-1 bg-transparent font-display text-lg font-bold leading-[26px] text-text-primary outline-none placeholder:text-text-tertiary"
@@ -317,7 +317,9 @@ export function PollComposer({
             className="h-10 w-full justify-between px-3 font-sans text-sm font-normal"
           >
             <span className={selectedCategories.length ? "truncate" : "truncate text-text-tertiary"}>
-              {selectedCategories.length ? selectedCategories.join(", ") : "Select categories"}
+              {selectedCategories.length
+                ? selectedCategories.join(", ")
+                : "Select categories (required)"}
             </span>
             <Icon name="arrow_drop_down" size={18} />
           </Button>
@@ -339,7 +341,7 @@ export function PollComposer({
         ))}
       </Menu>
 
-      {/* Tags — typed then committed on Enter/comma, up to five. */}
+      {/* Tags — typed then committed on Enter/comma, up to ten. */}
       <div
         className={cn(
           CONTROL,
@@ -371,7 +373,7 @@ export function PollComposer({
             }
           }}
           onBlur={addTag}
-          placeholder={tags.length === 0 ? "Add tags…" : ""}
+          placeholder={tags.length === 0 ? "Add tags (optional)…" : ""}
           aria-label="Add tags"
           className="min-w-24 flex-1 bg-transparent font-sans text-base text-text-primary outline-none placeholder:text-text-tertiary lg:text-sm"
         />

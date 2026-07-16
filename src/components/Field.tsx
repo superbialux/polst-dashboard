@@ -10,14 +10,17 @@ export const CONTROL =
   "h-10 w-full rounded-md border border-border-default bg-surface-raised font-sans text-base text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-border-accent lg:text-sm";
 
 /** Label + control + optional helper line. The helper doubles as the
- *  success/error slot (see FieldHelper). */
+ *  success/error slot (see FieldHelper). `required` marks the label with
+ *  a quiet "Required" — real feedback asked for visible required marks. */
 export function Field({
   label,
   helper,
+  required,
   children,
 }: {
   label: string;
   helper?: ReactNode;
+  required?: boolean;
   children: (id: string) => ReactNode;
 }) {
   const id = useId();
@@ -25,9 +28,12 @@ export function Field({
     <div className="flex flex-col gap-1.5">
       <label
         htmlFor={id}
-        className="font-display text-sm font-semibold leading-5 text-text-primary"
+        className="flex items-baseline gap-1.5 font-display text-sm font-semibold leading-5 text-text-primary"
       >
         {label}
+        {required ? (
+          <span className="font-sans text-xs font-medium text-text-tertiary">Required</span>
+        ) : null}
       </label>
       {children(id)}
       {helper}
