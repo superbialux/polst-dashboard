@@ -381,11 +381,13 @@ export function PolstsPage() {
 
 export function PolstDetailPage() {
   const { id } = useParams();
-  const { polstById, archivePolst, restorePolst, sources } = useWorkspace();
+  const { polstById, archivePolst, restorePolst, deletePolst, sources } = useWorkspace();
   const toast = useToast();
+  const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const polst = polstById(id);
   if (!polst) return <NotFoundCard kind="Polst" />;
 
@@ -501,19 +503,29 @@ export function PolstDetailPage() {
             </Button>
           ) : null}
           {isArchived ? (
-            // A voted run restores to Ended, not Draft — say so.
-            <Button
-              onClick={() => {
-                const status = restorePolst(polst.id);
-                toast(
-                  status === "Ended"
-                    ? "Restored — back under Ended (its votes are part of the record)"
-                    : "Restored to drafts",
-                );
-              }}
-            >
-              {polst.votes > 0 ? "Restore" : "Restore to drafts"}
-            </Button>
+            <>
+              {/* A never-run archive can be deleted; a voted run's record
+                  stays (the store refuses — same law as voted sources). */}
+              {polst.votes === 0 ? (
+                <Button variant="destructive-secondary" onClick={() => setDeleteOpen(true)}>
+                  <Icon name="delete" size={18} />
+                  Delete
+                </Button>
+              ) : null}
+              {/* A voted run restores to Ended, not Draft — say so. */}
+              <Button
+                onClick={() => {
+                  const status = restorePolst(polst.id);
+                  toast(
+                    status === "Ended"
+                      ? "Restored — back under Ended (its votes are part of the record)"
+                      : "Restored to drafts",
+                  );
+                }}
+              >
+                {polst.votes > 0 ? "Restore" : "Restore to drafts"}
+              </Button>
+            </>
           ) : null}
         </>
       }
@@ -537,6 +549,20 @@ export function PolstDetailPage() {
           reason="Voters can't see a draft. Publish it to start collecting votes."
           primary={{ label: "Finish & publish", to: `/polsts/new?edit=${polst.id}` }}
         />
+      ) : null}
+      {isArchived ? (
+        // The archived state, in one read-only summary — never a dead end.
+        <DashboardCard title="Archived">
+          <p className="max-w-3xl text-sm leading-6 text-text-secondary">
+            {polst.votes > 0
+              ? `Ran ${fmtDateRange(polst.startAt, polst.endAt)} and collected ${fmtInt(
+                  polst.votes,
+                )} votes — ${polst.splitA >= 50 ? polst.optionA : polst.optionB} finished ahead ${
+                  polst.splitA >= 50 ? polst.splitA : 100 - polst.splitA
+                }–${polst.splitA >= 50 ? 100 - polst.splitA : polst.splitA}. Voters can't reach an archived Polst, but its record stays in analytics. Restore returns it to Ended.`
+              : "Never ran — archived as a draft with no votes. Restore it to drafts to keep working on it, or delete it for good."}
+          </p>
+        </DashboardCard>
       ) : null}
       {isScheduled && polst.startAt && polstSources.length === 0 ? (
         <ActionCard
@@ -662,6 +688,39 @@ export function PolstDetailPage() {
         onClose={() => setAssignOpen(false)}
         polst={polst}
       />
+      <Modal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        label="Delete Polst"
+        title="Delete this Polst?"
+        footer={
+          <div className="flex justify-end gap-2 p-4">
+            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const result = deletePolst(polst.id);
+                setDeleteOpen(false);
+                if (result.ok) {
+                  toast("Polst deleted");
+                  navigate("/polsts");
+                } else {
+                  toast(result.reason);
+                }
+              }}
+            >
+              Delete Polst
+            </Button>
+          </div>
+        }
+      >
+        <p className="p-4 text-sm leading-6 text-text-secondary">
+          “{polst.question}” never collected votes, so nothing is lost with it. This can't be
+          undone.
+        </p>
+      </Modal>
     </DashboardPage>
   );
 }

@@ -2,16 +2,13 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
-  ActionCard,
   DashboardCard,
   DashboardPage,
   DateRangeMenu,
   EmptyState,
   InfoHint,
-  NextStepsCard,
   SectionGrid,
   SegmentedControl,
-  type SetupStep,
   StatsStrip,
   ThumbStrip,
   WorkspaceCalendar,
@@ -19,7 +16,6 @@ import {
 import { cn } from "@/lib/utils";
 import {
   METRIC_INFO,
-  TODAY,
   fmtDate,
   fmtDateRange,
   fmtInt,
@@ -29,7 +25,6 @@ import {
 } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import {
-  KEY_DATES,
   STAT_XTICKS,
   attentionItems,
   dashboardStats,
@@ -37,9 +32,7 @@ import {
   winnerLabel,
   workspaceWindow,
   type Campaign,
-  type KeyDate,
   type ListItem,
-  type SinglePolst,
   type Source,
   type StatRange,
 } from "@/lib/workspace";
@@ -50,9 +43,6 @@ import {
  *  in-session assignments update every readiness surface at once. */
 const campaignSources = (sources: Source[], id: string) =>
   sources.filter((s) => s.linked?.type === "campaign" && s.linked.id === id);
-
-const polstSources = (sources: Source[], id: string) =>
-  sources.filter((s) => s.linked?.type === "polst" && s.linked.id === id);
 
 /** "1 Polst" / "3 Polsts" — counts and nouns agree everywhere on the page. */
 const pluralize = (n: number, singular: string) => (n === 1 ? singular : `${singular}s`);
@@ -213,96 +203,6 @@ function HomeCampaignRow({ campaign, sourceCount }: { campaign: Campaign; source
   );
 }
 
-/* ── Launch readiness ────────────────────────────────────────────────
-   The nearest Scheduled campaign that can't launch cleanly yet, with its
-   real gaps as steps. Fully derived — assign a source and the card moves
-   on (or disappears). */
-
-function launchSteps(campaign: Campaign, sourceCount: number): SetupStep[] {
-  return [
-    {
-      title: "Stage the Polsts",
-      done: campaign.chain.length > 0,
-      description: campaign.chain.length
-        ? `${campaign.chain.length} ${pluralize(campaign.chain.length, "Polst")} ${campaign.chain.length === 1 ? "is" : "are"} staged in the voting sequence.`
-        : "The campaign can't be published without at least one Polst.",
-      cta: {
-        label: campaign.chain.length ? "Review Polsts" : "Add Polsts",
-        to: `/campaigns/${campaign.id}?tab=polsts`,
-      },
-    },
-    {
-      // Plural like its CTA — a campaign collects through several sources.
-      title: "Assign sources",
-      done: sourceCount > 0,
-      description:
-        sourceCount > 0
-          ? `${sourceCount} ${sourceCount === 1 ? "source is" : "sources are"} attached.`
-          : "Nothing is attached to collect voters — add a QR code, share link, or embed.",
-      cta: {
-        // "Assign" is the verb of the control this lands on (the Sources
-        // tab's "Assign source"); "Add source" means create-new (Distribution).
-        label: sourceCount > 0 ? "Review sources" : "Assign sources",
-        to: `/campaigns/${campaign.id}?tab=sources`,
-      },
-    },
-    {
-      title: "Confirm the schedule",
-      done: Boolean(campaign.startAt),
-      description: campaign.startAt
-        ? `Runs ${fmtDateRange(campaign.startAt, campaign.endAt)}.`
-        : "No start date is set.",
-      cta: { label: "Review schedule", to: `/campaigns/${campaign.id}?tab=settings` },
-    },
-  ];
-}
-
-/* ── Key-date coverage ───────────────────────────────────────────── */
-
-type KeyDateCoverage =
-  | { kind: "campaign"; campaign: Campaign; sourceCount: number }
-  | { kind: "polst"; polst: SinglePolst; sourceCount: number }
-  | null;
-
-function KeyDateCard({ date, coverage }: { date: KeyDate; coverage: KeyDateCoverage }) {
-  let reason: string;
-  let primary: { label: string; to: string };
-  if (coverage?.kind === "campaign") {
-    const { campaign, sourceCount } = coverage;
-    reason =
-      sourceCount > 0
-        ? `${campaign.name} is ${campaign.status.toLowerCase()} — runs ${fmtDateRange(campaign.startAt, campaign.endAt)}.`
-        : `${campaign.name} is ${campaign.status.toLowerCase()} — no sources yet.`;
-    primary =
-      sourceCount > 0
-        ? { label: "View campaign", to: `/campaigns/${campaign.id}` }
-        : { label: "Assign sources", to: `/campaigns/${campaign.id}?tab=sources` };
-  } else if (coverage?.kind === "polst") {
-    const { polst, sourceCount } = coverage;
-    reason =
-      sourceCount > 0
-        ? `"${polst.question}" is ${polst.status.toLowerCase()} — runs ${fmtDateRange(polst.startAt, polst.endAt)}.`
-        : `"${polst.question}" is ${polst.status.toLowerCase()} — no source yet.`;
-    primary = {
-      // Singular, no article — the same verb form as the control it lands on.
-      label: sourceCount > 0 ? "View Polst" : "Assign source",
-      to: `/polsts/${polst.id}`,
-    };
-  } else {
-    reason = "Nothing is attached to this date yet.";
-    primary = { label: "Plan a campaign", to: `/campaigns/new?event=${date.id}` };
-  }
-  return (
-    <ActionCard
-      className="lg:col-span-3"
-      eyebrow={`${fmtDateRange(date.start, date.end)} · ${relativeToToday(date.start)}`}
-      title={date.title}
-      reason={reason}
-      primary={primary}
-    />
-  );
-}
-
 /* ── Page ────────────────────────────────────────────────────────── */
 
 export function HomePage() {
@@ -356,46 +256,6 @@ export function HomePage() {
         .join(" · ") || undefined
     );
   }, [readyToDecide]);
-
-  /* The nearest scheduled campaign that still has a launch gap. */
-  const launchCampaign = useMemo(
-    () =>
-      queuedCampaigns.find(
-        (c) => !c.chain.length || !campaignSources(sources, c.id).length || !c.startAt,
-      ),
-    [queuedCampaigns, sources],
-  );
-
-  /* Key dates still ahead, each with its real coverage. */
-  const keyDates = useMemo(
-    () =>
-      KEY_DATES.filter((k) => k.end >= TODAY).map((date) => {
-        const campaign = campaigns.find((c) => c.event === date.id && c.status !== "Archived");
-        if (campaign) {
-          return {
-            date,
-            coverage: {
-              kind: "campaign",
-              campaign,
-              sourceCount: campaignSources(sources, campaign.id).length,
-            } as KeyDateCoverage,
-          };
-        }
-        const polst = polsts.find((p) => p.event === date.id && p.status !== "Archived");
-        if (polst) {
-          return {
-            date,
-            coverage: {
-              kind: "polst",
-              polst,
-              sourceCount: polstSources(sources, polst.id).length,
-            } as KeyDateCoverage,
-          };
-        }
-        return { date, coverage: null };
-      }),
-    [campaigns, polsts, sources],
-  );
 
   return (
     <DashboardPage
@@ -475,21 +335,11 @@ export function HomePage() {
         )}
       </DashboardCard>
 
-      {launchCampaign ? (
-        <NextStepsCard
-          title={`Get ${launchCampaign.name} ready to launch`}
-          intro={launchCampaign.startAt ? `Starts ${relativeToToday(launchCampaign.startAt)}.` : undefined}
-          steps={launchSteps(launchCampaign, campaignSources(sources, launchCampaign.id).length)}
-        />
-      ) : null}
-
-      {/* Planning band: the calendar, then each key date's real coverage. */}
+      {/* Planning band: one calendar. Key dates ride its day cells and
+          popover; the old per-date card grid and the launch checklist
+          repeated what the attention queue and campaign rows already say
+          (the campaign detail keeps its own launch checklist). */}
       <WorkspaceCalendar />
-      <SectionGrid>
-        {keyDates.map(({ date, coverage }) => (
-          <KeyDateCard key={date.id} date={date} coverage={coverage} />
-        ))}
-      </SectionGrid>
     </DashboardPage>
   );
 }

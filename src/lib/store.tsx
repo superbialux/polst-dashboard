@@ -212,6 +212,8 @@ type WorkspaceStore = {
   publishPolst: (id: string) => { ok: true; status: Status } | { ok: false; reason: string };
   archivePolst: (id: string) => void;
   restorePolst: (id: string) => Status;
+  /** Refused once a run has votes — evidence is part of the record. */
+  deletePolst: (id: string) => { ok: true } | { ok: false; reason: string };
 
   addSource: (input: AddSourceInput) => string;
   assignSource: (sourceId: string, linked: NonNullable<Source["linked"]>) => void;
@@ -509,6 +511,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const status: Status = p && p.votes > 0 ? "Ended" : "Draft";
         patchPolst(id, (x) => ({ ...x, status: x.votes > 0 ? "Ended" : "Draft" }));
         return status;
+      },
+      // Deleting is for runs that never collected — a voted run's record
+      // stays (the same evidence law that keeps voted sources assigned).
+      // Sources pointed at the deleted Polst unlink instead of dangling.
+      deletePolst: (id) => {
+        const p = polsts.find((x) => x.id === id);
+        if (!p) return { ok: false as const, reason: "Polst not found." };
+        if (p.votes > 0)
+          return {
+            ok: false as const,
+            reason: "This Polst collected votes — its record can be archived, not deleted.",
+          };
+        setPolsts((all) => all.filter((x) => x.id !== id));
+        setSources((all) =>
+          all.map((s) =>
+            s.linked?.type === "polst" && s.linked.id === id ? { ...s, linked: null } : s,
+          ),
+        );
+        return { ok: true as const };
       },
 
       addSource: (input) => {
