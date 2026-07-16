@@ -1486,6 +1486,67 @@ export const TEAM: TeamMember[] = [
   { id: "agency", name: "Sam Ellery", email: "sam@brightside.agency", role: "Manager" },
 ];
 
+/* ── Developer platform (Settings) ───────────────────────────────────
+   Staging exposes a working Developer section — scoped API keys and up
+   to ten webhook endpoints — so the dashboard does too; the old "Pro"
+   teaser contradicted a capability the workspace actually has. Keys
+   carry a non-recoverable secret (shown once at creation); the seeds
+   mirror a workspace that already integrated once. */
+
+export type ApiScope = "Read analytics" | "Manage Polsts" | "Manage campaigns";
+export const API_SCOPES: ApiScope[] = ["Read analytics", "Manage Polsts", "Manage campaigns"];
+
+export type ApiKey = {
+  id: string;
+  name: string;
+  /** Displayable prefix + last 4 — the secret itself is never stored. */
+  tokenPreview: string;
+  scopes: ApiScope[];
+  createdAt: string;
+  lastUsed?: string;
+};
+
+export const API_KEYS: ApiKey[] = [
+  {
+    id: "key-site",
+    name: "Website embeds",
+    tokenPreview: "pk_live_••••4h2m",
+    scopes: ["Read analytics"],
+    createdAt: "2026-03-02",
+    lastUsed: "2026-06-14",
+  },
+];
+
+export const WEBHOOK_EVENTS = [
+  "polst.vote.created",
+  "campaign.completed",
+  "campaign.ended",
+  "source.scan",
+] as const;
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+
+/** Staging's cap: up to ten webhook endpoints per workspace. */
+export const WEBHOOK_LIMIT = 10;
+
+export type Webhook = {
+  id: string;
+  url: string;
+  events: WebhookEvent[];
+  createdAt: string;
+  /** Last delivery result; absent before the first event fires. */
+  lastDelivery?: { at: string; ok: boolean };
+};
+
+export const WEBHOOKS: Webhook[] = [
+  {
+    id: "wh-warehouse",
+    url: "https://hooks.northstarpantry.co/polst",
+    events: ["campaign.ended", "polst.vote.created"],
+    createdAt: "2026-04-22",
+    lastDelivery: { at: "2026-06-14", ok: true },
+  },
+];
+
 /* ── Integrations (Settings) ─────────────────────────────────────── */
 
 /** Ad and analytics platforms only — embeds, QR codes, and links are native

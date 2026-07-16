@@ -5,13 +5,12 @@ import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { CONTROL, Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
+import { CONTROL, Checkbox, Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
 import {
   ConnectCard,
   DashboardCard,
   DashboardPage,
   DataTable,
-  LockedCard,
   NotFoundCard,
   PollResults,
   SectionGrid,
@@ -24,11 +23,18 @@ import { MODULE_INFO, useModules } from "@/lib/modules";
 import { METRIC_INFO, fmtDate, fmtInt } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import {
+  API_SCOPES,
   INTEGRATIONS,
   USAGE,
+  WEBHOOK_EVENTS,
+  WEBHOOK_LIMIT,
   WORKSPACE,
   polstOptions,
+  type ApiKey,
+  type ApiScope,
   type TeamMember,
+  type Webhook,
+  type WebhookEvent,
 } from "@/lib/workspace";
 
 const optionsOf = (values: readonly string[]) =>
@@ -230,11 +236,15 @@ function TeamSection() {
     },
   ];
 
+  const [provisioned, setProvisioned] = useState<{ email: string; password: string } | null>(
+    null,
+  );
+
   return (
     <>
       <DashboardCard
         title="Members"
-        description="Everyone besides the owner is a Manager. Only the owner can add or remove members."
+        description="Members are provisioned brand-only accounts with a Manager or Owner role. Only an owner can add or remove members."
         padded={false}
         action={
           <Button size="sm" onClick={() => setAddOpen(true)}>
@@ -248,11 +258,53 @@ function TeamSection() {
       <AddMemberModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onAdd={(name, email) => {
-          addMember(name, email);
-          toast(`Account created — ${email} can sign in now`);
+        onAdd={(name, email, role) => {
+          const { password } = addMember(name, email, role);
+          setProvisioned({ email, password });
         }}
       />
+
+      {/* The one place the initial password ever appears (staging's
+          provisioning contract: no invite email, a generated first
+          password handed to the teammate out of band). */}
+      <Modal
+        open={provisioned !== null}
+        onClose={() => setProvisioned(null)}
+        label="Account created"
+        title="Account created"
+        footer={
+          <div className="flex justify-end p-4">
+            <Button onClick={() => setProvisioned(null)}>Done</Button>
+          </div>
+        }
+      >
+        {provisioned ? (
+          <div className="space-y-3 p-4">
+            <p className="text-sm leading-6 text-text-secondary">
+              <span className="font-semibold text-text-primary">{provisioned.email}</span> can
+              sign in now with this initial password. It is shown once — share it with your
+              teammate directly; they should change it at first sign-in.
+            </p>
+            <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-subtle p-3">
+              <code className="min-w-0 flex-1 break-all font-mono text-sm text-text-primary">
+                {provisioned.password}
+              </code>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  navigator.clipboard
+                    ?.writeText(provisioned.password)
+                    .then(() => toast("Password copied to clipboard"))
+                    .catch(() => toast("Copy failed — the browser blocked clipboard access"))
+                }
+              >
+                Copy
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </>
   );
 }
@@ -264,17 +316,19 @@ function AddMemberModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (name: string, email: string) => void;
+  onAdd: (name: string, email: string, role: TeamMember["role"]) => void;
 }) {
   const { members } = useWorkspace();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState<TeamMember["role"]>("Manager");
 
   // A fresh form every time the modal opens.
   useEffect(() => {
     if (open) {
       setName("");
       setEmail("");
+      setRole("Manager");
     }
   }, [open]);
 
@@ -299,7 +353,7 @@ function AddMemberModal({
           <Button
             disabled={!valid}
             onClick={() => {
-              onAdd(name.trim(), email.trim());
+              onAdd(name.trim(), email.trim(), role);
               onClose();
             }}
           >
@@ -340,9 +394,20 @@ function AddMemberModal({
             />
           )}
         </Field>
+        <Field label="Role">
+          {() => (
+            <SegmentedControl
+              size="form"
+              tabs={["Manager", "Owner"] as const}
+              active={role}
+              onChange={setRole}
+            />
+          )}
+        </Field>
         <p className="rounded-md bg-surface-subtle p-3 text-xs leading-5 text-text-secondary">
-          Creates a brand-only account in this workspace — your teammate signs in with this
-          email. No invite email is sent. Managers can run campaigns, Polsts, and analytics.
+          Creates a brand-only account with a generated initial password — no invite email is
+          sent. Managers run campaigns, Polsts, and analytics; owners can also manage members,
+          billing, and the developer platform.
         </p>
       </div>
     </Modal>
@@ -582,6 +647,416 @@ function ModulesSection() {
   );
 }
 
+/* ── Developer (API keys & webhooks) ─────────────────────────────────
+   Staging's Developer section is real — scoped API keys and up to ten
+   webhook endpoints — so this one works too, against the store. The
+   full secret appears once at creation and is never recoverable. */
+
+function ApiKeysSection() {
+  const toast = useToast();
+  const { apiKeys, createApiKey, revokeApiKey } = useWorkspace();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKey | null>(null);
+  const [minted, setMinted] = useState<{ name: string; secret: string } | null>(null);
+
+  const keyColumns: Array<DataColumn<ApiKey>> = [
+    {
+      header: "Key",
+      cell: (row) => (
+        <div className="min-w-0">
+          <p className="font-display font-semibold text-text-primary">{row.name}</p>
+          <p className="mt-0.5 font-mono text-xs text-text-secondary">{row.tokenPreview}</p>
+        </div>
+      ),
+    },
+    {
+      header: "Scopes",
+      cell: (row) => <span className="text-text-secondary">{row.scopes.join(", ")}</span>,
+    },
+    {
+      header: "Created",
+      cell: (row) => (
+        <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.createdAt)}</span>
+      ),
+    },
+    {
+      header: "Last used",
+      cell: (row) =>
+        row.lastUsed ? (
+          <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.lastUsed)}</span>
+        ) : (
+          <span className="whitespace-nowrap text-text-tertiary">Never</span>
+        ),
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (row) => (
+        <Button variant="secondary" size="sm" onClick={() => setRevokeTarget(row)}>
+          Revoke
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <DashboardCard
+        title="API keys"
+        description="Server-to-server access to this workspace's Polsts, campaigns, and analytics. Keys exchange for short-lived tokens; scope each key to what the caller needs."
+        padded={false}
+        action={
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            Create API key
+          </Button>
+        }
+      >
+        <DataTable
+          rows={apiKeys}
+          columns={keyColumns}
+          emptyLabel="No API keys yet — create one to call the REST API"
+        />
+      </DashboardCard>
+
+      <CreateApiKeyModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreate={(name, scopes) => {
+          const { secret } = createApiKey(name, scopes);
+          setMinted({ name, secret });
+        }}
+      />
+
+      {/* The one place the full secret ever appears. */}
+      <Modal
+        open={minted !== null}
+        onClose={() => setMinted(null)}
+        label="API key created"
+        title="API key created"
+        footer={
+          <div className="flex justify-end p-4">
+            <Button onClick={() => setMinted(null)}>Done</Button>
+          </div>
+        }
+      >
+        {minted ? (
+          <div className="space-y-3 p-4">
+            <p className="text-sm leading-6 text-text-secondary">
+              Copy the secret for <span className="font-semibold text-text-primary">{minted.name}</span> now
+              — it is shown once and can't be recovered. A lost secret means revoking the key
+              and creating a new one.
+            </p>
+            <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-subtle p-3">
+              <code className="min-w-0 flex-1 break-all font-mono text-xs text-text-primary">
+                {minted.secret}
+              </code>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  navigator.clipboard
+                    ?.writeText(minted.secret)
+                    .then(() => toast("Secret copied to clipboard"))
+                    .catch(() => toast("Copy failed — the browser blocked clipboard access"))
+                }
+              >
+                Copy
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={revokeTarget !== null}
+        onClose={() => setRevokeTarget(null)}
+        label="Revoke API key"
+        title="Revoke this key?"
+        footer={
+          <div className="flex justify-end gap-2 p-4">
+            <Button variant="secondary" onClick={() => setRevokeTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (revokeTarget) {
+                  revokeApiKey(revokeTarget.id);
+                  toast(`${revokeTarget.name} revoked — its requests fail from now on`);
+                }
+                setRevokeTarget(null);
+              }}
+            >
+              Revoke key
+            </Button>
+          </div>
+        }
+      >
+        {revokeTarget ? (
+          <p className="p-4 text-sm leading-6 text-text-secondary">
+            <span className="font-semibold text-text-primary">{revokeTarget.name}</span>{" "}
+            ({revokeTarget.tokenPreview}) stops working immediately. Anything calling the API
+            with it starts failing. This can't be undone.
+          </p>
+        ) : null}
+      </Modal>
+    </>
+  );
+}
+
+function CreateApiKeyModal({
+  open,
+  onClose,
+  onCreate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreate: (name: string, scopes: ApiScope[]) => void;
+}) {
+  const [name, setName] = useState("");
+  const [scopes, setScopes] = useState<ApiScope[]>(["Read analytics"]);
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setScopes(["Read analytics"]);
+    }
+  }, [open]);
+
+  const toggleScope = (scope: ApiScope) =>
+    setScopes((all) =>
+      all.includes(scope) ? all.filter((s) => s !== scope) : [...all, scope],
+    );
+
+  const valid = name.trim().length > 0 && scopes.length > 0;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      label="Create API key"
+      title="Create API key"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!valid}
+            onClick={() => {
+              onCreate(name.trim(), scopes);
+              onClose();
+            }}
+          >
+            Create key
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 p-4">
+        <Field label="Name" helper={<FieldHelper tone="neutral">What will use this key — e.g. “Warehouse sync”.</FieldHelper>}>
+          {(id) => (
+            <TextInput
+              id={id}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Warehouse sync"
+              maxLength={60}
+            />
+          )}
+        </Field>
+        <div>
+          <p className={fieldLabelClass}>Scopes</p>
+          <ul className="mt-1.5 space-y-2">
+            {API_SCOPES.map((scope) => (
+              <li key={scope}>
+                <Checkbox
+                  checked={scopes.includes(scope)}
+                  onCheckedChange={() => toggleScope(scope)}
+                  label={scope}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function WebhooksSection() {
+  const toast = useToast();
+  const { webhooks, addWebhook, removeWebhook } = useWorkspace();
+  const [addOpen, setAddOpen] = useState(false);
+
+  const webhookColumns: Array<DataColumn<Webhook>> = [
+    {
+      header: "Endpoint",
+      cell: (row) => (
+        <span className="break-all font-mono text-xs text-text-primary">{row.url}</span>
+      ),
+    },
+    {
+      header: "Events",
+      cell: (row) => (
+        <span className="font-mono text-xs text-text-secondary">{row.events.join(", ")}</span>
+      ),
+    },
+    {
+      header: "Last delivery",
+      cell: (row) =>
+        row.lastDelivery ? (
+          <span
+            className={cn(
+              "whitespace-nowrap",
+              row.lastDelivery.ok ? "text-text-secondary" : "text-status-danger",
+            )}
+          >
+            {fmtDate(row.lastDelivery.at)} · {row.lastDelivery.ok ? "delivered" : "failing"}
+          </span>
+        ) : (
+          <span className="whitespace-nowrap text-text-tertiary">No events yet</span>
+        ),
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (row) => (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            removeWebhook(row.id);
+            toast("Endpoint removed — no further events are sent to it");
+          }}
+        >
+          Remove
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <DashboardCard
+        title="Webhooks"
+        description={`Polst POSTs each subscribed event to your endpoint as it happens. Up to ${WEBHOOK_LIMIT} endpoints per workspace — ${webhooks.length} in use.`}
+        padded={false}
+        action={
+          <Button size="sm" onClick={() => setAddOpen(true)} disabled={webhooks.length >= WEBHOOK_LIMIT}>
+            Add endpoint
+          </Button>
+        }
+      >
+        <DataTable
+          rows={webhooks}
+          columns={webhookColumns}
+          emptyLabel="No endpoints yet — add one to receive events"
+        />
+      </DashboardCard>
+
+      <AddWebhookModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdd={(url, events) => {
+          const result = addWebhook(url, events);
+          toast(result.ok ? "Endpoint added — events start on the next occurrence" : result.reason);
+        }}
+      />
+    </>
+  );
+}
+
+function AddWebhookModal({
+  open,
+  onClose,
+  onAdd,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdd: (url: string, events: WebhookEvent[]) => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [events, setEvents] = useState<WebhookEvent[]>(["campaign.ended"]);
+
+  useEffect(() => {
+    if (open) {
+      setUrl("");
+      setEvents(["campaign.ended"]);
+    }
+  }, [open]);
+
+  const toggleEvent = (event: WebhookEvent) =>
+    setEvents((all) =>
+      all.includes(event) ? all.filter((e) => e !== event) : [...all, event],
+    );
+
+  const valid = /^https:\/\/\S+\.\S+/.test(url.trim()) && events.length > 0;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      label="Add webhook endpoint"
+      title="Add webhook endpoint"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!valid}
+            onClick={() => {
+              onAdd(url.trim(), events);
+              onClose();
+            }}
+          >
+            Add endpoint
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 p-4">
+        <Field
+          label="Endpoint URL"
+          helper={<FieldHelper tone="neutral">HTTPS only — events are signed POST requests.</FieldHelper>}
+        >
+          {(id) => (
+            <TextInput
+              id={id}
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/hooks/polst"
+            />
+          )}
+        </Field>
+        <div>
+          <p className={fieldLabelClass}>Events</p>
+          <ul className="mt-1.5 space-y-2">
+            {WEBHOOK_EVENTS.map((event) => (
+              <li key={event}>
+                <Checkbox
+                  checked={events.includes(event)}
+                  onCheckedChange={() => toggleEvent(event)}
+                  label={event}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function DeveloperSection() {
+  return (
+    <>
+      <ApiKeysSection />
+      <WebhooksSection />
+    </>
+  );
+}
+
 /* ── Plan & usage ────────────────────────────────────────────────── */
 
 const monthColumns: Array<DataColumn<{ id: string; month: string; views: number; votes: number }>> = [
@@ -605,8 +1080,9 @@ const monthColumns: Array<DataColumn<{ id: string; month: string; views: number;
   },
 ];
 
-/** The plan story is small on purpose: a free workspace, real usage
- *  numbers derived from the model, and the Pro-gated developer teaser. */
+/** The plan story is small on purpose: a free workspace and real usage
+ *  numbers derived from the model. The old "Pro" developer teaser is
+ *  gone — the Developer section is a working capability, not a plan gate. */
 function PlanUsageSection() {
   const { campaigns, polsts } = useWorkspace();
   // Live counts mirror USAGE's formula (workspace.ts) against store state,
@@ -617,22 +1093,12 @@ function PlanUsageSection() {
     campaigns.reduce((total, c) => total + c.chain.length, 0) + polsts.length;
   return (
     <>
-      <SectionGrid>
-        <DashboardCard title="Plan" className="lg:col-span-5">
-          <p className="font-display text-xl font-semibold text-text-primary">Free plan</p>
-          <p className="mt-2 text-sm leading-6 text-text-secondary">
-            Campaigns, Polsts, sources, and analytics are all included.
-          </p>
-        </DashboardCard>
-        <div className="lg:col-span-7">
-          <LockedCard
-            title="Developer platform"
-            description="API keys, webhooks, and BI connectors — everything programmatic lives behind the Pro plan so the marketing workspace stays clean."
-            chip="Pro"
-            className="h-full"
-          />
-        </div>
-      </SectionGrid>
+      <DashboardCard title="Plan">
+        <p className="font-display text-xl font-semibold text-text-primary">Free plan</p>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">
+          Campaigns, Polsts, sources, analytics, and the developer platform are all included.
+        </p>
+      </DashboardCard>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Polsts created" value={fmtInt(polstsCreated)} />
@@ -666,6 +1132,7 @@ const SETTINGS_SECTIONS = [
   { key: "Team & access", icon: "group" },
   { key: "Embed appearance", icon: "palette" },
   { key: "Modules & integrations", icon: "extension" },
+  { key: "Developer", icon: "code" },
   { key: "Plan & usage", icon: "credit_card" },
 ] as const;
 type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["key"];
@@ -710,6 +1177,7 @@ export function SettingsPage() {
           {section === "Team & access" ? <TeamSection /> : null}
           {section === "Embed appearance" ? <EmbedAppearanceCard /> : null}
           {section === "Modules & integrations" ? <ModulesSection /> : null}
+          {section === "Developer" ? <DeveloperSection /> : null}
           {section === "Plan & usage" ? <PlanUsageSection /> : null}
         </div>
       </SectionGrid>

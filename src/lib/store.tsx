@@ -16,18 +16,25 @@ import {
 } from "react";
 import { TODAY, fmtDate, fmtInt, signalFor, type Status } from "@/lib/canon";
 import {
+  API_KEYS,
   CAMPAIGNS,
   SINGLE_POLSTS,
   SOURCES,
   TEAM,
+  WEBHOOKS,
+  WEBHOOK_LIMIT,
   WORKSPACE_NOTIFICATIONS,
   clipToRun,
+  type ApiKey,
+  type ApiScope,
   type Campaign,
   type ChainQuestion,
   type Channel,
   type SinglePolst,
   type Source,
   type TeamMember,
+  type Webhook,
+  type WebhookEvent,
   type WorkspaceNotification,
 } from "@/lib/workspace";
 
@@ -45,6 +52,16 @@ const uniqueId = (name: string, taken: Set<string>) => {
   let n = 2;
   while (taken.has(`${base}-${n}`)) n++;
   return `${base}-${n}`;
+};
+
+/** A real random API secret (crypto-backed). The store keeps only the
+ *  displayable preview — the full secret is returned once at creation
+ *  and can never be read back, exactly like the production contract. */
+const mintApiSecret = () => {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(28));
+  const body = [...bytes].map((b) => alphabet[b % alphabet.length]).join("");
+  return `pk_live_${body}`;
 };
 
 /** A freshly created campaign: zero traffic, every derived field coherent. */
@@ -202,8 +219,18 @@ type WorkspaceStore = {
   unassignSource: (sourceId: string) => { ok: true } | { ok: false; reason: string };
 
   members: TeamMember[];
-  /** Provisions a brand-only Manager account; "joined" fills at first sign-in. */
-  addMember: (name: string, email: string) => void;
+  /** Provisions a brand-only account; "joined" fills at first sign-in. */
+  addMember: (name: string, email: string, role?: TeamMember["role"]) => { password: string };
+
+  apiKeys: ApiKey[];
+  /** Mints a scoped key. The full secret is returned once, never stored. */
+  createApiKey: (name: string, scopes: ApiScope[]) => { secret: string };
+  revokeApiKey: (id: string) => void;
+
+  webhooks: Webhook[];
+  /** Refused beyond WEBHOOK_LIMIT endpoints (staging's cap). */
+  addWebhook: (url: string, events: WebhookEvent[]) => { ok: true } | { ok: false; reason: string };
+  removeWebhook: (id: string) => void;
 
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -219,6 +246,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [polsts, setPolsts] = useState<SinglePolst[]>(SINGLE_POLSTS);
   const [sources, setSources] = useState<Source[]>(SOURCES);
   const [members, setMembers] = useState<TeamMember[]>(TEAM);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>(API_KEYS);
+  const [webhooks, setWebhooks] = useState<Webhook[]>(WEBHOOKS);
   const [notifications, setNotifications] = useState<WorkspaceNotification[]>(
     WORKSPACE_NOTIFICATIONS,
   );
@@ -531,7 +560,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       // an added row survives navigating away from Team & access. One email
       // is one account — a duplicate address never mints a second row (the
       // Add-member modal refuses it up front; this is the backstop).
-      addMember: (name, email) =>
+      // Staging's provisioning contract: the account gets an initial
+      // password, generated here and shown once — never stored.
+      addMember: (name, email, role = "Manager") => {
         setMembers((all) =>
           all.some((m) => m.email.toLowerCase() === email.trim().toLowerCase())
             ? all
@@ -541,10 +572,54 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
                   id: uniqueId(name, new Set(all.map((m) => m.id))),
                   name: name.trim(),
                   email: email.trim(),
-                  role: "Manager",
+                  role,
                 },
               ],
-        ),
+        );
+        return { password: mintApiSecret().slice(8, 20) };
+      },
+
+      apiKeys,
+      createApiKey: (name, scopes) => {
+        const secret = mintApiSecret();
+        setApiKeys((all) => [
+          ...all,
+          {
+            id: uniqueId(name, new Set(all.map((k) => k.id))),
+            name: name.trim(),
+            // pk_live_•••• + the real last four — enough to tell keys apart.
+            tokenPreview: `pk_live_••••${secret.slice(-4)}`,
+            scopes,
+            createdAt: TODAY,
+          },
+        ]);
+        return { secret };
+      },
+      revokeApiKey: (id) => setApiKeys((all) => all.filter((k) => k.id !== id)),
+
+      webhooks,
+      addWebhook: (url, events) => {
+        if (webhooks.length >= WEBHOOK_LIMIT)
+          return {
+            ok: false as const,
+            reason: `This workspace already has ${WEBHOOK_LIMIT} endpoints — remove one first.`,
+          };
+        setWebhooks((all) =>
+          all.some((w) => w.url === url.trim())
+            ? all
+            : [
+                ...all,
+                {
+                  id: uniqueId(url.replace(/^https?:\/\//, ""), new Set(all.map((w) => w.id))),
+                  url: url.trim(),
+                  events,
+                  createdAt: TODAY,
+                },
+              ],
+        );
+        return { ok: true as const };
+      },
+      removeWebhook: (id) => setWebhooks((all) => all.filter((w) => w.id !== id)),
 
       markNotificationRead: (id) =>
         setNotifications((all) => all.map((n) => (n.id === id ? { ...n, read: true } : n))),
@@ -552,7 +627,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setNotifications((all) => all.map((n) => ({ ...n, read: true }))),
       unreadCount: visibleNotifications.filter((n) => !n.read).length,
     }),
-    [campaigns, polsts, sources, members, visibleNotifications, createCampaign, createPolst, patchCampaign, patchPolst],
+    [campaigns, polsts, sources, members, apiKeys, webhooks, visibleNotifications, createCampaign, createPolst, patchCampaign, patchPolst],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
