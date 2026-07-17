@@ -344,11 +344,16 @@ never changes.
 The dashboard is the same product, wearing work clothes. It is a **derivative**
 of the consumer app: the exact same token architecture, the same 4pt grid, the
 same calm blue-gray neutrals and single violet accent — re-composed for a brand
-operator instead of a voter. Its structural DNA (sidebar sections, a compact
-stat strip, action-first cards, a main-plus-rail editor, assign modals) is
-borrowed from Shopify's *hierarchy*, never its *skin*: we keep our light,
-border-led surfaces and reserve violet for interaction. Read
-`task/polst_v1_dashboard_ux_structure.md` for the information architecture; this
+operator instead of a voter. The design direction has a name: **"quiet chrome,
+violet data."** The shell — sidebar, toolbars, tables, cards — is entirely
+neutral (cool blue-grays, hairlines, gray active states), and violet is spent
+on **data ink, selection, links, and primary buttons**. Structural DNA is
+borrowed from references' *hierarchy*, never their *skin*: Shopify for the
+information architecture, Vercel for the rail's metrics, Dub for the chart
+language, Amplitude for analytics layouts, Hotjar and Apple Fitness for the
+interpretation voice — always translated onto our light, border-led surfaces.
+Read `task/polst_v1_dashboard_ux_structure.md` for the information
+architecture and `task/design-references.md` for the reference research; this
 section governs how it looks and how it is built.
 
 The dashboard is **desktop-first**. It is a guided decision workspace, not an
@@ -358,8 +363,8 @@ analytics warehouse — every screen answers *what is next?* before *how much?*.
 
 Two columns, no frames-inside-frames: the **one dark surface is the
 full-height sidebar rail** (`sidenav-*` tokens, our `neutral-900` — fixed,
-`w-64`; there is **no collapsed rail** — below `lg` the rail is gone entirely
-and the same nav rides a light drawer behind a header menu button), and
+**240px** `w-60`; there is **no collapsed rail** — below `lg` the rail is gone
+entirely and the same nav rides a light drawer behind a header menu button), and
 beside it a light column stacks a **sticky 48px header** over the **working
 canvas** (`app-content`). The page owns the **document scroll** — no
 surrounding card border, no nested scrollbar. The ladder reads: **dark rail ▸
@@ -377,36 +382,47 @@ so header and canvas share one left edge.
   the **⌘K command palette** carries all search. Right, `ml-auto`: the
   **page-actions slot** — every page teleports its own actions here via
   `HeaderActions` (`DashboardPage`'s `actions` prop): Create campaign on
-  Campaigns, View analytics on Home, Export on Analytics — then a quiet
-  32×32 bell. No global create button; actions are always contextual.
-  Below `lg` the wordmark rides the header since the rail is hidden.
+  Campaigns, View analytics on Home, Export on Analytics — then the **help
+  control and a quiet bell**, both 32×32 `IconButton`s. Help (`HelpGuide`,
+  "How Polst works") opens a right-side teaching drawer that restates the
+  app's real contracts — canon's metric definitions, the publish lock rules,
+  the fixed durations — with the seeded ended campaign as its worked example,
+  so the numbers in the story are the numbers in the report. No new claims,
+  no marketing voice. No global create button; actions are always
+  contextual. Below `lg` the wordmark rides the header since the rail is
+  hidden.
 - **Notifications** — a Shopify-style panel (see `alerts.png`): a titled header
   with a mark-all-read action, then rows of **unread dot ·
   `source · time` · bold title · body** (no icon discs), and a "No more
   notifications" footer. All on page tokens, not chrome.
 - **Company switcher** — company context owns the top of the rail. Its light
   menu contains workspaces only, with even parent padding (`p-1.5`) so no row
-  sits flush to the edge. Workspaces are `menuitem`s so focus opens on the
-  current one. Account identity and actions never appear in this menu.
-- **Sidebar** — the dark rail: fixed `inset-y-0`, `w-64`, no collapse,
-  with **8px horizontal insets**. Its top **company switcher** sits in a 48px
-  band aligned exactly with the content header. A three-column grid centers the
-  workspace name between a 20px violet company mark (`radius-xs`) and 20px
-  unfold glyph. The next band begins beneath the header rule and contains the
-  full-width **Search** control, opening the same workspace command palette as
-  Cmd/Ctrl-K. Nav rides in
-  **groups**: the daily work (Home, Campaigns, Polsts, Distribution), learning
-  surfaces (Analytics, Audience), then Settings as its own separated group.
-  There is no Team nav item — team lives inside Settings.
-  Pinned at the foot is a dismissible **attention card** with a real workspace
-  issue, count, and review action, followed by the **signed-in user row** (20px
-  violet initials disc and name). Its upward-opening account menu contains one
-  action only: Log out. Navigation rows are **14px medium**, separated by 1px,
-  with `0.5rem` around section rules. Rows are `h-9`, `rounded-md`: inactive
-  `sidenav-muted`, hover a soft
-  `sidenav-hover` wash, active a **`sidenav-active` panel in white ink**
-  with a 20px glyph, filled for the active item (Material Symbols `FILL 1`). Analytics' children
-  indent under the active parent. Statuses are **never** nav.
+  sits flush to the edge, each row a `menuitem` on the shared Menu surface.
+  Account identity and actions never appear in this menu.
+- **Sidebar** — the dark rail: fixed `inset-y-0`, **240px** (`w-60`), no
+  collapse, with **8px horizontal insets**. Its metrics are Vercel's,
+  translated onto our dark panel: nav rows are **32px (`h-8`) with 16px
+  glyphs and 13px `text-ui` medium labels**. Chrome in the rail is strictly
+  neutral — hover is a **`white/5` wash**, the active row a **`white/10`
+  pill in white ink** with its glyph filled — **violet never marks state
+  here**; it survives only on the two identity marks (the 20px workspace
+  monogram, `radius-xs`, and the 20px user-initials disc). The top **company
+  switcher** sits in a 48px band aligned exactly with the content header
+  (36px row: monogram · name · 16px unfold glyph). Beneath it rides the
+  full-width **Search** field — 32px, **bordered `white/10`**, with a `⌘K`
+  keycap at its end — opening the same workspace command palette as
+  Cmd/Ctrl-K. Nav rides in **groups**: the daily work (Home, Campaigns,
+  Polsts, Distribution) sits unlabeled straight under search; **9px
+  uppercase group labels** (`text-micro`, tracking-wide, white at 45%) name
+  the learning surfaces (**Measure** — Analytics, Audience) and
+  administration (**Workspace** — Settings). There is no Team nav item —
+  team lives inside Settings. Analytics' children indent under the active
+  parent on 28px rows. Pinned at the foot: a dismissible **attention card**
+  (a bordered `white/5` panel with the live count, the first issue, and one
+  review action — derived from the store, so fixing an item updates the nag)
+  above a `white/8` hairline, then the **signed-in user row**; its
+  upward-opening account menu contains one action only: Log out. Statuses
+  are **never** nav.
 - **Canvas** — the page scrolls as a page (document scroll, no inner
   scroller, no rounded border frame). White cards lift straight off the
   `app-content` canvas. `body` matches the canvas so overscroll never
@@ -415,22 +431,22 @@ so header and canvas share one left edge.
 ## Control type
 
 - **One size for controls — `text-ui` (13px / 16px).** Every button, tab,
-  selector, menu item, and search field runs at `text-ui`, so the chrome
-  reads as one compact system. (Body copy, headings, and data keep the
-  regular type scale.) The **rail nav is the one exception**: its rows run
-  `text-sm font-medium` (14px), matching the reference shell's calmer,
-  roomier navigation. `cn()` registers `text-ui` with tailwind-merge so it
-  survives alongside a `text-{color}` class.
-- **Control heights follow context.** Buttons and compact analytics selectors
-  are 32px; list-toolbar tabs, search, and view controls are **37px** with
-  equal inset padding; labeled form inputs/selectors are 40px. The header's
-  icon controls (bell, mobile menu) are quiet **32×32** buttons sized to the
-  48px header; rail rows, the rail Search control, and the workspace switcher
-  are 36px (`h-9`). There is no header search field or account chip — search
+  selector, menu item, search field, **and rail nav row** runs at `text-ui`,
+  so the chrome reads as one compact system. (Body copy, headings, and data
+  keep the regular type scale.) `cn()` registers `text-ui` with
+  tailwind-merge so it survives alongside a `text-{color}` class.
+- **Control heights follow context, all on the 4px grid.** Buttons and
+  compact analytics selectors are 32px; list-toolbar tabs, search, and view
+  controls share **one 36px height** (`h-9`) with equal inset padding;
+  labeled form inputs/selectors are 40px. The header's icon controls (help,
+  bell, mobile menu) are quiet **32×32** buttons sized to the 48px header;
+  rail nav rows are **32px** (`h-8`), the rail's switcher and identity rows
+  36px (`h-9`). There is no header search field or account chip — search
   lives behind ⌘K and the account row sits at the rail's foot.
 - **Icons inside controls are 18px** — segments, select triggers, in-button
-  glyphs, selected-check marks. 20px is reserved for the rail's nav glyphs,
-  the 32×32 header icon buttons, and `MenuItem` leading icons.
+  glyphs, selected-check marks. **16px is the rail's nav-glyph column**;
+  20px is reserved for the 32×32 header icon buttons and `MenuItem` leading
+  icons.
 - **One reporting-window control — `DateRangeMenu`.** Cross-campaign and
   workspace analytics use the same Last 7/30/90 days / All time dropdown
   (`WindowRange` 7D/30D/90D/All under the hood). Segmented controls remain
@@ -455,9 +471,10 @@ at 500–650, never bold-black:
 - **Card / section title** — `text-base font-semibold` (16px).
 - **Metric value** — `text-2xl font-semibold tracking-tight tabular-nums`
   (24px) on tiles and the stat strip alike.
-- **Body 14px, metadata 12px** as before; rail nav 14px medium.
-- **`text-micro`** (9px/12px) — 2-letter marks only: the OR disc, the
-  workspace monogram, kbd hints. Never running copy.
+- **Body 14px, metadata 12px** as before; rail nav 13px `text-ui` medium.
+- **`text-micro`** (9px/12px) — 2-letter marks, kbd hints, and the rail's
+  uppercase group labels: the OR disc, the workspace monogram, ⌘K, Measure /
+  Workspace. Never running copy.
 - **Card inset** — `p-5` (20px), still on the 4pt grid.
 - **Shared edges** — custom card headers, toolbars, table first/last columns,
   and row actions align to that same 20px inset. Nested items may use 12–16px,
@@ -497,9 +514,75 @@ Same four-tier elevation, same "borders carry separation, shadows whisper":
   list) · `z-50` overlays (Modal, Drawer, portaled Menu panels, the calendar
   day popover — portals stack by DOM order) · `z-toast` (60) floats above
   every overlay. No ad-hoc z-indexes.
-- **Menus portal to `body`** and fix-position from their trigger's rect
-  (re-anchored before paint, closed on scroll-away), so no card's `overflow`
-  ever clips a panel.
+- **Menus portal to `body`** and anchor from their trigger with collision
+  flipping (Radix DropdownMenu owns the positioning), so no card's
+  `overflow` ever clips a panel; a menu opened inside a Modal renders above
+  it because portals stack by DOM order.
+
+## The primitive layer (shadcn on our tokens)
+
+The kit sits on a shadcn/Radix primitive layer under `src/components/ui`
+(`components.json` — new-york style, lucide icons): dialog, dropdown-menu,
+select, tooltip, tabs, and the rest are generated primitives, while
+**Button and Chip stay custom** — they predate the layer and already speak
+the token language. Two rules keep the layer honest:
+
+- **The HSL slot rule.** Every shadcn variable (`--background`, `--primary`,
+  `--destructive`, `--chart-1`…) is the **exact HSL form of an existing
+  primitive** from the token ramp — the slot set is a facade over the
+  three-layer token system, never a second palette. Primitives stay the
+  source of truth; a retune happens at the primitive and the slots follow.
+- **Overlay motion rides `tailwindcss-animate`** (`animate-in`/`animate-out`
+  fades on Radix open/close state) — no hand-rolled keyframes for chrome
+  transitions.
+
+## Charts: the Recharts layer
+
+Time-series render through **Recharts** in `dashboard/charts.tsx`; meters
+and ranked lists (`ProgressBar`, `Funnel`, `ProgressRing`, `TimeHeatmap`,
+`MixBars`) **deliberately stay HTML** in the kit — their job is reading a
+list, not tracing a curve.
+
+- **Series ink comes only from `--chart-1..5`** — brand hues re-stepped for
+  data: violet `#6161c7`, deep amber `#b98a00`, teal `#128c78`, orange-red
+  `#e36133`, ink violet `#47409f`. The set is **machine-validated** (a
+  common lightness band, a chroma floor, adjacent-pair CVD distance, 3:1
+  contrast on white) and the assignment order is **FIXED** — amber and
+  orange-red must never sit adjacent (deutan ΔE 1.8). Never hand-pick a
+  chart hex.
+- **Chart chrome is recessive**: horizontal **dashed** hairlines only
+  (`--chart-grid`, one step above border), no axis strokes, 2–3 borderless
+  y ticks, and sparse x anchors — the range, not a ruler.
+- **`TrendChart`** — the one line chart: a 1.75px violet line over a one-hue
+  gradient (14% opacity at the line → 0 at the baseline), a **dashed neutral
+  line for the real previous period** (`Stat.previous`, never decoration),
+  and a **dashed final segment for the bucket still collecting today** — the
+  honest "in progress" cue. Hover is a crosshair plus a bordered tooltip
+  with the current value and a quiet `prev` readout. Takes a `format` for
+  units (thousands, %). Every trend everywhere rides this, never a second
+  style.
+- **`Sparkline`** — the same violet area with no chrome at all; decorative
+  next to a stated value, where the tile's number and delta carry the
+  reading.
+
+## The interpretation layer
+
+The app says what the data means **before** showing tables. `lib/insights.ts`
+computes two voices from the live store — never authored — and a row the
+data can't support (empty window, zero denominator) is **dropped, never
+padded**. Every sentence carries its numbers so a claim can be checked
+against the tables it summarizes.
+
+- **Trends** (`deriveTrends` → `TrendGrid`) — the Apple Fitness voice: one
+  metric per row, an arrow chip colored by **desirability** (a falling
+  drop-off is good, so its arrow is green), the 7-day figure against the
+  30-day baseline, then **one concrete suggestion the numbers actually
+  support** (the peak answer window, the biggest chain drop).
+- **Insights** (`deriveInsights` → `InsightCard`) — the Hotjar anatomy:
+  a question-phrased headline, a lowercase tinted status word
+  ("outperforming", "leaking"), the evidence stat that answers the question,
+  what it means in plain words, and a drill-down that closes the loop.
+  **One claim per card**, always checkable.
 
 ## Status is a tone, never a decoration
 
@@ -625,8 +708,8 @@ fork. New surface area should feel assembled, not authored:
   Leading/Decisive evidence, per canon `isReadyToDecide`) the brief's primary
   **"End campaign & decide" is the only end affordance**; the header's quiet
   destructive-secondary "End campaign" appears only while a campaign is
-  active but not yet ready. Home uses a smaller structured ready-to-decide
-  card instead of generating a full narrative per campaign.
+  active but not yet ready. Home uses the structured `ReadyDecisionRow`
+  (patterns) instead of generating a full narrative per campaign.
 - **`verdictLabel` + `ThumbStrip`** — the decision-verdict vocabulary and the
   chain-preview mini-thumbs (see "Status is a tone"); the badge form is gone.
   **`InfoHint`** — a hoverable ⓘ that reveals a metric's definition (formula +
@@ -652,48 +735,80 @@ fork. New surface area should feel assembled, not authored:
 - **`DashboardCard`** — section container (optional header row with title,
   description, action). The atom every panel sits in. **No header rule** — the
   title sits flush above the body; cards read flat.
-- **`StatsStrip`** — the mini-stats bar (Shopify `mini-stats`): a **padded
-  parent** holding **borderless, rounded, hoverable** stat cards (inner radius =
-  parent radius − padding), each with an eyebrow-weight label, a large value, a
-  **filled-triangle** trend indicator (`arrow_drop_up/down`, up/down coloured) +
-  delta, and a wide, smooth **accent (purple) `Sparkline`** — the mini charts
-  echo the expanded chart rather than the trend colour. Click a card (or the
-  chevron) to **expand a full `TrendChart`** below with a **smooth grid-rows
-  reveal**: a smooth accent line + soft area fill over a **faded dashed
-  previous-period line** — real data (`Stat.previous`), never decoration —
-  with a light y-axis and date ticks (no redundant title). The expanded state
-  is a 12-col **7 / 5** chart-and-guidance grid with metric-specific clickable
-  rows, each on its own 36px neutral row with a semantic border and matching
-  status dot, and no decorative icons. The range is driven by
-  **`DateRangeMenu`** above the strip — one `WindowRange` swaps the values,
-  deltas, sparks, and axis labels together (the stats derive from the live
-  store) — and `scopeLabel` names the comparison window ("vs Jun 2 – Jun
-  8"). When the previous window has no comparable traffic (`windowDelta`'s
-  honesty floor), the label and the dashed previous line are **withheld** —
-  a stated baseline with nothing compared against it is decoration — and the
-  trend insight says "no comparable previous period yet" instead of "held
-  steady". Definitions ride `InfoHint`, never `title=`.
-- **`DataTable<T>`** — the one list primitive: typed columns, status pills,
-  right-aligned row actions, an honest empty label. Campaigns, Polsts,
-  Sources, Reports, Audience's country rows, and Settings' team table all
-  render through it.
+- **`StatsStrip`** — the fused KPI hero (Dub × Vercel): **one card** whose
+  top strip is **hairline-divided metric cells** — a 12px label, a 24px
+  tabular value, and a tinted **`DeltaChip`** whose +/− sign is spelled out
+  so colour never carries the reading alone (no honest comparison → the
+  same quiet neutral chip). Each cell is a **tab**: the active one carries a
+  **2px accent underline** flush with the strip's bottom hairline — tab
+  semantics, not border-colour semantics, and **the strip's only violet**
+  (chart ink comes from the chart tokens) — and picks which stat's
+  **always-on `TrendChart`** fills the card below. The old expand/collapse
+  chevron is retired. The chart header names the series it actually draws,
+  so a cell without its own series never mislabels the stat it borrows;
+  metric-specific clickable insight rows (36px, semantic border + matching
+  status dot, no decorative icons) ride under the chart. The range is
+  driven by **`DateRangeMenu`** above the strip — one `WindowRange` swaps
+  the values, deltas, series, and axis labels together (the stats derive
+  from the live store) — and `scopeLabel` names the comparison window ("vs
+  Jun 2 – Jun 8"). When the previous window has no comparable traffic
+  (`windowDelta`'s honesty floor), the label and the dashed previous line
+  are **withheld** — a stated baseline with nothing compared against it is
+  decoration — and the trend insight says "no comparable previous period
+  yet" instead of "held steady". Definitions ride `InfoHint`, never
+  `title=`.
+- **`DataTable<T>`** — the one list primitive, on the Navattic anatomy:
+  quiet **12px gray header labels — never uppercase** — over **52px rows**
+  (py-4 around a 20px text line), **full-row hover tint**, and **px-5 outer
+  gutters** flush with the card's own inset. Typed columns, status pills,
+  right-aligned row actions, and an honest empty label set in the same ink
+  and padding as `EmptyState`'s title, so every empty surface reads as one
+  pattern. Campaigns, Polsts, Sources, Reports, Audience's country rows,
+  and Settings' team table all render through it. The kit carries **zero
+  arbitrary-bracket heights** — every control dimension rides the 4px
+  scale.
 - **`SegmentedControl`** — the **one** segmented mode control used for status
   filters, page tabs, and compact view changes. Three sizes on one
-  control-height contract: **toolbar 37px** (the default, equal 4px inset
-  padding), **compact 29px** (in-card switches, the ⌘K entity filter), and
-  **form 40px** full-width under a `Field` label. It is **white** (raised +
-  bordered) so it reads against the page background, with a light active
-  pill. `FilterTabs` and `PageTabs` are thin aliases so every select is
-  identical. `SearchAndFilters` pairs it with search atop a list card.
+  control-height contract, all on the 4px grid: **toolbar 36px** (the
+  default, equal 4px inset padding), **compact 28px** (in-card switches, the
+  ⌘K entity filter), and **form 40px** full-width under a `Field` label. It
+  is **white** (raised + bordered) so it reads against the page background,
+  with a light active pill. `FilterTabs` and `PageTabs` are thin aliases so
+  every select is identical. `SearchAndFilters` pairs it with search atop a
+  list card.
 - **`Chip`** — the one non-status chip (`rounded-md`); `StatusBadge` stays
   the only pill. **`EmptyState`** — the one empty pattern (icon disc, one
-  line, one action). **`NotFoundCard`** — the honest missing-entity state
-  every `/:id` route renders instead of crashing.
+  line, ONE action), now in **three registers**: **first-run** (never had
+  data — sell the value, accent disc, display headline), **no-results**
+  (filters matched nothing — quiet, neutral, names the fix), and **fork**
+  (an empty container with more than one way forward — **dashed-border
+  choice cards** instead of a dead end). Omitted, the default keeps the
+  quiet in-card register. **`NotFoundCard`** — the honest missing-entity
+  state every `/:id` route renders instead of crashing.
 - **`SelectMenu` / `Checkbox` / `TextInput` / `Field`** live in
   `components/Field` on one 40px control chrome (`CONTROL`); compact toolbar
   selects are 32px. `Checkbox` is the single native-semantic, token-rendered
   checkbox for source assignment and library selection — browser-default
   checkbox styling is never used.
+- **The pattern library (`dashboard/patterns.tsx`)** — the shared flow
+  patterns every page composes instead of re-authoring: `ModalFooter`,
+  `ConfirmModal`, `LockNotice`, `ReviewModal`, `CopyableField`,
+  `RevealSecretModal`, `SourceForm` / `AssignSourceModal` /
+  `AssignTargetModal` (plus `SOURCE_KINDS` / `CHANNELS`, the one source
+  vocabulary), `AttentionList`, `ReadyDecisionRow`, `PolstListRow`,
+  `MiniStatGrid`, `ChecklistItem` / `CheckboxList`, `UnassignButton`,
+  `RateCell`, `SectionNav`, `Pager`, `SectionTitle`. All are
+  presentational: **callers pass derived facts and own the store writes and
+  toasts**. A recipe repeated on two pages belongs here before it ships on
+  a third.
+- **`IconButton` / `IconTile`** live in the **`ui/icon-button` leaf module**
+  (no imports beyond utils), so Modal, Drawer, kit, and patterns all consume
+  them cycle-free. `IconButton` is the quiet icon-only control — transparent
+  until hovered, `aria-label` required, sm 28 / md 32 / lg 40; `IconTile`
+  is the non-interactive icon disc that anchors rows and tiles.
+- **`useCopyToClipboard`** (in `Toast.tsx`) — the one clipboard hook; it
+  writes the real clipboard and **toasts what actually happened**, never a
+  claimed success.
 - **`ActionCard`** — the **one** actionable-card shape (Home, bento, Insights):
   optional eyebrow / status / right-hand meta, a title, one 14/20 line of
   `reason`, and a CTA pinned **bottom-left**. No header rule, no item borders,
@@ -716,11 +831,12 @@ fork. New surface area should feel assembled, not authored:
   **campaign detail** (the launch checklist) — Home carries no checklist and
   no per-key-date cards: one attention flow, one calendar (key dates ride the
   calendar's day cells and popover), nothing repeated.
-- **Home's lists are page-local compositions.** The Campaigns and Recent
-  Polsts lists compose `StatusBadge` + `PollThumb` + canon formatters — list
-  rows are not kit components. Metrics say what they measure ("71%
-  completion rate", never a bare "71% complete"); both lists filter by
-  **Active / Queued** (`SegmentedControl`).
+- **Home's lists compose the pattern library.** Attention flows through
+  `AttentionList`, ready calls through `ReadyDecisionRow`, chain previews
+  through `ThumbStrip` — with canon formatters carrying every number.
+  Metrics say what they measure ("71% completion rate", never a bare "71%
+  complete"); the Campaigns list filters by **Active / Queued**
+  (`SegmentedControl`).
 - **`ProgressRing`** — a small completion ring on setup cards; **hover reveals
   the remaining steps** (checked/unchecked list, "N steps left").
 - **`WorkspaceCalendar`** — Home's month grid, **always six weeks (42 cells)**:
@@ -739,9 +855,13 @@ fork. New surface area should feel assembled, not authored:
   (fixed-positioned, never clipped) with quick create actions.
 - **`DetailList`** — the label→value pair list for summaries and settings.
   **`ProgressBar`** — completion/vote-split tracks on the pill radius.
-- **`StatTile`** — the one KPI tile (Distribution summary, Analytics portfolio,
-  Audience headline): quiet label, display number, toned detail line with an
-  optional `trending_up/down` glyph.
+- **`StatTile`** — the one KPI tile (Distribution summary, Analytics
+  portfolio, Audience headline): quiet label, display number, and **the same
+  `DeltaChip` the hero strip wears**, so every KPI reads alike; a non-delta
+  detail (a source's name, "3 unassigned") stays plain text. Its comparison
+  math is never restated per page: **`windowTileDelta`** (and `ratioDelta`)
+  in the engine is the one delta computation Analytics, Audience, and
+  Distribution all feed from.
 - **`PollResults`** — the product's face: the REAL consumer `PollOptionsBlock`
   in its results state (leader selected, bars animating from the seam). Renders
   the Polst grid cards, campaign chain cards, and the Settings branding
@@ -755,7 +875,11 @@ fork. New surface area should feel assembled, not authored:
   It is **campaign-scoped only** — the brand-wide two-step funnel is retired
   (unrelated runs share no sequence, so it answered nothing).
 - **`MixBars`** — the one ranked-share list (source mix, devices, platforms,
-  interests, age bands): label · bar · share, optional detail count.
+  interests, age bands), as the Dub bar-row: the share paints a **soft
+  accent wash behind the row's own label and number**, so the list stays
+  one line per slice with an optional detail count. Bars scale to 100%,
+  never to the largest slice — a 48% share must read as 48%, or the chart
+  lies.
 - **`SnippetCard`** — a labeled code block (iframe/JS embeds) with a Copy
   action. **`LockedCard`** — the honest gated state (lock glyph, one line on
   what's missing, a **required factual chip** like "Not connected"). "Coming
@@ -770,11 +894,24 @@ fork. New surface area should feel assembled, not authored:
 - **Copy rule: show, don't tell.** Page and card headers carry no narrating
   descriptions — content, counts, and states do the explaining. Helper text
   survives only inside forms where it states a consequence.
-- **`PollThumb`** — the split A/B mini-thumb with the OR disc, shared by Home's
-  Polst rows and the select-from-library picker. All A/B imagery resolves
-  through `polstImage()` so the placeholder source swaps in one place.
-- **Overlays** — reuse the consumer **Modal**, **Drawer**, **Menu**; the
-  Assign-Sources dialog and select-from-library picker are lists inside a
+- **`PollThumb`** — the split A/B mini-thumb with the OR disc, shared by
+  `PolstListRow`, the collapsed Polst preview, and the select-from-library
+  picker (`ThumbStrip` draws its own row-height minis for chains; `MiniPoll`
+  keeps its genuinely different 64px consumer variant). All A/B imagery
+  resolves through `polstImage()` so the placeholder source swaps in one
+  place.
+- **Overlays** — reuse the consumer-shaped **Modal**, **Drawer**, **Menu**,
+  and **Toast** APIs; their internals now ride primitives. Modal and Drawer
+  are **Radix Dialog** (the same primitive as `ui/sheet`), Menu is **Radix
+  DropdownMenu** — outside-press dismissal, Escape layering (one press
+  closes only the menu, the next reaches a parent dialog), keyboard
+  navigation, and collision flipping all come from the primitive — and
+  Toast rendering is delegated to **sonner**, each toast still drawing its
+  own token pill. **External APIs and the z ladder are unchanged** (50
+  overlays / 60 toasts). Because these imperative APIs render no Radix
+  trigger, **focus return is handled explicitly**: the opener is captured
+  before Radix moves focus in and handed back on close. The Assign-Sources
+  dialog and select-from-library picker are lists inside a
   `Modal`. The **⌘K workspace search** is a **command palette**: the same
   `Modal` with `placement="top"` + `bare` (no close chrome — Esc and the
   backdrop dismiss), an input that owns the top edge, entity filter chips,
@@ -792,10 +929,18 @@ fork. New surface area should feel assembled, not authored:
   Reports derives its rows live: every Ended campaign carries a Ready
   decision-report row (the authored seed rows plus in-session endings), so
   ending a run puts its report in the library immediately.
-- **`TrendChart`** — the one line chart (extracted from the stat strip):
-  smooth accent line, soft area fill, dashed previous period, left y-axis,
-  hover crosshair with a pinned value chip. Takes a `format` for units
-  (thousands, %). Every trend everywhere rides this, never a second style.
+- **`TrendChart` / `Sparkline`** — the Recharts layer, in
+  `dashboard/charts.tsx` (see "Charts: the Recharts layer" for the full
+  spec). Every trend everywhere rides `TrendChart`, never a second style.
+- **`TrendGrid` / `InsightCard`** (`dashboard/insight-cards.tsx`) — the
+  interpretation layer's two faces (see "The interpretation layer"): the
+  Apple-Fitness trend rows and the Hotjar question cards, both fed only by
+  `lib/insights.ts` derivations.
+- **`GeoMap`** — the Geography card's choropleth: a vendored world-atlas
+  **110m topojson** drawn with **d3-geo's Natural Earth projection** (no map
+  library), the window's data countries on a **one-hue sequential violet
+  scale by share of voters**. The map is the shape-of-the-audience glance;
+  the country table below remains the accessible, exact-figures view.
 - **`SplitBar`** — the Polst signature for exactly two-part shares (paid vs
   organic, US vs international): one bar, two segments meeting at a seam —
   the echo of a vote result. Three or more slices → `MixBars`.
@@ -845,15 +990,20 @@ The load-bearing facts a builder must not re-invent:
   Completion renders only for campaign-linked sources; polst-linked rows show
   "—", and polst-linked QR tiles show scan→vote **Conversion** instead.
 - **Audience shows only what we can derive.** Geography is real — the
-  authored `countryMix` allocates the window's voters/completed exactly, with
-  per-country completion — and the Platforms card carries a real Browsers
+  authored `countryMix` allocates the window's voters/completed exactly,
+  with per-country completion, drawn as the `GeoMap` choropleth over the
+  exact-figures table — and the Platforms card carries a real Browsers
   list (`browserMix`). Demographics we don't collect (age/gender, income)
   stay `LockedCard`s. The window and its comparison period are stated once
   at band level — omitted when the previous window has no comparable
   traffic — and tiles say only "% vs the previous period".
 - **Polst detail** — Vote velocity is **votes/hr** over the last 1h/6h/24h
   (engine `hourlyVotes`, on the live demo clock, sharing its daypart curve
-  with `TimeHeatmap`), shown only for Active runs with votes.
+  with `TimeHeatmap`), shown only for Active runs with votes. Interactions
+  split into likes / shares / reposts through **`interactionMix`** — an
+  **exact-integer split derived at load** (fixed shares nudged
+  deterministically by id, remainder assigned largest-first so the parts
+  always sum to the total), never data invented per render.
 - **Team & access lives inside Settings.** Roles are **Owner | Manager**
   only (chosen at provisioning); members are provisioned brand-only
   accounts — no invite emails, a generated initial password shown once.
@@ -877,8 +1027,12 @@ The load-bearing facts a builder must not re-invent:
   only. Labels stay short — "Create a Polst", never "Create single Polst".
 - Lead with the next action. Stats orient, the calendar plans, cards tell the
   user what to do — analytics lives under Analytics, never on Home.
+- Say what the data means before showing it: a trend row or insight card
+  (`lib/insights.ts`) speaks first, and the tables and charts sit below as
+  the checkable evidence — every interpretive sentence carries its numbers,
+  and a row the data can't support is dropped, never padded.
 - Honor the **metric contract**: every number states its exact window, its
-  comparison window, and its scope (`StatsStrip scope`/`scopeLabel`,
+  comparison window, and its scope (`StatsStrip`'s `scopeLabel`,
   `InfoHint` definitions from `METRIC_INFO`), and the same metric reconciles
   across Home, Analytics, and campaign pages — by derivation from the engine,
   never by hand. A delta without a stated baseline is decoration.
@@ -888,9 +1042,13 @@ The load-bearing facts a builder must not re-invent:
 
 **Don't**
 
-- Borrow Shopify's *palette* (its greens/blues) or its exact chrome — the
-  structure is theirs to inform, the skin stays ours (our ink header, our cool
-  neutrals, one violet accent).
+- Borrow a reference's *palette* or exact chrome (Shopify's greens,
+  Amplitude's blue chrome, Dub's pastel gradients, Vercel's light sidebar) —
+  the structure is theirs to inform, the skin stays ours (our dark rail, our
+  cool neutrals, one violet accent).
+- Spend violet on chrome state — the rail's hover/active states are white
+  washes, the time-range control is gray — or hand-pick a chart hex: series
+  ink comes from `--chart-1..5` in their fixed order, full stop.
 - Hand-size a layout track (`[18rem]`, `min-h-[92px]`) when columns or the 4pt
   scale will do; no magic values reach a className.
 - Turn a status into a sidebar item, put raw analytics on Home, or let a "low"

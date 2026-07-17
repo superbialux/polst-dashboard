@@ -1,6 +1,7 @@
 # Feedback coverage — dev-team-feedback.txt · marketing-team-feedback.txt · transcript.txt
 
-Status as of 2026-07-17, after unslop passes 5a–5g (`fd3ddc2`…`dd4bcd5`).
+Status as of 2026-07-17, after unslop passes 5a–5g (`fd3ddc2`…`dd4bcd5`) and
+redesign passes 6a–6f (`08de916`…`dd6c35a` — see task/redesign-plan.md).
 Verdicts: **✅ covered** · **🟡 partial** · **⏸ deliberately deferred** (matches the
 audit's sequencing but deviates from a feedback line — flag if you disagree).
 
@@ -35,25 +36,29 @@ audit's sequencing but deviates from a feedback line — flag if you disagree).
 | Reports: per-campaign? export button? | dev | Report attaches to its campaign; Reports page and ReportPreview both export (copy + CSV/print on Analytics). |
 | Stale model clock (June "today" in July) | audit P0-1 | `TODAY` is the real date; the whole seed model (ISO dates **and** in-copy "Jun 17" mentions) shifts with it. |
 
-## 🟡 Partial — real remaining gaps
+## ✅ Closed by redesign passes 6a–6f
 
-1. **Geography map** — dev: "need a map here". Audience still renders a ranked
-   country table only. Nothing map-shaped exists yet.
-2. **Interactions breakdown** — dev: "likes + reposts? how about two separate
-   columns". Now a *defined* aggregate (InfoHint: likes, shares, reposts) but
-   no per-component split anywhere.
-3. **Scheduled Polst hero** — dev: replace the small Schedule table with a big
-   "starts Jul 3" statement. The hero ActionCard renders only when the
-   scheduled Polst has **no sources**; with sources it's still just a table row.
-4. **Thumbnails everywhere a Polst renders** — dev: preview thumb + slug so
-   Polsts are tellable apart. Lists and campaign rows have `PollThumb`; the
-   Analytics "Campaign performance" and "Standalone Polsts" tables do not.
-5. **Teaching layer** — transcript's biggest strategic thread ("help me text"
-   side tab, worked example brand, train-through-boundaries). Partially
-   expressed via fixed constraints, review gates, and next-step language; no
-   example walkthrough or onboarding content exists.
-6. **"Крупнее все" (make everything bigger)** — general legibility/target-size
-   sweep (audit P2-33) is only partially done; subjective polish headroom.
+1. **Geography map** — Audience renders a d3-geo Natural Earth choropleth
+   (sequential violet by voter share, house tooltip, legend) above the
+   country table, which stays as the exact/accessible view (`GeoMap.tsx`).
+2. **Interactions breakdown** — `interactionMix` (likes/shares/reposts,
+   exact integer split) derives at load; the Polst detail Interactions tile
+   reads "N likes · N shares · N reposts".
+3. **Scheduled Polst hero** — a Scheduled run always leads with the big
+   "Starts in N days" ActionCard: alarm cut when sources are missing, calm
+   "N sources are ready" cut otherwise (`Polsts.tsx`).
+4. **Thumbnails everywhere a Polst renders** — Analytics "Campaign
+   performance" carries `ThumbStrip`, "Standalone Polsts" uses the shared
+   `PolstListRow` — same recipes as the list pages.
+5. **Teaching layer** — the header "How Polst works" drawer (`HelpGuide.tsx`):
+   decision model, confidence provenance, canon metric definitions, the
+   evidence-protection rules, and a worked example wired to the seeded
+   report. Plus the interpretation layer itself (`lib/insights.ts`): Trends
+   coaching rows and question-phrased insight cards that say what the data
+   means and what to do next.
+6. **"Крупнее все" (make everything bigger)** — 52px table rows, 24px hero
+   KPI values, uniform 36px toolbar controls, roomier empty states. Residual
+   headroom is taste, not a tracked gap.
 
 ## ⏸ Deliberately deferred (flag if you disagree)
 
@@ -75,9 +80,9 @@ audit's sequencing but deviates from a feedback line — flag if you disagree).
   the transcript's decision-maker says "three seven or ten days that's it
   done" and staging ships 3/7/10. Shipped 3/7/10; needs a conscious sign-off.
 
-## Suggested order for the remaining gaps
+## Remaining
 
-1. Scheduled-Polst hero + Interactions split (small, pure frontend).
-2. Thumbnails in the Analytics performance tables (mechanical).
-3. Geography map + editable key dates (moderate).
-4. Teaching layer last — it needs real content decisions, not just UI.
+All six tracked gaps closed by passes 6a–6f. Still open by choice (see the
+deferred list above): editable key dates, custom analytics ranges, a real
+notification contract, follow-up suggestions phase two, and the 3/7/10 vs
+3/5/7 sign-off.

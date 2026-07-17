@@ -39,10 +39,13 @@ build, browser) and commit+push after every pass — main only.
       cards: standout source / drop-off / standout Polst) + insight-cards.tsx
       (TrendGrid/InsightCard) wired into Analytics Insights. All computed
       from live store; rows drop when data can't support them.
-- [~] Pass 6f — done: scheduled-Polst hero (both cuts), interactionMix
+- [x] Pass 6f — scheduled-Polst hero (both cuts), interactionMix
       (workspace+store+Polst detail tile), PollThumb/ThumbStrip in both
-      Analytics tables, PollCard parity fix. In flight: GeoMap (Audience).
-- [ ] Pass 6g — docs (DESIGN.md, feedback-coverage.md), final verify.
+      Analytics tables, PollCard parity fix, GeoMap (d3-geo choropleth on
+      Audience), HelpGuide teaching drawer in the header.
+- [x] Pass 6g — DESIGN.md rewritten for 6a–6f ("quiet chrome, violet data"),
+      feedback-coverage.md gaps closed, final verify (tsc, verify:model,
+      build, browser sweep over all views — zero console errors).
 
 ## DRY audit (from full read of all views, 2026-07-17)
 
