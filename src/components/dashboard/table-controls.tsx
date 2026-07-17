@@ -230,9 +230,7 @@ export function TablePagination({
   const last = Math.min(total, (safePage + 1) * pageSize);
 
   return (
-    <div
-      className={cn("flex flex-wrap items-center justify-between gap-2 py-2", className)}
-    >
+    <div className={cn("flex w-full flex-wrap items-center justify-between gap-2", className)}>
       <p className="text-sm text-text-secondary">
         <span className="font-semibold tabular-nums text-text-primary">
           {first}–{last}

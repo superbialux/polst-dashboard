@@ -471,7 +471,15 @@ export function CreateCampaignPage() {
   /* The page IS the draft: the first meaningful change mints it, every
      change after patches it — nothing here can be lost by leaving. */
   const [draftId, setDraftId] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  /** initial → "Saved as draft"; any change spins ("Saving…") for a
+   *  beat, then lands on "Changes saved". */
+  const [saveState, setSaveState] = useState<"initial" | "saving" | "saved">("initial");
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settleSave = () => {
+    setSaveState("saving");
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => setSaveState("saved"), 1200);
+  };
   const [composerOpen, setComposerOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -495,26 +503,34 @@ export function CreateCampaignPage() {
     if (draftIdRef.current) return draftIdRef.current;
     const id = createCampaign(draftInput());
     setDraftId(id);
-    setSaved(true);
     return id;
   };
 
-  // Autosave: 600ms after the last keystroke the draft exists and is
-  // current — the footer says so.
+  // Autosave: the spinner starts with the keystroke; 600ms after the
+  // last one the draft is current, and the footer settles on saved.
   useEffect(() => {
     const dirty = name.trim() || decision.trim() || startAt || event;
     if (!dirty && !draftIdRef.current) return;
+    settleSave();
     const t = setTimeout(() => {
       if (!draftIdRef.current) {
         ensureDraft();
       } else {
         updateCampaign(draftIdRef.current, draftInput());
-        setSaved(true);
       }
     }, 600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, decision, startAt, duration, customEnd, event]);
+
+  // Chain edits (add / reorder / remove) are saves too — same signal.
+  const chainLength = draftId ? (campaignById(draftId)?.chain.length ?? 0) : 0;
+  const prevChainLength = useRef(chainLength);
+  useEffect(() => {
+    if (chainLength !== prevChainLength.current && draftIdRef.current) settleSave();
+    prevChainLength.current = chainLength;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chainLength]);
 
   const draftCampaign = draftId ? campaignById(draftId) : undefined;
   const chain = draftCampaign?.chain ?? [];
@@ -550,13 +566,21 @@ export function CreateCampaignPage() {
       footer={
         <>
           <p className="flex items-center gap-1.5 text-sm text-text-secondary">
-            {saved ? (
+            {saveState === "saving" ? (
               <>
-                <Icon name="check_circle" size={16} filled className="text-status-success" />
-                Saved to drafts
+                <Icon name="progress_activity" size={16} className="animate-spin text-icon-secondary" />
+                Saving…
+              </>
+            ) : saveState === "saved" ? (
+              <>
+                <Icon name="done_all" size={16} className="text-status-success" />
+                Changes saved
               </>
             ) : (
-              "Your draft saves as you type"
+              <>
+                <Icon name="done_all" size={16} className="text-icon-tertiary" />
+                Saved as draft
+              </>
             )}
           </p>
           <div className="flex items-center gap-2">
@@ -595,14 +619,7 @@ export function CreateCampaignPage() {
                   />
                 )}
               </Field>
-              <Field
-                label="Decision question"
-                helper={
-                  <FieldHelper tone="neutral">
-                    Optional — you can set it later in the campaign&rsquo;s settings.
-                  </FieldHelper>
-                }
-              >
+              <Field label="Decision question">
                 {(id) => (
                   <textarea
                     id={id}
@@ -635,25 +652,9 @@ export function CreateCampaignPage() {
               {endBeforeStart ? (
                 <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
               ) : null}
-              <Field
-                label="Key date"
-                helper={
-                  <FieldHelper tone="neutral">
-                    Optional planning event this campaign targets — it ties the run to a date
-                    on the Home calendar.
-                  </FieldHelper>
-                }
-              >
-                {(id) => (
-                  <SelectMenu
-                    id={id}
-                    label="Key date"
-                    value={event}
-                    onValueChange={setEvent}
-                    options={EVENT_OPTIONS}
-                  />
-                )}
-              </Field>
+              {/* No key-date field: the calendar exists to spark ideas,
+                  not to gate creation. A ?event= arrival still ties the
+                  run to its date quietly. */}
             </div>
           </DashboardCard>
 
@@ -744,8 +745,16 @@ export function CreateCampaignPage() {
         </div>
 
         <div className="space-y-4 self-start lg:col-span-4">
-          <DashboardCard title="About campaigns">
-            <p className="text-sm leading-5 text-text-secondary">
+          {/* The banner cards' type combo — eyebrow, display title, quiet
+              description — carried into the rail. */}
+          <DashboardCard>
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+              Campaigns
+            </p>
+            <h2 className="mt-1.5 font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+              About campaigns
+            </h2>
+            <p className="mt-1.5 text-sm leading-5 text-text-secondary">
               A campaign bundles several polsts under one shareable link. Voters see them in
               the order you set — use one per launch, event, or research round.
             </p>
@@ -763,14 +772,13 @@ export function CreateCampaignPage() {
             </ul>
           </DashboardCard>
           {otherDrafts.length > 0 ? (
-            <DashboardCard title="Drafts" description="Pick up where you left off.">
-              <div className="-mx-2 space-y-0.5">
+            <DashboardCard>
+              <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+                Drafts
+              </h2>
+              <div className="mt-3 space-y-2">
                 {otherDrafts.map((c) => (
-                  <Link
-                    key={c.id}
-                    to={`/campaigns/${c.id}`}
-                    className="flex items-center justify-between gap-3 rounded-md p-2 transition-colors hover:bg-surface-subtle"
-                  >
+                  <div key={c.id} className="flex items-center justify-between gap-3">
                     <span className="min-w-0">
                       <span className="block truncate font-display text-sm font-semibold text-text-primary">
                         {c.name}
@@ -779,8 +787,10 @@ export function CreateCampaignPage() {
                         Created {fmtDate(c.createdAt)}
                       </span>
                     </span>
-                    <span className="shrink-0 text-sm font-semibold text-text-accent">Open</span>
-                  </Link>
+                    <Button variant="secondary" size="sm" asChild className="shrink-0">
+                      <Link to={`/campaigns/${c.id}`}>Open</Link>
+                    </Button>
+                  </div>
                 ))}
               </div>
             </DashboardCard>

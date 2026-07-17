@@ -32,7 +32,11 @@ export function Field({
       >
         {label}
         {required ? (
-          <span className="font-sans text-xs font-medium text-text-tertiary">Required</span>
+          // The conventional mark, not the word — optional fields simply
+          // carry no asterisk.
+          <span aria-hidden className="text-status-danger">
+            *
+          </span>
         ) : null}
       </label>
       {children(id)}

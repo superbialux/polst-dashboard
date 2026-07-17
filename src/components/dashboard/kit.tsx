@@ -57,7 +57,15 @@ export function DashboardPage({ actions, tabs, footer, children }: PageProps) {
       {/* Tabs teleport into the header block itself — part of the fixed
           chrome, above the scroller; the footer mirrors it below. */}
       {tabs ? <HeaderTabsSlot>{tabs}</HeaderTabsSlot> : null}
-      {footer ? <PageFooterSlot>{footer}</PageFooterSlot> : null}
+      {footer ? (
+        <PageFooterSlot>
+          {/* One layout contract for every footer: a full-width
+              space-between flex row. */}
+          <div className="flex min-h-12 w-full flex-wrap items-center justify-between gap-2 py-2">
+            {footer}
+          </div>
+        </PageFooterSlot>
+      ) : null}
       <div className="mx-auto max-w-dashboard space-y-8">
         {actions ? <HeaderActions>{actions}</HeaderActions> : null}
         {children}
