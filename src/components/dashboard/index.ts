@@ -1,5 +1,6 @@
 export * from "./kit";
 export * from "./patterns";
+export * from "./charts";
 export * from "./Calendar";
 export * from "./NotFound";
 export { ReportPreview } from "./ReportPreview";

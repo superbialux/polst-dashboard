@@ -5,6 +5,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
 import { IconButton, IconTile } from "@/components/ui/icon-button";
+import { Sparkline, TrendChart } from "./charts";
 import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
@@ -680,46 +681,6 @@ export function ProgressBar({
   );
 }
 
-/* ── Sparkline ───────────────────────────────────────────────────── */
-
-/** Inline SVG trend line for the stat strip and analytics tiles. Always
- *  accent — the mini chart echoes the expanded chart; only the delta arrow
- *  carries the up/down verdict. */
-export function Sparkline({
-  values,
-  className,
-}: {
-  values: number[];
-  className?: string;
-}) {
-  const w = 72;
-  const h = 24;
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min || 1;
-  const pts = values.map(
-    (v, i) => [(i / (values.length - 1)) * w, h - ((v - min) / range) * (h - 2) - 1] as [number, number],
-  );
-  return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className={cn("h-6 w-16 text-accent-default", className)}
-      aria-hidden
-    >
-      <path
-        d={smoothPath(pts)}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
-
 /* ── Stats strip ─────────────────────────────────────────────────── */
 
 /** The strip consumes the workspace's `Stat` — value, delta, real spark and
@@ -739,157 +700,6 @@ const trendClass = (trend?: Stat["trend"]) =>
     : trend === "down"
       ? "text-status-danger"
       : "text-text-secondary";
-
-/** Catmull-Rom → cubic-bezier smoothing so the line reads as a soft curve. */
-function smoothPath(pts: Array<[number, number]>): string {
-  if (pts.length < 2) return "";
-  const t = 0.18;
-  let d = `M ${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] ?? pts[i];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[i + 2] ?? p2;
-    const c1x = p1[0] + (p2[0] - p0[0]) * t;
-    const c1y = p1[1] + (p2[1] - p0[1]) * t;
-    const c2x = p2[0] - (p3[0] - p1[0]) * t;
-    const c2y = p2[1] - (p3[1] - p1[1]) * t;
-    d += ` C ${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
-  }
-  return d;
-}
-
-/** The house line chart: a smooth accent line with a soft area fill over a
- *  faded, dashed line for the previous period — plus a light y-axis, the
- *  range's date ticks, and a hover crosshair that pins the exact value.
- *  Used by the Home stat strip and every trend card in Analytics. */
-export function TrendChart({
-  series,
-  previous,
-  xTicks,
-  format = (v) => formatNumber(Math.round(v)),
-  className,
-}: {
-  series: number[];
-  previous?: number[];
-  xTicks: string[];
-  /** Value formatter for the y-axis and hover chip (e.g. thousands, %). */
-  format?: (v: number) => string;
-  className?: string;
-}) {
-  const gradientId = useId().replace(/:/g, "trend");
-  const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(...series, ...(previous ?? []), 1);
-  const toPts = (arr: number[]) =>
-    arr.map((v, i) => [(i / (arr.length - 1)) * 300, 100 - (v / max) * 100] as [number, number]);
-  const line = smoothPath(toPts(series));
-  const prev = previous?.length ? smoothPath(toPts(previous)) : null;
-  const area = line ? `${line} L 300,100 L 0,100 Z` : "";
-  const hoverX = hover === null ? 0 : (hover / (series.length - 1)) * 100;
-  const hoverY = hover === null ? 0 : 100 - (series[hover] / max) * 100;
-  return (
-    <div className={cn("text-accent-default", className)}>
-      <div className="flex gap-3">
-        <div className="flex h-48 w-8 shrink-0 flex-col justify-between py-0.5 text-right text-xs tabular-nums text-text-tertiary">
-          {[max, max / 2, 0].map((v, i) => (
-            <span key={i}>{format(v)}</span>
-          ))}
-        </div>
-        <div
-          className="relative h-48 min-w-0 flex-1"
-          onMouseMove={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const t = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-            setHover(Math.round(t * (series.length - 1)));
-          }}
-          onMouseLeave={() => setHover(null)}
-        >
-          <svg
-            viewBox="0 0 300 100"
-            preserveAspectRatio="none"
-            className="h-full w-full overflow-visible"
-            aria-hidden
-          >
-            <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="currentColor" stopOpacity="0.16" />
-                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            {[0, 50, 100].map((y) => (
-              <line
-                key={y}
-                x1={0}
-                x2={300}
-                y1={y}
-                y2={y}
-                className="stroke-border-default"
-                strokeWidth={1}
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-            <path d={area} fill={`url(#${gradientId})`} stroke="none" />
-            {prev ? (
-              <path
-                d={prev}
-                fill="none"
-                stroke="currentColor"
-                strokeOpacity={0.4}
-                strokeWidth={1.5}
-                strokeDasharray="4 4"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            ) : null}
-            <path
-              d={line}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-          {hover !== null ? (
-            <>
-              <div
-                className="pointer-events-none absolute inset-y-0 w-px bg-border-strong"
-                style={{ left: `${hoverX}%` }}
-              />
-              <div
-                className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-pill border-2 border-surface-raised bg-accent-default shadow-sm"
-                style={{ left: `${hoverX}%`, top: `${hoverY}%` }}
-              />
-              <div
-                className="pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md border border-border-default bg-surface-raised px-2 py-1 shadow-md"
-                style={{
-                  left: `min(max(${hoverX}%, 44px), calc(100% - 44px))`,
-                  top: `calc(${hoverY}% - 38px)`,
-                }}
-              >
-                <span className="font-display text-xs font-semibold tabular-nums text-text-primary">
-                  {format(series[hover])}
-                </span>
-                {previous?.length ? (
-                  <span className="ml-1.5 text-xs tabular-nums text-text-tertiary">
-                    prev {format(previous[hover] ?? 0)}
-                  </span>
-                ) : null}
-              </div>
-            </>
-          ) : null}
-        </div>
-      </div>
-      <div className="ml-11 mt-2 flex justify-between text-xs text-text-tertiary">
-        {xTicks.map((l) => (
-          <span key={l}>{l}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /** The mini-stats bar (Shopify-style): a padded parent holding borderless,
  *  rounded, hoverable stat cards. Click one to expand its full chart below
@@ -1582,10 +1392,19 @@ export function MixBars({
   className?: string;
 }) {
   return (
-    <ul className={cn("space-y-3", className)}>
+    <ul className={cn("space-y-1", className)}>
       {slices.map((slice) => (
-        <li key={slice.label}>
-          <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+        // The Dub bar-row: the share renders as a soft accent wash *behind*
+        // the row's own label and number, so the list stays one line per
+        // slice. Bars scale to 100%, never to the largest slice — a 48%
+        // share must read as 48%, or the chart lies.
+        <li key={slice.label} className="relative overflow-hidden rounded-sm">
+          <span
+            aria-hidden
+            className="absolute inset-y-0 left-0 rounded-sm bg-accent-soft"
+            style={{ width: `${Math.min(100, Math.max(0, slice.value))}%` }}
+          />
+          <div className="relative flex items-baseline justify-between gap-3 px-2.5 py-2 text-sm">
             <span className="min-w-0 truncate font-medium text-text-primary">{slice.label}</span>
             <span className="flex shrink-0 items-baseline gap-2">
               {slice.detail ? (
@@ -1593,14 +1412,6 @@ export function MixBars({
               ) : null}
               <span className="font-semibold tabular-nums text-text-primary">{slice.value}%</span>
             </span>
-          </div>
-          {/* Bars scale to 100%, never to the largest slice — a 48% share
-              must read as 48%, or the chart lies. */}
-          <div className="h-2 overflow-hidden rounded-pill bg-surface-strong">
-            <div
-              className="h-full rounded-pill bg-accent-default"
-              style={{ width: `${Math.min(100, Math.max(0, slice.value))}%` }}
-            />
           </div>
         </li>
       ))}

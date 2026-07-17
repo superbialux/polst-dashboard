@@ -238,14 +238,17 @@
     --ring: 240 48% 58%;
     --radius: 0.375rem;
 
-    /* Chart series — brand palette in fixed order; Recharts components
-       consume these via the chart-* Tailwind colors, never raw hexes. */
+    /* Chart series — brand hues re-stepped for data (validated: lightness
+       band, chroma floor, adjacent-pair CVD ΔE, 3:1 contrast on white).
+       FIXED assignment order — amber and orange-red must never sit
+       adjacent (deutan ΔE 1.8). Recharts components consume these via
+       the chart-* Tailwind colors, never raw hexes. */
     --chart-1: 240 48% 58%;             /* brand violet   #6161c7 */
-    --chart-2: 170 77% 38%;             /* bright teal    #16ac93 */
-    --chart-3: 44 89% 53%;              /* yellow         #f2ba1c */
+    --chart-2: 45 100% 36%;             /* deep amber     #b98a00 */
+    --chart-3: 170 77% 31%;             /* brand teal     #128c78 */
     --chart-4: 16 76% 55%;              /* orange-red     #e36133 */
-    --chart-5: 244 45% 33%;             /* ink violet     #332e78 */
-    --chart-grid: 220 23% 95%;          /* hairlines      ~neutral-150 */
+    --chart-5: 244 43% 44%;             /* ink violet     #47409f */
+    --chart-grid: 220 24% 92%;          /* dashed hairlines, one step above border */
 
     /* Sidebar (shadcn Sidebar slots) — mirrors the sidenav component vars. */
     --sidebar-background: 218 25% 6%;   /* --color-neutral-900 */
