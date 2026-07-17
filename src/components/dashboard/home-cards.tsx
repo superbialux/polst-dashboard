@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
+import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { fmtDateRange, fmtInt, pct, relativeToToday } from "@/lib/canon";
 import { polstImage, type Campaign } from "@/lib/workspace";
@@ -134,9 +135,16 @@ export function SuggestionCard({
             media={{ tone: suggestion.tone, icon: suggestion.icon, src: suggestion.image }}
             className="h-full min-h-32 w-full"
           />
-          <span className="absolute bottom-4 left-4 inline-flex h-8 items-center rounded-pill border border-border-default bg-surface-raised px-3 font-display text-sm font-semibold text-text-primary shadow-sm transition-colors group-hover:border-border-strong">
-            {suggestion.action}
-          </span>
+          {/* The house secondary button, rendered inert — the card link
+              carries the click. Pinned to the content's padding line. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            asChild
+            className="pointer-events-none absolute bottom-4 left-4"
+          >
+            <span>{suggestion.action}</span>
+          </Button>
         </span>
       </Link>
       <IconButton

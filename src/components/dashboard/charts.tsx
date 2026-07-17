@@ -248,7 +248,9 @@ export function TrendChart({
     <div className={className}>
       <div className="relative h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 4, right: 4, bottom: 6, left: 0 }}>
+          {/* Top/right headroom fits a 12px-radius marker on a peak at the
+              window's edge without clipping. */}
+          <ComposedChart data={data} margin={{ top: 14, right: 14, bottom: 6, left: 0 }}>
             <defs>
               {/* One-hue gradient, 14% at the line → 0 at the baseline. */}
               <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">

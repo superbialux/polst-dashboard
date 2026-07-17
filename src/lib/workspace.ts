@@ -1051,7 +1051,7 @@ export type StatAnnotation = {
 export type StatRange = WindowRange;
 export const STAT_RANGES: StatRange[] = ["7D", "30D", "90D", "All"];
 
-const SPARK_POINTS = 30;
+const SPARK_POINTS = 25;
 
 /** Bucket a daily series into ~12 points (sums, so counts stay honest). */
 const downsampleCounts = (values: number[], points = SPARK_POINTS): number[] => {
@@ -1191,11 +1191,6 @@ const annotateStat = (
   /** % change into a bucket, null when there is nothing to compare. */
   const pctAt = (b: number) =>
     b > 0 && spark[b - 1] > 0 ? Math.round(((spark[b] - spark[b - 1]) / spark[b - 1]) * 100) : null;
-  const moveSentence = (b: number) => {
-    const pct = pctAt(b);
-    if (pct === null || Math.abs(pct) < 5) return `${subject} held steady through this stretch.`;
-    return `${subject} ${movePhrase(pct)} through this stretch.`;
-  };
 
   const byBucket = new Map<number, LifecycleEvent[]>();
   for (const e of events) {
@@ -1204,22 +1199,25 @@ const annotateStat = (
     byBucket.set(b, [...(byBucket.get(b) ?? []), e]);
   }
 
-  const annotations: StatAnnotation[] = [...byBucket.entries()].map(([bucket, evs]) => {
+  // Markers explain CHANGE — an event on a flat stretch stays unmarked.
+  const annotations: StatAnnotation[] = [...byBucket.entries()].flatMap(([bucket, evs]) => {
+    const pct = pctAt(bucket);
+    if (pct === null || Math.abs(pct) < 5) return [];
     // The biggest run most plausibly moved the total — it fronts the card.
     const [primary, ...rest] = [...evs].sort((a, b) => b.views - a.views);
-    return {
+    return [{
       bucket,
       dateLabel: spanLabel(bounds[bucket]),
       kind: primary.kind,
       headline: `${primary.name} ${primary.kind === "launch" ? "launched" : "ended"}`,
-      detail: `${moveSentence(bucket)}${
+      detail: `${subject} ${movePhrase(pct)} through this stretch.${
         rest.length ? ` ${rest.length} other ${rest.length === 1 ? "run" : "runs"} changed here too.` : ""
       }`,
       link: {
         label: primary.to.startsWith("/campaigns") ? "Open campaign" : "Open Polst",
         to: primary.to,
       },
-    };
+    }];
   });
 
   // A movement is explained by an event in its own or the previous bucket
@@ -1343,6 +1341,9 @@ export type ListItem = {
   tone: "danger" | "warning" | "neutral";
   action: string;
   to: string;
+  /** Card-register copy: a verb-led title ("Assign sources to X") and a
+   *  one-clause reason, both short enough for a two-line clamp. */
+  card: { title: string; reason: string };
 };
 
 /** Rule-derived queue, ordered by severity (a→e in the derivation), cap 5.
@@ -1372,6 +1373,10 @@ export function attentionItems(
         // tab's "Assign source"); "Add source" means create-new (Distribution).
         action: "Assign sources",
         to: `/campaigns/${c.id}?tab=sources`,
+        card: {
+          title: `Assign sources to ${c.name}`,
+          reason: `It starts ${relativeToToday(c.startAt)} with nothing collecting voters.`,
+        },
       });
     }
   }
@@ -1385,6 +1390,10 @@ export function attentionItems(
       tone: "warning",
       action: "View source",
       to: "/distribution",
+      card: {
+        title: `Check ${s.name}`,
+        reason: `Completion is ${fmtPct(s.completionRate!, 0)} — the campaign averages ${fmtPct(rate, 0)}.`,
+      },
     });
   }
   // c) The nearest key date (≤21 days out) with nothing planned against it.
@@ -1403,6 +1412,10 @@ export function attentionItems(
       tone: "warning",
       action: "Plan a campaign",
       to: `/campaigns/new?event=${uncovered.id}`,
+      card: {
+        title: `Plan for ${uncovered.title}`,
+        reason: `Nothing is attached to this key date yet (${fmtDate(uncovered.start)}).`,
+      },
     });
   }
   // d) Draft campaigns with nothing inside them.
@@ -1415,6 +1428,10 @@ export function attentionItems(
         tone: "neutral",
         action: "Add Polsts",
         to: `/campaigns/${c.id}?tab=polsts`,
+        card: {
+          title: `Add Polsts to ${c.name}`,
+          reason: "The draft can't be scheduled while it's empty.",
+        },
       });
     }
   }
@@ -1428,6 +1445,10 @@ export function attentionItems(
         tone: "neutral",
         action: "Finish Polst",
         to: `/polsts/${p.id}`,
+        card: {
+          title: "Finish your draft Polst",
+          reason: `"${p.question}" has no schedule or source yet.`,
+        },
       });
     }
   }

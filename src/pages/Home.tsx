@@ -121,8 +121,8 @@ export function HomePage() {
       id: item.id,
       icon: ACTION_ICONS[item.action] ?? "arrow_forward",
       tone: ATTENTION_TONES[item.tone],
-      title: item.title,
-      description: item.reason,
+      title: item.card.title,
+      description: item.card.reason,
       action: item.action,
       to: item.to,
     }));
