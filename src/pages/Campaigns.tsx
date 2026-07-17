@@ -15,6 +15,7 @@ import {
   TextInput,
 } from "@/components/Field";
 import { QrCodeModal } from "@/components/DistributionActions";
+import { PolstComposerModal } from "@/components/PolstComposerModal";
 import {
   AssignSourceModal,
   Chip,
@@ -449,7 +450,6 @@ export function CreateCampaignPage() {
   const [startAt, setStartAt] = useState("");
   const [duration, setDuration] = useState<DurationPreset>("7 days");
   const [customEnd, setCustomEnd] = useState("");
-  const [target, setTarget] = useState("");
   const [event, setEvent] = useState(
     KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "",
   );
@@ -476,7 +476,7 @@ export function CreateCampaignPage() {
       decision: decision.trim() || undefined,
       startAt: startAt || undefined,
       endAt,
-      target: target.trim() ? Number(target) : undefined,
+      target: undefined,
       event: event || undefined,
     });
     toast("Campaign created as a draft");
@@ -537,38 +537,16 @@ export function CreateCampaignPage() {
                   />
                 )}
               </Field>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Start date">
-                  {(id) => (
-                    <TextInput
-                      id={id}
-                      type="date"
-                      value={startAt}
-                      onChange={(e) => setStartAt(e.target.value)}
-                    />
-                  )}
-                </Field>
-                <Field
-                  label="Voter target"
-                  helper={
-                    <FieldHelper tone="neutral">
-                      Optional evidence goal — the decision brief tracks progress against it.
-                    </FieldHelper>
-                  }
-                >
-                  {(id) => (
-                    <TextInput
-                      id={id}
-                      type="number"
-                      min={0}
-                      inputMode="numeric"
-                      value={target}
-                      onChange={(e) => setTarget(e.target.value)}
-                      placeholder="1,000"
-                    />
-                  )}
-                </Field>
-              </div>
+              <Field label="Start date">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    type="date"
+                    value={startAt}
+                    onChange={(e) => setStartAt(e.target.value)}
+                  />
+                )}
+              </Field>
               <DurationField
                 value={duration}
                 onChange={setDuration}
@@ -1605,10 +1583,12 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
           />
         )}
       </DashboardCard>
-      <AddPolstModal
+      {/* The sibling-product composer as a modal — stack as many polsts
+          as the chain needs without ever leaving the campaign. */}
+      <PolstComposerModal
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
-        campaign={campaign}
+        campaign={{ id: campaign.id, name: campaign.name }}
       />
       <SelectFromLibraryModal
         open={libraryOpen}
@@ -1639,87 +1619,6 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
         ) : null}
       </ConfirmModal>
     </>
-  );
-}
-
-function AddPolstModal({
-  open,
-  onClose,
-  campaign,
-}: {
-  open: boolean;
-  onClose: () => void;
-  campaign: Campaign;
-}) {
-  const { addQuestionToCampaign } = useWorkspace();
-  const toast = useToast();
-  const [question, setQuestion] = useState("");
-  const [optionA, setOptionA] = useState("");
-  const [optionB, setOptionB] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const complete = question.trim() && optionA.trim() && optionB.trim();
-
-  useEffect(() => {
-    if (open) setSubmitting(false);
-  }, [open]);
-
-  const add = () => {
-    if (submitting) return; // a double-click must not stage the polst twice
-    setSubmitting(true);
-    addQuestionToCampaign(campaign.id, {
-      question: question.trim(),
-      optionA: optionA.trim(),
-      optionB: optionB.trim(),
-    });
-    toast("Polst added to the chain");
-    setQuestion("");
-    setOptionA("");
-    setOptionB("");
-    onClose();
-  };
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      label="New polst"
-      title="New polst"
-      footer={
-        <ModalFooter>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!complete || submitting} onClick={add}>
-            Add polst
-          </Button>
-        </ModalFooter>
-      }
-    >
-      <div className="space-y-4 p-4">
-        <Field label="Question">
-          {(id) => (
-            <TextInput
-              id={id}
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Which hero visual stops the scroll?"
-            />
-          )}
-        </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Option A">
-            {(id) => (
-              <TextInput id={id} value={optionA} onChange={(e) => setOptionA(e.target.value)} />
-            )}
-          </Field>
-          <Field label="Option B">
-            {(id) => (
-              <TextInput id={id} value={optionB} onChange={(e) => setOptionB(e.target.value)} />
-            )}
-          </Field>
-        </div>
-      </div>
-    </Modal>
   );
 }
 

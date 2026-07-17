@@ -14,6 +14,7 @@ import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
 import { PollCard } from "@/components/PollCard";
 import { PollComposer, type ComposerState } from "@/components/PollComposer";
 import { QrCodeModal, SocialShareModal } from "@/components/DistributionActions";
+import { PolstComposerModal } from "@/components/PolstComposerModal";
 import {
   ActionCard,
   AssignSourceModal,
@@ -299,8 +300,15 @@ function PolstGridCard({ polst }: { polst: SinglePolst }) {
 const PAGE_SIZE = 25;
 
 export function PolstsPage() {
-  const { polsts } = useWorkspace();
+  const { polsts, polstById } = useWorkspace();
   const navigate = useNavigate();
+  // ?compose=1 opens the composer modal over the list; ?edit seeds it
+  // with a draft. /polsts/new resolves here, so every old link works.
+  const [composeParams, setComposeParams] = useSearchParams();
+  const composeOpen = composeParams.get("compose") === "1";
+  const editParam = composeParams.get("edit");
+  const editDraft = editParam ? polstById(editParam) : undefined;
+  const closeCompose = () => setComposeParams({}, { replace: true });
   const [active, setActive] = useState<string>("All");
   const [view, setView] = useState<View>("list");
   const [query, setQuery] = useState("");
@@ -447,6 +455,11 @@ export function PolstsPage() {
         onClose={() => setQrPolst(null)}
         objectName={qrPolst?.question ?? "this polst"}
         url={qrPolst ? qrUrl(qrPolst) : ""}
+      />
+      <PolstComposerModal
+        open={composeOpen}
+        onClose={closeCompose}
+        draft={editDraft?.status === "Draft" ? editDraft : undefined}
       />
     </DashboardPage>
   );
@@ -847,7 +860,6 @@ export function PolstDetailPage() {
 
 /* ── Create / edit a polst ───────────────────────────────────────── */
 
-/** /polsts/new — also the draft editor via ?edit={id}. */
 export function CreatePolstPage() {
   const [params] = useSearchParams();
   const editId = params.get("edit");
@@ -858,245 +870,12 @@ export function CreatePolstPage() {
   if (editing && editing.status !== "Draft") {
     return <Navigate to={`/polsts/${editing.id}`} replace />;
   }
-  return <ComposePolst key={editing?.id ?? "new"} draft={editing} />;
-}
-
-function ComposePolst({ draft }: { draft?: SinglePolst }) {
-  const navigate = useNavigate();
-  const toast = useToast();
-  const { createPolst, updatePolst, publishPolst } = useWorkspace();
-
-  const [composer, setComposer] = useState<ComposerState>({
-    question: draft?.question ?? "",
-    optionA: draft?.optionA ?? "",
-    optionB: draft?.optionB ?? "",
-    category: draft?.category ?? null,
-    optionsSet: Boolean(draft),
-  });
-  const [startDate, setStartDate] = useState(draft?.startAt ?? TODAY);
-  // A saved schedule round-trips exactly (kit owns the preset vocabulary).
-  const [duration, setDuration] = useState<DurationPreset>(() =>
-    draft ? durationPresetFor(draft.startAt, draft.endAt) : "7 days",
-  );
-  const [customEnd, setCustomEnd] = useState(draft?.endAt ?? "");
-  const [submitting, setSubmitting] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false);
-
-  const endDate = durationEnd(duration, startDate, customEnd);
-  // Only a Custom duration can invert the range — refuse it at the source
-  // so an impossible run (ends before it starts) can never be authored.
-  const endBeforeStart = Boolean(endDate && startDate && endDate < startDate);
-
-  // "Images added" is deliberately not a gate: every polst's imagery is
-  // derived through polstImage(), so the composer's mock attach can neither
-  // block a publish honestly nor survive a draft round-trip. A category is
-  // required to publish (staging's rule) but never blocks saving a draft.
-  const checks: Array<[string, boolean]> = [
-    ["Question written", composer.question !== ""],
-    ["Both options set", composer.optionsSet],
-    ["Category selected", composer.category !== null],
-  ];
-  const canSave = composer.question !== "" && composer.optionsSet && !endBeforeStart;
-  const canPublish = checks.every(([, done]) => done) && !endBeforeStart;
-
-  const input = () => ({
-    question: composer.question,
-    optionA: composer.optionA,
-    optionB: composer.optionB,
-    startAt: startDate || undefined,
-    endAt: endDate,
-    category: CATEGORIES.find((category) => category === composer.category),
-  });
-
-  const saveDraft = () => {
-    if (submitting) return; // a double-click must not mint a duplicate draft
-    let id: string;
-    if (draft) {
-      updatePolst(draft.id, input());
-      id = draft.id;
-    } else {
-      id = createPolst(input());
-    }
-    setSubmitting(true);
-    toast("Draft saved");
-    navigate(`/polsts/${id}`);
-  };
-
-  const publish = () => {
-    if (submitting) return; // a double-click must not publish twice
-    setReviewOpen(false);
-    const data = input();
-    let id: string;
-    if (draft) {
-      updatePolst(draft.id, data);
-      const result = publishPolst(draft.id);
-      if (!result.ok) {
-        toast(result.reason);
-        return;
-      }
-      id = draft.id;
-    } else {
-      id = createPolst(data, { publish: true });
-    }
-    setSubmitting(true);
-    // Speak the resolved status, never the intent: past dates land as Ended.
-    const resolved = publishedStatus(data.startAt, data.endAt);
-    toast(
-      resolved === "Scheduled"
-        ? `Polst scheduled — starts ${fmtDate(data.startAt!)}`
-        : resolved === "Ended"
-          ? "Polst published — its dates are already past, so it's Ended"
-          : "Polst published — it's live",
-    );
-    navigate(`/polsts/${id}`);
-  };
-
+  // Composing is a MODAL over the list — the route survives for deep
+  // links and the row menus, and resolves to the list with it open.
   return (
-    <DashboardPage>
-      <WizardShell
-        step={reviewOpen ? 3 : 2}
-        wide
-        title={draft ? "Finish your polst" : "Build your polst"}
-        subtitle="One question, two options — publishing always passes through the review."
-        footer={
-          <>
-            <Button variant="ghost" asChild>
-              <Link to={draft ? `/polsts/${draft.id}` : "/new"}>
-                {draft ? "Cancel" : "Back"}
-              </Link>
-            </Button>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                disabled={!canSave || submitting}
-                title={endBeforeStart ? "The end date is before the start." : undefined}
-                onClick={saveDraft}
-              >
-                Save draft
-              </Button>
-              {/* Publishing always passes through the review (the audit's
-                  required workflow): the exact card voters will see plus
-                  the lock warning, confirmed — never a one-click publish. */}
-              <Button
-                disabled={!canPublish || submitting}
-                title={endBeforeStart ? "The end date is before the start." : undefined}
-                onClick={() => setReviewOpen(true)}
-              >
-                Review & publish
-              </Button>
-            </div>
-          </>
-        }
-      >
-      <SectionGrid>
-        <div className="space-y-4 lg:col-span-8">
-          <DashboardCard>
-            <PollComposer
-              categories={CATEGORIES}
-              initial={
-                draft
-                  ? {
-                      question: draft.question,
-                      optionA: draft.optionA,
-                      optionB: draft.optionB,
-                      imageA: polstImage(draft.id, "a"),
-                      imageB: polstImage(draft.id, "b"),
-                      categories: [draft.category],
-                    }
-                  : undefined
-              }
-              onChange={setComposer}
-            />
-          </DashboardCard>
-          <DashboardCard title="Schedule">
-            <div className="space-y-4">
-              <div className="max-w-sm">
-                <Field label="Start date">
-                  {(fieldId) => (
-                    <TextInput
-                      id={fieldId}
-                      type="date"
-                      value={startDate}
-                      onChange={(event) => setStartDate(event.target.value)}
-                    />
-                  )}
-                </Field>
-              </div>
-              <DurationField
-                value={duration}
-                onChange={setDuration}
-                customEnd={customEnd}
-                onCustomEndChange={setCustomEnd}
-                startAt={startDate}
-                subject="polst"
-              />
-              {endBeforeStart ? (
-                <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
-              ) : null}
-            </div>
-          </DashboardCard>
-        </div>
-
-        <div className="space-y-4 self-start lg:sticky lg:top-16 lg:col-span-4">
-          <DashboardCard title="Ready to publish">
-            <ul className="space-y-3">
-              {checks.map(([label, done]) => (
-                <ChecklistItem key={label} tone={done ? "done" : "todo"}>
-                  {label}
-                </ChecklistItem>
-              ))}
-            </ul>
-          </DashboardCard>
-        </div>
-      </SectionGrid>
-
-      {/* The pre-publish review: the exact card voters will see, the
-          schedule it runs on, and the lock warning — confirmed. */}
-      <ReviewModal
-        open={reviewOpen}
-        onClose={() => setReviewOpen(false)}
-        label="Review and publish polst"
-        title="Review before publishing"
-        className="lg:max-w-xl"
-        facts={[
-          ["Category", composer.category ?? "—"],
-          ["Runs", fmtDateRange(startDate || undefined, endDate)],
-          [
-            "Goes live",
-            !startDate || startDate <= TODAY
-              ? endDate && endDate < TODAY
-                ? "Dates are already past — it will land as Ended"
-                : "Immediately after you confirm"
-              : `${fmtDate(startDate)} (${relativeToToday(startDate)})`,
-          ],
-        ]}
-        lockText="The question, both options, and their images lock when you publish. You can end the run early, but you can't edit it."
-        confirmLabel="Confirm & publish"
-        confirmDisabled={submitting}
-        onConfirm={publish}
-      >
-        <PollCard
-          preview
-          author={WORKSPACE.brand}
-          authorBadge={WORKSPACE.initials}
-          authorColor="var(--color-purple-tint)"
-          isFollowing
-          categories={composer.category ? [composer.category] : []}
-          question={composer.question}
-          options={polstOptions({
-            id: draft?.id ?? (composer.question || "new-polst"),
-            optionA: composer.optionA,
-            optionB: composer.optionB,
-            splitA: 50,
-            votes: 0,
-          })}
-          tags={[]}
-          likes={0}
-          reposts={0}
-          votes={0}
-        />
-      </ReviewModal>
-      </WizardShell>
-    </DashboardPage>
+    <Navigate
+      to={editing ? `/polsts?compose=1&edit=${editing.id}` : "/polsts?compose=1"}
+      replace
+    />
   );
 }

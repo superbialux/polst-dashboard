@@ -165,6 +165,9 @@ export default {
         sans: ["Inter", "system-ui", "sans-serif"],
         // Inter everywhere — `font-display` kept as a semantic alias, no Inter Tight.
         display: ["Inter", "system-ui", "sans-serif"],
+        // The POLL face: how a polst renders to voters (the consumer
+        // product's display font). Composer previews and poll cards only.
+        poll: ['"Inter Tight"', "Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
         // Named micro size for the OR disc and similar 2-letter marks.

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
-import { PageFooterSlot } from "./Shell";
+import { HeaderTabsSlot, PageFooterSlot } from "./Shell";
 
 /* ══════════════════════════════════════════════════════════════════
    WIZARD — the multistep creation chrome (the brand-dashboard
@@ -14,6 +14,10 @@ import { PageFooterSlot } from "./Shell";
  *  Every create surface positions itself on these three. */
 export const CREATE_STEPS = ["Type", "Details", "Review"] as const;
 
+/** The step rail, sized for the HEADER BAND — where the tabs would sit,
+ *  but unmistakably steps: numbered discs and filling connectors, not
+ *  underlines. Done fills accent with a check; active wears the soft
+ *  wash; upcoming stays quiet. */
 export function WizardProgress({
   steps,
   current,
@@ -22,7 +26,7 @@ export function WizardProgress({
   current: number; // 1-based
 }) {
   return (
-    <ol className="flex w-full items-center gap-2 sm:gap-3">
+    <ol className="flex h-10 w-full max-w-2xl items-center gap-2 sm:gap-3">
       {steps.map((label, i) => {
         const step = i + 1;
         const done = step < current;
@@ -35,13 +39,13 @@ export function WizardProgress({
             >
               <span
                 className={cn(
-                  "grid h-7 w-7 shrink-0 place-items-center rounded-pill border font-display text-xs font-semibold transition-colors",
+                  "grid h-6 w-6 shrink-0 place-items-center rounded-pill border font-display text-xs font-semibold transition-colors",
                   done && "border-accent-default bg-accent-default text-text-on-accent",
                   active && "border-accent-default bg-accent-soft text-accent-default",
                   !done && !active && "border-border-default bg-surface-raised text-text-secondary",
                 )}
               >
-                {done ? <Icon name="check" size={14} /> : step}
+                {done ? <Icon name="check" size={13} /> : step}
               </span>
               <span
                 className={cn(
@@ -65,9 +69,9 @@ export function WizardProgress({
   );
 }
 
-/** One wizard step: progress rail, centered heading, content, and the
- *  step's actions pinned in the fixed footer band. `wide` steps (the
- *  composer with its checklist rail) get the full dashboard width. */
+/** One wizard step: the step rail rides the HEADER BAND (the tabs'
+ *  slot), the heading centers over the content, and the step's actions
+ *  pin into the fixed footer band. */
 export function WizardShell({
   steps = CREATE_STEPS,
   step,
@@ -88,9 +92,10 @@ export function WizardShell({
 }) {
   return (
     <div className={cn("mx-auto space-y-8 pt-2", wide ? "max-w-dashboard" : "max-w-3xl")}>
-      <div className={cn("mx-auto", wide && "max-w-3xl")}>
+      {/* Chrome, not content: steps live where tabs would. */}
+      <HeaderTabsSlot>
         <WizardProgress steps={steps} current={step} />
-      </div>
+      </HeaderTabsSlot>
       <div className="space-y-2 text-center">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">
           {title}
