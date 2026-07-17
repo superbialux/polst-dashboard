@@ -202,7 +202,7 @@ export function PollCard({
             className="lg:h-10 lg:w-10"
           />
           <div className="flex min-w-0 flex-col">
-            <span className="truncate font-display text-sm font-bold leading-[18px] text-text-primary lg:text-base lg:leading-5">
+            <span className="truncate font-poll text-sm font-bold leading-[18px] text-text-primary lg:text-base lg:leading-5">
               {author}
             </span>
             {(location || postedAgo) && (
@@ -230,7 +230,7 @@ export function PollCard({
           {!isOwn && !following && (
             <button
               onClick={() => setFollowing(true)}
-              className="-my-0.5 flex items-center justify-center rounded-md border border-border-default px-2.5 py-1.5 font-display text-sm font-bold leading-5 text-text-primary hover:bg-surface-subtle"
+              className="-my-0.5 flex items-center justify-center rounded-md border border-border-default px-2.5 py-1.5 font-poll text-sm font-bold leading-5 text-text-primary hover:bg-surface-subtle"
               aria-label={`Follow ${author}`}
             >
               Follow
@@ -307,7 +307,7 @@ export function PollCard({
           />
         ) : (
           <>
-            <h2 className="mb-2 font-display text-lg font-bold leading-[26px] text-text-primary lg:mb-3 lg:text-2xl lg:leading-8">
+            <h2 className="mb-2 font-poll text-lg font-bold leading-[26px] text-text-primary lg:mb-3 lg:text-2xl lg:leading-8">
               {clamp(question, QUESTION_MAX)}
             </h2>
 
@@ -477,7 +477,7 @@ export function PollOptionsBlock({
         <span className="absolute inset-0 rounded-pill bg-surface-raised shadow-sm" />
         <span
           className={cn(
-            "absolute inset-0 grid place-items-center font-display font-bold leading-none text-text-primary",
+            "absolute inset-0 grid place-items-center font-poll font-bold leading-none text-text-primary",
             dense ? "text-sm" : "text-lg lg:text-2xl",
           )}
         >
@@ -542,7 +542,7 @@ function PollOptionCard({
         <RadioMark selected={selected} hasVoted={hasVoted} />
         <span
           className={cn(
-            "truncate font-display text-sm font-semibold leading-5",
+            "truncate font-poll text-sm font-semibold leading-5",
             !dense && "lg:text-lg lg:leading-6",
             selected ? "text-text-on-accent" : "text-text-primary",
           )}
@@ -605,7 +605,7 @@ function PollOptionCard({
           >
             <span
               className={cn(
-                "font-display font-bold leading-none",
+                "font-poll font-bold leading-none",
                 dense ? "text-base" : "text-2xl lg:text-3xl",
               )}
             >
