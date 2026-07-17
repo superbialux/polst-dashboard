@@ -846,7 +846,7 @@ export type CardMedia = {
 };
 
 /** Fills its box with the image, or a tone-wash placeholder if there's no src. */
-function MediaFill({ media, className }: { media: CardMedia; className?: string }) {
+export function MediaFill({ media, className }: { media: CardMedia; className?: string }) {
   return (
     <div
       aria-hidden={!media.src}
