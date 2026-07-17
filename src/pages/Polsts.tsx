@@ -32,6 +32,7 @@ import {
   PolstListRow,
   ReviewModal,
   TableToolbar,
+  WizardShell,
   TablePagination,
   StatusSelect,
   ViewToggle,
@@ -951,13 +952,42 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
   };
 
   return (
-    <DashboardPage
-      actions={
-        <Button variant="secondary" asChild>
-          <Link to={draft ? `/polsts/${draft.id}` : "/polsts"}>Cancel</Link>
-        </Button>
-      }
-    >
+    <DashboardPage>
+      <WizardShell
+        step={reviewOpen ? 3 : 2}
+        wide
+        title={draft ? "Finish your polst" : "Build your polst"}
+        subtitle="One question, two options — publishing always passes through the review."
+        footer={
+          <>
+            <Button variant="ghost" asChild>
+              <Link to={draft ? `/polsts/${draft.id}` : "/new"}>
+                {draft ? "Cancel" : "Back"}
+              </Link>
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                disabled={!canSave || submitting}
+                title={endBeforeStart ? "The end date is before the start." : undefined}
+                onClick={saveDraft}
+              >
+                Save draft
+              </Button>
+              {/* Publishing always passes through the review (the audit's
+                  required workflow): the exact card voters will see plus
+                  the lock warning, confirmed — never a one-click publish. */}
+              <Button
+                disabled={!canPublish || submitting}
+                title={endBeforeStart ? "The end date is before the start." : undefined}
+                onClick={() => setReviewOpen(true)}
+              >
+                Review & publish
+              </Button>
+            </div>
+          </>
+        }
+      >
       <SectionGrid>
         <div className="space-y-4 lg:col-span-8">
           <DashboardCard>
@@ -1005,26 +1035,6 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
               ) : null}
             </div>
           </DashboardCard>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              disabled={!canSave || submitting}
-              title={endBeforeStart ? "The end date is before the start." : undefined}
-              onClick={saveDraft}
-            >
-              Save draft
-            </Button>
-            {/* Publishing always passes through the review (the audit's
-                required workflow): the exact card voters will see plus the
-                lock warning, confirmed — never a one-click publish. */}
-            <Button
-              disabled={!canPublish || submitting}
-              title={endBeforeStart ? "The end date is before the start." : undefined}
-              onClick={() => setReviewOpen(true)}
-            >
-              Review & publish
-            </Button>
-          </div>
         </div>
 
         <div className="space-y-4 self-start lg:sticky lg:top-16 lg:col-span-4">
@@ -1086,6 +1096,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
           votes={0}
         />
       </ReviewModal>
+      </WizardShell>
     </DashboardPage>
   );
 }

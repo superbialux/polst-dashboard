@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
-import { DashboardPage } from "@/components/dashboard";
+import { DashboardPage, WizardShell } from "@/components/dashboard";
 
 /* ══════════════════════════════════════════════════════════════════
    ADD NEW — the type chooser ("what do you want to create?").
@@ -11,10 +11,13 @@ import { DashboardPage } from "@/components/dashboard";
    itself — the OR pair, the numbered chain — never a stock icon.
    ══════════════════════════════════════════════════════════════════ */
 
+/* Both schematics live in the same fixed-height inset (h-28, centered)
+   so the two cards line up row for row. */
+
 /** The single polst, in miniature: two blank options around the OR disc. */
 function MiniPolst() {
   return (
-    <div className="flex items-center gap-2 rounded-md bg-surface-subtle p-4">
+    <div className="flex h-28 items-center gap-2 rounded-md bg-surface-subtle p-4">
       <span className="h-14 flex-1 rounded-md bg-surface-raised ring-1 ring-border-default" />
       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-pill bg-surface-raised font-display text-micro font-semibold text-text-primary shadow-sm">
         OR
@@ -27,7 +30,7 @@ function MiniPolst() {
 /** The chain, in miniature: three numbered question rows. */
 function MiniChain() {
   return (
-    <div className="flex flex-col gap-1.5 rounded-md bg-surface-subtle p-4">
+    <div className="flex h-28 flex-col justify-center gap-1.5 rounded-md bg-surface-subtle p-4">
       {[1, 2, 3].map((n) => (
         <div key={n} className="flex items-center gap-1.5">
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-micro font-semibold text-text-on-accent">
@@ -66,7 +69,7 @@ const TYPES: CreateType[] = [
     chip: { icon: "campaign", label: "2–5 polsts" },
     title: "Campaign",
     description:
-      "Chain up to five polsts in sequence around one business decision and review the combined recommendation.",
+      "Chain up to five polsts around one decision and read the combined recommendation.",
     bestFor: ["Product launch", "Packaging decision", "Campaign creative", "Seasonal push", "Naming"],
     cta: "Create campaign",
     to: "/campaigns/new",
@@ -88,7 +91,10 @@ function CreateTypeCard({ type }: { type: CreateType }) {
       <h2 className="mt-5 font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
         {type.title}
       </h2>
-      <p className="mt-1.5 text-sm leading-5 text-text-secondary">{type.description}</p>
+      {/* Two lines exactly — authored to fit, clamped to hold the line. */}
+      <p className="mt-1.5 line-clamp-2 min-h-10 text-sm leading-5 text-text-secondary">
+        {type.description}
+      </p>
       <div className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Best for</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -102,13 +108,20 @@ function CreateTypeCard({ type }: { type: CreateType }) {
           ))}
         </div>
       </div>
-      {/* The house primary button, rendered inert — the card is the link. */}
-      <Button asChild className="pointer-events-none mt-6 w-full">
-        <span>
-          {type.cta}
-          <Icon name="arrow_forward" size={16} className="transition-transform group-hover:translate-x-0.5" />
-        </span>
-      </Button>
+      {/* The house primary button, rendered inert — the card is the link.
+          mt-auto pins the action to the card's bottom edge. */}
+      <div className="mt-auto pt-6">
+        <Button asChild className="pointer-events-none w-full">
+          <span>
+            {type.cta}
+            <Icon
+              name="arrow_forward"
+              size={16}
+              className="transition-transform group-hover:translate-x-0.5"
+            />
+          </span>
+        </Button>
+      </div>
     </Link>
   );
 }
@@ -116,27 +129,23 @@ function CreateTypeCard({ type }: { type: CreateType }) {
 export function CreateChoicePage() {
   return (
     <DashboardPage>
-      <div className="mx-auto max-w-3xl space-y-8 pt-6">
-        <div className="space-y-2 text-center">
-          <p className="text-sm font-semibold text-text-accent">Add new</p>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">
-            What do you want to create?
-          </h1>
-          <p className="mx-auto max-w-xl text-sm leading-5 text-text-secondary">
-            Start with one polst for a quick decision, or build a campaign when several polsts
-            should answer one larger business question.
+      <WizardShell
+        step={1}
+        title="What do you want to create?"
+        subtitle="Start with one polst for a quick decision, or build a campaign when several polsts should answer one larger business question."
+      >
+        <div className="space-y-8">
+          <div className="grid items-stretch gap-3 md:grid-cols-2">
+            {TYPES.map((type) => (
+              <CreateTypeCard key={type.title} type={type} />
+            ))}
+          </div>
+          <p className="text-center text-sm text-text-secondary">
+            You can always start with one polst and add more later — a campaign chains up to five
+            in sequence.
           </p>
         </div>
-        <div className="grid items-stretch gap-3 md:grid-cols-2">
-          {TYPES.map((type) => (
-            <CreateTypeCard key={type.title} type={type} />
-          ))}
-        </div>
-        <p className="text-center text-sm text-text-secondary">
-          You can always start with one polst and add more later — a campaign chains up to five in
-          sequence.
-        </p>
-      </div>
+      </WizardShell>
     </DashboardPage>
   );
 }

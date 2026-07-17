@@ -41,6 +41,7 @@ import {
   ReportPreview,
   ReviewModal,
   TableToolbar,
+  WizardShell,
   TablePagination,
   StatusSelect,
   ViewToggle,
@@ -483,15 +484,27 @@ export function CreateCampaignPage() {
   };
 
   return (
-    <DashboardPage
-      actions={
-        <Button variant="secondary" onClick={() => navigate(-1)}>
-          Cancel
-        </Button>
-      }
-    >
-      <SectionGrid>
-        <div className="space-y-4 lg:col-span-8">
+    <DashboardPage>
+      <WizardShell
+        step={2}
+        title="Set up your campaign"
+        subtitle="Name the run and the decision it answers — polsts and sources come next, on the campaign itself."
+        footer={
+          <>
+            <Button variant="ghost" asChild>
+              <Link to="/new">Back</Link>
+            </Button>
+            <Button
+              disabled={!name.trim() || endBeforeStart || submitting}
+              title={endBeforeStart ? "The end date is before the start." : undefined}
+              onClick={submit}
+            >
+              Create campaign
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
           <DashboardCard title="Campaign details">
             <div className="space-y-5">
               <Field label="Campaign name" required>
@@ -588,18 +601,7 @@ export function CreateCampaignPage() {
               </Field>
             </div>
           </DashboardCard>
-          <div className="flex justify-end">
-            <Button
-              disabled={!name.trim() || endBeforeStart || submitting}
-              title={endBeforeStart ? "The end date is before the start." : undefined}
-              onClick={submit}
-            >
-              Create campaign
-            </Button>
-          </div>
-        </div>
-        {drafts.length > 0 ? (
-          <div className="self-start lg:col-span-4">
+          {drafts.length > 0 ? (
             <DashboardCard title="Recent drafts">
               <div className="-mx-2 space-y-0.5">
                 {drafts.map((c) => (
@@ -621,9 +623,9 @@ export function CreateCampaignPage() {
                 ))}
               </div>
             </DashboardCard>
-          </div>
-        ) : null}
-      </SectionGrid>
+          ) : null}
+        </div>
+      </WizardShell>
     </DashboardPage>
   );
 }
