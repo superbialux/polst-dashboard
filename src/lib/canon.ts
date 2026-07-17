@@ -31,7 +31,7 @@ export const shiftSeedDate = (iso: string) =>
 
 /* ── Lifecycle status ─────────────────────────────────────────────── */
 
-/** Where an object sits in its workflow. One set for campaigns and Polsts.
+/** Where an object sits in its workflow. One set for campaigns and polsts.
  *  Staging's vocabulary: a run that finished is "Ended" (neutral — a fact,
  *  not an achievement). "Scheduled" is the planning layer's derived state:
  *  dates confirmed, start still ahead. */
@@ -110,7 +110,7 @@ export const isReadyToDecide = (input: { status: Status; signal: DecisionSignal 
    the words from here, so the contract can never drift between screens. */
 
 export const METRIC_INFO = {
-  views: "Times a Polst was shown, across every campaign, standalone Polst, and source in this workspace.",
+  views: "Times a polst was shown, across every campaign, standalone polst, and source in this workspace.",
   votes: "Option taps. A voter answering a three-question campaign counts as three votes.",
   voters: "Unique people who cast at least one vote in scope.",
   started: "Unique participants who answered the first question of the campaign. A view alone does not count.",
@@ -120,13 +120,13 @@ export const METRIC_INFO = {
     "Completed ÷ Started — how many participants who began the campaign finished it. A participant-funnel metric; it says nothing about how much campaign time has elapsed.",
   engagementRate: "Total votes ÷ total views for the period.",
   votesPerView: "Votes ÷ views for one piece of content. Multi-question campaigns can exceed 100%.",
-  interactions: "Likes, shares, and reposts of the Polst.",
+  interactions: "Likes, shares, and reposts of the polst.",
   shareRate: "Voters who shared ÷ voters who completed.",
   viewWithoutVote: "Views that never became a vote: (views − voters) ÷ views.",
   votesPerVoter:
     "Total votes ÷ voters for the period. A voter answering a three-question campaign counts as three votes.",
   voteVelocity:
-    "Average votes per hour over the trailing window, from this Polst's daily votes.",
+    "Average votes per hour over the trailing window, from this polst's daily votes.",
   confidence:
     "Evidence volume, not statistics. High: voter target reached with 2+ sources. Medium: 70% of target, or 2+ sources. Low: below both. No significance test is run.",
   participantGoal:

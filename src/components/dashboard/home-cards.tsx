@@ -14,7 +14,7 @@ import { CtaButton, MediaFill, StatusBadge, type CardTone } from "./kit";
      tone-wash illustration; the page's single primary CTA.
    · SuggestionCard/Grid — "Suggested for you": four dismissible
      cards, illustration on top, whole card is the action.
-   · CampaignCard — one campaign per card, its running Polsts listed
+   · CampaignCard — one campaign per card, its running polsts listed
      inside, so the chain is readable without opening the detail.
    ══════════════════════════════════════════════════════════════════ */
 
@@ -27,7 +27,7 @@ export type BannerInvite = {
   cta: { label: string; to: string };
 };
 
-/** A real Polst's A/B pair in miniature — the product advertising itself. */
+/** A real polst's A/B pair in miniature — the product advertising itself. */
 function PolstPairTile({ id }: { id: string }) {
   return (
     <span
@@ -74,7 +74,7 @@ function InviteCell({
 }
 
 /** The two ways in, side by side: a campaign on the left (primary), a
- *  single Polst on the right (secondary) — one dismiss for the pair. */
+ *  single polst on the right (secondary) — one dismiss for the pair. */
 export function HeroBanner({
   left,
   right,
@@ -83,7 +83,7 @@ export function HeroBanner({
 }: {
   left: BannerInvite;
   right: BannerInvite;
-  /** A real Polst whose A/B pair decorates the single-Polst invite. */
+  /** A real polst whose A/B pair decorates the single-polst invite. */
   mediaPolstId?: string;
   onDismiss: () => void;
 }) {
@@ -241,7 +241,7 @@ function InlineStat({ value, label }: { value: string; label?: string }) {
 }
 
 /** One campaign as one card: header states the run, the body lists the
- *  chain's Polsts with their votes — the campaign is readable here
+ *  chain's polsts with their votes — the campaign is readable here
  *  without opening the detail page. */
 export function CampaignCard({
   campaign,
@@ -300,7 +300,7 @@ export function CampaignCard({
         </ul>
       ) : (
         <p className="mt-3 border-t border-border-default pt-3 text-sm text-text-tertiary">
-          No Polsts yet
+          No polsts yet
         </p>
       )}
       <div className="mt-auto pt-3">

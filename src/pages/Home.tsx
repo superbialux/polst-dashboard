@@ -34,8 +34,18 @@ const ACTION_ICONS: Record<string, string> = {
   "Assign sources": "hub",
   "View source": "trending_down",
   "Plan a campaign": "event",
-  "Add Polsts": "ballot",
-  "Finish Polst": "edit",
+  "Add polsts": "ballot",
+  "Finish polst": "edit",
+};
+
+/** …and its illustration: add-flow art for setup work, the live-monitor
+ *  board for source checks, the clipboard for planning and drafting. */
+const ACTION_ART: Record<string, string> = {
+  "Assign sources": "/add-polls-to-campaign.png",
+  "View source": "/review-active-campaign.png",
+  "Plan a campaign": "/edit-campaign.png",
+  "Add polsts": "/add-polls-to-campaign.png",
+  "Finish polst": "/edit-campaign.png",
 };
 
 const ATTENTION_TONES = { danger: "red", warning: "amber", neutral: "neutral" } as const;
@@ -48,9 +58,10 @@ const DISCOVERY: Suggestion[] = [
     icon: "qr_code_2",
     tone: "accent",
     title: "Create a QR source",
-    description: "Put a Polst on packaging or a booth and collect votes offline.",
+    description: "Put a polst on packaging or a booth and collect votes offline.",
     action: "Create source",
     to: "/distribution",
+    image: "/add-polls-to-campaign.png",
   },
   {
     id: "discover-analytics",
@@ -60,6 +71,7 @@ const DISCOVERY: Suggestion[] = [
     description: "Views, votes, and completion for every campaign and source.",
     action: "Open analytics",
     to: "/analytics",
+    image: "/review-active-campaign.png",
   },
   {
     id: "discover-audience",
@@ -69,15 +81,17 @@ const DISCOVERY: Suggestion[] = [
     description: "Where voters come from and when they show up.",
     action: "Open audience",
     to: "/audience",
+    image: "/review-finished-campaign-1.png",
   },
   {
     id: "discover-settings",
     icon: "palette",
     tone: "neutral",
-    title: "Brand your Polsts",
+    title: "Brand your polsts",
     description: "Logo, colors, and domain — make every vote look like you.",
     action: "Open settings",
     to: "/settings",
+    image: "/edit-campaign.png",
   },
 ];
 
@@ -116,6 +130,8 @@ export function HomePage() {
       description: `${readyTitle(c)} — the lead is ${winnerLabel(c)}.`,
       action: "Review decision",
       to: `/campaigns/${c.id}`,
+      // Ended runs show the complete board; live leaders the in-progress one.
+      image: c.status === "Ended" ? "/review-finished-campaign.png" : "/review-active-campaign.png",
     }));
     const attention: Suggestion[] = attentionItems(campaigns, polsts, sources).map((item) => ({
       id: item.id,
@@ -125,6 +141,7 @@ export function HomePage() {
       description: item.card.reason,
       action: item.action,
       to: item.to,
+      image: ACTION_ART[item.action],
     }));
     return [...ready, ...attention, ...DISCOVERY]
       .filter((s) => !dismissed.has(s.id))
@@ -166,22 +183,22 @@ export function HomePage() {
         />
       </section>
 
-      {/* 2 · The two ways in — a campaign, or one quick Polst. */}
+      {/* 2 · The two ways in — a campaign, or one quick polst. */}
       {!bannerDismissed ? (
         <HeroBanner
           left={{
             eyebrow: "Campaigns",
             title: "Create a new campaign",
             description:
-              "Chain a few Polsts into one run, point your sources at it, and the decision takes shape as votes come in.",
+              "Chain a few polsts into one run, point your sources at it, and the decision takes shape as votes come in.",
             cta: { label: "Create campaign", to: "/campaigns/new" },
           }}
           right={{
             eyebrow: "Polsts",
-            title: "Start with a single Polst",
+            title: "Start with a single polst",
             description:
               "One question, two options — live in a minute and ready to share anywhere.",
-            cta: { label: "Create Polst", to: "/polsts/new" },
+            cta: { label: "Create a polst", to: "/polsts/new" },
           }}
           mediaPolstId={activeCampaigns[0]?.chain[0]?.id ?? polsts[0]?.id}
           onDismiss={() => setBannerDismissed(true)}
@@ -195,7 +212,7 @@ export function HomePage() {
         onDismiss={dismissSuggestion}
       />
 
-      {/* 4 · One campaign, one card — its running Polsts inside. */}
+      {/* 4 · One campaign, one card — its running polsts inside. */}
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">

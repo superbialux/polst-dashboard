@@ -380,7 +380,7 @@ type Crumb = { label: string; to?: string };
 
 /** The header's location line: quiet parents, the current page in ink.
  *  Ids resolve to object names through the store, so freshly created
- *  campaigns and Polsts read by name immediately. */
+ *  campaigns and polsts read by name immediately. */
 function Breadcrumbs() {
   const { pathname } = useLocation();
   const { campaignById, polstById } = useWorkspace();
@@ -396,9 +396,9 @@ function Breadcrumbs() {
         return list;
       }
       case "polsts": {
-        const list: Crumb[] = [{ label: "Polsts", to: "/polsts" }];
-        if (seg[1] === "new") list.push({ label: "Create a Polst" });
-        else if (seg[1]) list.push({ label: polstById(seg[1])?.question ?? "Polst" });
+        const list: Crumb[] = [{ label: "polsts", to: "/polsts" }];
+        if (seg[1] === "new") list.push({ label: "Create a polst" });
+        else if (seg[1]) list.push({ label: polstById(seg[1])?.question ?? "polst" });
         return list;
       }
       case "distribution":
@@ -457,8 +457,8 @@ function Breadcrumbs() {
 
 /* ── Workspace search (⌘K) ───────────────────────────────────────── */
 
-type SearchEntity = "All" | "Campaigns" | "Polsts" | "Sources" | "Pages";
-const SEARCH_ENTITIES: SearchEntity[] = ["All", "Campaigns", "Polsts", "Sources", "Pages"];
+type SearchEntity = "All" | "Campaigns" | "polsts" | "Sources" | "Pages";
+const SEARCH_ENTITIES: SearchEntity[] = ["All", "Campaigns", "polsts", "Sources", "Pages"];
 
 type SearchHit = {
   id: string;
@@ -473,7 +473,7 @@ type SearchHit = {
 const PAGE_HITS: SearchHit[] = [
   { id: "page-home", label: "Home", to: "/", entity: "Pages", icon: "home" },
   { id: "page-campaigns", label: "Campaigns", to: "/campaigns", entity: "Pages", icon: "campaign" },
-  { id: "page-polsts", label: "Polsts", to: "/polsts", entity: "Pages", icon: "ballot" },
+  { id: "page-polsts", label: "polsts", to: "/polsts", entity: "Pages", icon: "ballot" },
   { id: "page-distribution", label: "Distribution", to: "/distribution", entity: "Pages", icon: "hub" },
   { id: "page-analytics", label: "Analytics", to: "/analytics", entity: "Pages", icon: "monitoring" },
   { id: "page-audience", label: "Audience", to: "/audience", entity: "Pages", icon: "groups" },
@@ -533,7 +533,7 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
         label: p.question,
         sublabel: `${p.optionA} vs ${p.optionB}`,
         to: `/polsts/${p.id}`,
-        entity: "Polsts" as const,
+        entity: "polsts" as const,
         icon: "ballot",
       })),
       ...sources.map((s) => ({
@@ -608,7 +608,7 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
             aria-controls="workspace-search-results"
             aria-activedescendant={hits[selected] ? `search-hit-${selected}` : undefined}
             className="h-12 w-full bg-transparent pl-12 pr-14 text-sm text-text-primary outline-none placeholder:text-text-tertiary"
-            placeholder="Search campaigns, Polsts, sources, and pages"
+            placeholder="Search campaigns, polsts, sources, and pages"
           />
           <kbd className="absolute right-4 top-1/2 -translate-y-1/2 rounded-sm border border-border-default px-1.5 py-0.5 font-sans text-xs font-medium text-text-tertiary">
             esc
@@ -702,7 +702,7 @@ const notificationSource = (to: string) =>
   to.startsWith("/campaigns")
     ? "Campaigns"
     : to.startsWith("/polsts")
-      ? "Polsts"
+      ? "polsts"
       : to.startsWith("/distribution")
         ? "Distribution"
         : to.startsWith("/analytics")

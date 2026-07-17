@@ -248,7 +248,7 @@ type CampaignPerfRow = {
   id: string;
   name: string;
   status: Status;
-  /** The chain's Polst ids, for the same ThumbStrip the Campaigns list shows. */
+  /** The chain's polst ids, for the same ThumbStrip the Campaigns list shows. */
   chainIds: string[];
   voters: number;
   completed: number;
@@ -598,7 +598,7 @@ export function AnalyticsOverviewPage() {
         pct(row.completed, row.voters),
       ]),
       [],
-      ["Standalone Polst", "Views", "Votes"],
+      ["Standalone polst", "Views", "Votes"],
       ...polstPerf.map((row) => [row.question, row.views, row.votes]),
     ] as Array<Array<string | number>>,
   });
@@ -704,14 +704,14 @@ export function AnalyticsOverviewPage() {
       </DashboardCard>
 
       <DashboardCard
-        title="Standalone Polsts"
+        title="Standalone polsts"
         padded={false}
         action={<InfoHint label="Votes / view" text={METRIC_INFO.votesPerView} />}
       >
         <DataTable
           rows={polstPerf}
           columns={polstPerfColumns}
-          emptyLabel="No standalone Polsts collected votes in this view"
+          emptyLabel="No standalone polsts collected votes in this view"
         />
       </DashboardCard>
     </DashboardPage>
@@ -719,7 +719,7 @@ export function AnalyticsOverviewPage() {
 }
 
 /* ── Acquisition & Retention (modules) ───────────────────────────────
-   Honest connect states: Polst has no ad-platform or identity data of
+   Honest connect states: polst has no ad-platform or identity data of
    its own, so these pages hold the connection flow — nothing invented.
    When the module is off the route doesn't exist (nav already hides it). */
 
@@ -779,7 +779,7 @@ export function AnalyticsRetentionPage() {
    The audit's contract: every insight belongs to one campaign. This
    page helps a marketer find campaigns with meaningful findings, then
    opens the evidence in that campaign's own Insights tab. It does not
-   analyze standalone Polsts, repeat Home's task queue, or restate the
+   analyze standalone polsts, repeat Home's task queue, or restate the
    workspace totals (Overview owns those). Eight rows per page so each
    row can carry a real readout. */
 
@@ -826,7 +826,7 @@ function CampaignInsightIndexRow({ row }: { row: InsightIndexRow }) {
           <p className="text-xs leading-4 text-text-tertiary">
             {fmtInt(campaign.voters)} participants · {pct(campaign.completed, campaign.voters)}{" "}
             finish rate · {campaign.chain.length}{" "}
-            {campaign.chain.length === 1 ? "Polst" : "Polsts"} · {sourceCount}{" "}
+            {campaign.chain.length === 1 ? "polst" : "polsts"} · {sourceCount}{" "}
             {sourceCount === 1 ? "source" : "sources"} · data through {fmtDate(through)}
           </p>
         </div>
@@ -912,8 +912,8 @@ export function AnalyticsInsightsPage() {
   return (
     <DashboardPage actions={<ExportMenu summary={summary} />}>
       <p className="max-w-3xl text-sm leading-6 text-text-secondary">
-        What each campaign learned, which Polsts shaped that learning, and what to do next.
-        Standalone Polsts keep their factual detail pages — they never appear here.
+        What each campaign learned, which polsts shaped that learning, and what to do next.
+        Standalone polsts keep their factual detail pages — they never appear here.
       </p>
       <DashboardCard padded={false}>
         <SearchAndFilters
@@ -1010,7 +1010,7 @@ export function AnalyticsReportsPage() {
     [campaigns],
   );
 
-  // A report follows its object: it shows when the linked campaign/Polst
+  // A report follows its object: it shows when the linked campaign/polst
   // has activity inside the selected window and filters.
   const scoped = useMemo(
     () =>
@@ -1101,7 +1101,7 @@ export function AnalyticsReportsPage() {
           <EmptyState
             icon="lab_profile"
             title="No reports in this view"
-            hint="A report shows when its campaign or Polst has activity inside the selected window and filters."
+            hint="A report shows when its campaign or polst has activity inside the selected window and filters."
             action={{ label: "Reset filters", onClick: resetFilters }}
           />
         </DashboardCard>

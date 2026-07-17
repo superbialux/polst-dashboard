@@ -6,8 +6,8 @@ import { Icon } from "./Icon";
 import { Menu, MenuItem } from "./Menu";
 import { Button } from "./ui/button";
 
-/** The consumer composer's anatomy (ported from the Polst app's "Ask the
- *  world" dialog) as an inline block, so creating a Polst in the dashboard
+/** The consumer composer's anatomy (ported from the polst app's "Ask the
+ *  world" dialog) as an inline block, so creating a polst in the dashboard
  *  looks exactly like the card voters will see. Mock-only: images attach a
  *  seeded photo on click. */
 
@@ -230,7 +230,7 @@ export function PollComposer({
 
   useEffect(() => {
     // Images aren't part of readiness: attaching one here is a mock (the
-    // model derives every Polst's imagery through polstImage()), so the
+    // model derives every polst's imagery through polstImage()), so the
     // composer reports only what the model actually persists.
     onChange?.({
       question: question.trim(),

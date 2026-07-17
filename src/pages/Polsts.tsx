@@ -80,7 +80,7 @@ const CATEGORIES: Category[] = ["Food & drink", "Lifestyle", "Shopping & deals"]
 const hasRun = (polst: SinglePolst) => polst.views > 0 || polst.votes > 0;
 
 /** Live and finished runs report real numbers (zero included); unpublished
- *  Polsts have no analytics to report at all. */
+ *  polsts have no analytics to report at all. */
 const reportsNumbers = (polst: SinglePolst) =>
   polst.status === "Active" || polst.status === "Ended" || hasRun(polst);
 
@@ -89,7 +89,7 @@ const qrUrl = (polst: SinglePolst) => `${shareUrl("polst", polst.id)}?utm_source
 /* ── Row actions ─────────────────────────────────────────────────── */
 
 /** One labeled overflow menu per row; items follow the lifecycle. Drafts
- *  edit and publish, live Polsts distribute, archived ones restore. */
+ *  edit and publish, live polsts distribute, archived ones restore. */
 function PolstRowMenu({
   polst,
   onShare,
@@ -191,7 +191,7 @@ const columns = (
   onQr: (polst: SinglePolst) => void,
 ): Array<DataColumn<SinglePolst>> => [
   {
-    header: "Polst",
+    header: "polst",
     cell: (row) => (
       <PolstListRow options={polstOptions(row)} question={row.question} to={`/polsts/${row.id}`} />
     ),
@@ -232,7 +232,7 @@ type View = (typeof VIEWS)[number]["value"];
 
 /* ── Grid card ───────────────────────────────────────────────────── */
 
-/** A Polst exactly as its voters see the results — the real option pair
+/** A polst exactly as its voters see the results — the real option pair
  *  with animated bars — plus the operator's number or run dates. */
 function PolstGridCard({ polst }: { polst: SinglePolst }) {
   return (
@@ -310,14 +310,14 @@ export function PolstsPage() {
 
   const dateFiltered = Boolean(createdFrom || createdTo);
   const emptyTitle = query.trim()
-    ? `No Polsts match “${query.trim()}”`
+    ? `No polsts match “${query.trim()}”`
     : dateFiltered
-      ? "No Polsts were created in this date range"
+      ? "No polsts were created in this date range"
       : active === "All"
-        ? "No Polsts yet"
+        ? "No polsts yet"
         : active === "Drafts"
           ? "No drafts"
-          : `No ${active.toLowerCase()} Polsts`;
+          : `No ${active.toLowerCase()} polsts`;
   const emptyAction: EmptyStateAction = query.trim() || dateFiltered
     ? {
         label: "Clear filters",
@@ -329,11 +329,11 @@ export function PolstsPage() {
         },
       }
     : active === "Archived"
-      ? { label: "View all Polsts", onClick: () => setActive("All") }
-      : { label: "Create a Polst", to: "/polsts/new" };
+      ? { label: "View all polsts", onClick: () => setActive("All") }
+      : { label: "Create a polst", to: "/polsts/new" };
 
   const pager = (
-    <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} noun="Polsts" />
+    <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} noun="polsts" />
   );
 
   const toolbar = (
@@ -341,7 +341,7 @@ export function PolstsPage() {
       tabs={POLST_FILTERS}
       active={active}
       onChange={setFilterAndResetPage(setActive)}
-      placeholder="Search Polsts"
+      placeholder="Search polsts"
       query={query}
       onQueryChange={setFilterAndResetPage(setQuery)}
       action={
@@ -363,7 +363,7 @@ export function PolstsPage() {
     <DashboardPage
       actions={
         <Button asChild>
-          <Link to="/polsts/new">Create a Polst</Link>
+          <Link to="/polsts/new">Create a polst</Link>
         </Button>
       }
     >
@@ -405,20 +405,20 @@ export function PolstsPage() {
       <SocialShareModal
         open={Boolean(sharePolst)}
         onClose={() => setSharePolst(null)}
-        objectName={sharePolst?.question ?? "this Polst"}
+        objectName={sharePolst?.question ?? "this polst"}
         url={sharePolst ? shareUrl("polst", sharePolst.id) : ""}
       />
       <QrCodeModal
         open={Boolean(qrPolst)}
         onClose={() => setQrPolst(null)}
-        objectName={qrPolst?.question ?? "this Polst"}
+        objectName={qrPolst?.question ?? "this polst"}
         url={qrPolst ? qrUrl(qrPolst) : ""}
       />
     </DashboardPage>
   );
 }
 
-/* ── Polst detail ────────────────────────────────────────────────── */
+/* ── polst detail ────────────────────────────────────────────────── */
 
 export function PolstDetailPage() {
   const { id } = useParams();
@@ -434,9 +434,9 @@ export function PolstDetailPage() {
   // preview was "too big — a waste of real estate").
   const [previewOpen, setPreviewOpen] = useState(false);
   const polst = polstById(id);
-  if (!polst) return <NotFoundCard kind="Polst" />;
+  if (!polst) return <NotFoundCard kind="polst" />;
 
-  /* This Polst's sources, read live from the store — never the stale
+  /* This polst's sources, read live from the store — never the stale
    * back-refs baked onto the entity at module load. */
   const polstSources = sources.filter(
     (s) => s.linked?.type === "polst" && s.linked.id === polst.id,
@@ -506,7 +506,7 @@ export function PolstDetailPage() {
   const previewReposts = Math.round(polst.interactions / 4);
   const previewLikes = polst.interactions - previewReposts;
   /* "Time left" only exists once a run is live — a Draft or Scheduled
-   * Polst has no countdown, so the preview carries no time-left chip. */
+   * polst has no countdown, so the preview carries no time-left chip. */
   const previewTimeLeft = (() => {
     if (isActive && polst.endAt) {
       const left = daysBetween(TODAY, polst.endAt);
@@ -593,7 +593,7 @@ export function PolstDetailPage() {
 
       {isDraft ? (
         <ActionCard
-          title="Finish and publish this Polst"
+          title="Finish and publish this polst"
           reason="Voters can't see a draft. Publish it to start collecting votes."
           primary={{ label: "Finish & publish", to: `/polsts/new?edit=${polst.id}` }}
         />
@@ -607,7 +607,7 @@ export function PolstDetailPage() {
                   polst.votes,
                 )} votes — ${polst.splitA >= 50 ? polst.optionA : polst.optionB} finished ahead ${
                   polst.splitA >= 50 ? polst.splitA : 100 - polst.splitA
-                }–${polst.splitA >= 50 ? 100 - polst.splitA : polst.splitA}. Voters can't reach an archived Polst, but its record stays in analytics. Restore returns it to Ended.`
+                }–${polst.splitA >= 50 ? 100 - polst.splitA : polst.splitA}. Voters can't reach an archived polst, but its record stays in analytics. Restore returns it to Ended.`
               : "Never ran — archived as a draft with no votes. Restore it to drafts to keep working on it, or delete it for good."}
           </p>
         </DashboardCard>
@@ -767,7 +767,7 @@ export function PolstDetailPage() {
         objectName={polst.question}
         url={qrUrl(polst)}
       />
-      {/* The campaign Sources tab's assign flow, scoped to this Polst — the
+      {/* The campaign Sources tab's assign flow, scoped to this polst — the
           attention card's CTA finishes the job in place instead of landing
           one click short on Distribution. "Assign" links; create makes a
           pre-linked source. */}
@@ -777,7 +777,7 @@ export function PolstDetailPage() {
         unlinked={sources.filter((s) => !s.linked)}
         onAssign={(s) => {
           assignSource(s.id, { type: "polst", id: polst.id });
-          toast(`${s.name} assigned to this Polst`);
+          toast(`${s.name} assigned to this polst`);
           setAssignOpen(false);
         }}
         onCreate={(draft) => {
@@ -789,9 +789,9 @@ export function PolstDetailPage() {
       <ConfirmModal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        label="Delete Polst"
-        title="Delete this Polst?"
-        confirmLabel="Delete Polst"
+        label="Delete polst"
+        title="Delete this polst?"
+        confirmLabel="Delete polst"
         tone="danger"
         onConfirm={() => {
           const result = deletePolst(polst.id);
@@ -811,7 +811,7 @@ export function PolstDetailPage() {
   );
 }
 
-/* ── Create / edit a Polst ───────────────────────────────────────── */
+/* ── Create / edit a polst ───────────────────────────────────────── */
 
 /** /polsts/new — also the draft editor via ?edit={id}. */
 export function CreatePolstPage() {
@@ -819,8 +819,8 @@ export function CreatePolstPage() {
   const editId = params.get("edit");
   const { polstById } = useWorkspace();
   const editing = editId ? polstById(editId) : undefined;
-  if (editId && !editing) return <NotFoundCard kind="Polst" />;
-  // Only drafts are editable — published Polsts land back on their page.
+  if (editId && !editing) return <NotFoundCard kind="polst" />;
+  // Only drafts are editable — published polsts land back on their page.
   if (editing && editing.status !== "Draft") {
     return <Navigate to={`/polsts/${editing.id}`} replace />;
   }
@@ -853,7 +853,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
   // so an impossible run (ends before it starts) can never be authored.
   const endBeforeStart = Boolean(endDate && startDate && endDate < startDate);
 
-  // "Images added" is deliberately not a gate: every Polst's imagery is
+  // "Images added" is deliberately not a gate: every polst's imagery is
   // derived through polstImage(), so the composer's mock attach can neither
   // block a publish honestly nor survive a draft round-trip. A category is
   // required to publish (staging's rule) but never blocks saving a draft.
@@ -965,7 +965,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
                 customEnd={customEnd}
                 onCustomEndChange={setCustomEnd}
                 startAt={startDate}
-                subject="Polst"
+                subject="polst"
               />
               {endBeforeStart ? (
                 <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
@@ -1012,7 +1012,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
       <ReviewModal
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}
-        label="Review and publish Polst"
+        label="Review and publish polst"
         title="Review before publishing"
         className="lg:max-w-xl"
         facts={[

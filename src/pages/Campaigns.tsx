@@ -121,7 +121,7 @@ const scheduleNote = (row: Campaign): string | null => {
 const listColumns: Array<DataColumn<Campaign>> = [
   {
     header: "Campaign",
-    // A real link, like the Polsts list — the row onClick is a pointer
+    // A real link, like the polsts list — the row onClick is a pointer
     // convenience, but keyboard and screen-reader users need an anchor.
     cell: (row) => (
       <Link to={`/campaigns/${row.id}`} className="group block min-w-0">
@@ -541,7 +541,7 @@ export function CampaignDetailPage() {
                 canPublish
                   ? undefined
                   : campaign.chain.length === 0
-                    ? "Add at least one Polst first"
+                    ? "Add at least one polst first"
                     : !campaign.startAt
                       ? "Set a start date first"
                       : "The end date is before the start — fix the schedule in Settings"
@@ -618,7 +618,7 @@ export function CampaignDetailPage() {
             ? [["Voter target", fmtInt(campaign.target)] as [string, ReactNode]]
             : []),
         ]}
-        lockText="Once the first vote arrives, the Polst chain, its order, and the start date lock, and the campaign can no longer be unpublished — only ended. Until then you can still unpublish it back to a draft."
+        lockText="Once the first vote arrives, the polst chain, its order, and the start date lock, and the campaign can no longer be unpublished — only ended. Until then you can still unpublish it back to a draft."
         confirmLabel="Confirm & publish"
         onConfirm={publish}
       >
@@ -796,11 +796,11 @@ function CampaignOverview({
             ? { label: "Export report", onClick: onReport }
             : ready
               ? { label: "End campaign & decide", onClick: onEnd }
-              : { label: "View Polst results", onClick: () => onGoTo("Polsts") }
+              : { label: "View polst results", onClick: () => onGoTo("Polsts") }
         }
         secondary={
           ready || campaign.status === "Ended"
-            ? { label: "View Polst results", onClick: () => onGoTo("Polsts") }
+            ? { label: "View polst results", onClick: () => onGoTo("Polsts") }
             : undefined
         }
       />
@@ -839,7 +839,7 @@ function CampaignOverview({
 
 /* ── Insights tab ────────────────────────────────────────────────────
    The audit's campaign insight detail: what this campaign learned,
-   which Polsts shaped that learning, what each source contributed, and
+   which polsts shaped that learning, what each source contributed, and
    the marketer's resolution. Everything except the review is computed
    from the campaign's own record; the review is human-authored and
    says so. The Insights index (/analytics/insights) deep-links here. */
@@ -1248,12 +1248,12 @@ function LaunchChecklist({
 
   const steps: SetupStep[] = [
     {
-      title: "Add at least one Polst",
+      title: "Add at least one polst",
       done: hasPolsts,
       description: hasPolsts
-        ? `${polstCount} ${polstCount === 1 ? "Polst is" : "Polsts are"} staged — voters answer them in order.`
-        : "The campaign needs at least one Polst before it can publish.",
-      cta: { label: hasPolsts ? "View Polsts" : "Add Polsts", onClick: () => onGoTo("Polsts") },
+        ? `${polstCount} ${polstCount === 1 ? "polst is" : "polsts are"} staged — voters answer them in order.`
+        : "The campaign needs at least one polst before it can publish.",
+      cta: { label: hasPolsts ? "View polsts" : "Add polsts", onClick: () => onGoTo("Polsts") },
     },
     {
       // Plural like its CTA — a campaign collects through several sources.
@@ -1300,7 +1300,7 @@ function LaunchChecklist({
   );
 }
 
-/* ── Polsts tab ──────────────────────────────────────────────────── */
+/* ── polsts tab ──────────────────────────────────────────────────── */
 
 function CampaignPolsts({ campaign }: { campaign: Campaign }) {
   const { reorderChain, removeChainQuestion } = useWorkspace();
@@ -1323,18 +1323,18 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
         action={
           editable ? (
             <Menu
-              label="Add Polst"
+              label="Add polst"
               trigger={({ toggle }) => (
                 <Button variant="secondary" size="sm" onClick={toggle}>
                   <Icon name="add" size={18} />
-                  Add Polst
+                  Add polst
                   <Icon name="arrow_drop_down" size={18} />
                 </Button>
               )}
             >
               <MenuItem
                 icon="edit_square"
-                label="Create new Polst"
+                label="Create new polst"
                 onClick={() => setComposerOpen(true)}
               />
               <MenuItem
@@ -1418,11 +1418,11 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
         ) : (
           <EmptyState
             icon="ballot"
-            title="No Polsts yet"
-            hint="Voters answer the chain in order — start with one Polst."
+            title="No polsts yet"
+            hint="Voters answer the chain in order — start with one polst."
             action={
               editable
-                ? { label: "Create a Polst", onClick: () => setComposerOpen(true) }
+                ? { label: "Create a polst", onClick: () => setComposerOpen(true) }
                 : undefined
             }
           />
@@ -1441,10 +1441,10 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
       <ConfirmModal
         open={removeTarget !== null}
         onClose={() => setRemoveTarget(null)}
-        label="Remove Polst from campaign"
-        title="Remove this Polst?"
+        label="Remove polst from campaign"
+        title="Remove this polst?"
         tone="danger"
-        confirmLabel="Remove Polst"
+        confirmLabel="Remove polst"
         onConfirm={() => {
           if (removeTarget) {
             removeChainQuestion(campaign.id, removeTarget.id);
@@ -1487,7 +1487,7 @@ function AddPolstModal({
   }, [open]);
 
   const add = () => {
-    if (submitting) return; // a double-click must not stage the Polst twice
+    if (submitting) return; // a double-click must not stage the polst twice
     setSubmitting(true);
     addQuestionToCampaign(campaign.id, {
       question: question.trim(),
@@ -1505,15 +1505,15 @@ function AddPolstModal({
     <Modal
       open={open}
       onClose={onClose}
-      label="New Polst"
-      title="New Polst"
+      label="New polst"
+      title="New polst"
       footer={
         <ModalFooter>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button disabled={!complete || submitting} onClick={add}>
-            Add Polst
+            Add polst
           </Button>
         </ModalFooter>
       }
@@ -1571,7 +1571,7 @@ function SelectFromLibraryModal({
   const add = () => {
     for (const id of selected) addLibraryPolstToCampaign(campaign.id, id);
     toast(
-      selected.size === 1 ? "1 Polst added to the chain" : `${selected.size} Polsts added to the chain`,
+      selected.size === 1 ? "1 polst added to the chain" : `${selected.size} polsts added to the chain`,
     );
     setSelected(new Set());
     onClose();
@@ -1590,7 +1590,7 @@ function SelectFromLibraryModal({
             Cancel
           </Button>
           <Button disabled={selected.size === 0} onClick={add}>
-            {selected.size > 1 ? `Add ${selected.size} Polsts` : "Add Polst"}
+            {selected.size > 1 ? `Add ${selected.size} polsts` : "Add polst"}
           </Button>
         </ModalFooter>
       }
@@ -1618,8 +1618,8 @@ function SelectFromLibraryModal({
       ) : (
         <EmptyState
           icon="library_add"
-          title="No standalone Polsts to add"
-          hint="Draft and active Polsts from your library appear here."
+          title="No standalone polsts to add"
+          hint="Draft and active polsts from your library appear here."
         />
       )}
     </Modal>

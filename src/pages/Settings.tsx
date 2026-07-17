@@ -389,7 +389,7 @@ function AddMemberModal({
         </Field>
         <p className="rounded-md bg-surface-subtle p-3 text-xs leading-5 text-text-secondary">
           Creates a brand-only account with a generated initial password — no invite email is
-          sent. Managers run campaigns, Polsts, and analytics; owners can also manage members,
+          sent. Managers run campaigns, polsts, and analytics; owners can also manage members,
           billing, and the developer platform.
         </p>
       </div>
@@ -765,7 +765,7 @@ function ApiKeysSection() {
     <>
       <DashboardCard
         title="API keys"
-        description="Server-to-server access to this workspace's Polsts, campaigns, and analytics. Keys exchange for short-lived tokens; scope each key to what the caller needs."
+        description="Server-to-server access to this workspace's polsts, campaigns, and analytics. Keys exchange for short-lived tokens; scope each key to what the caller needs."
         padded={false}
         action={
           <Button size="sm" onClick={() => setCreateOpen(true)}>
@@ -1120,7 +1120,7 @@ function PlanUsageSection() {
       <DashboardCard title="Plan">
         <p className="font-display text-xl font-semibold text-text-primary">Free plan</p>
         <p className="mt-2 text-sm leading-6 text-text-secondary">
-          Campaigns, Polsts, sources, analytics, and the developer platform are all included.
+          Campaigns, polsts, sources, analytics, and the developer platform are all included.
         </p>
       </DashboardCard>
 

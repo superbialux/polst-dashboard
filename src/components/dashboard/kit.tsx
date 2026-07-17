@@ -382,7 +382,7 @@ export const durationPresetFor = (startAt?: string, endAt?: string): DurationPre
   return hit ? hit[0] : "Custom";
 };
 
-/** The one run-length control (create Campaign / create Polst): fixed
+/** The one run-length control (create Campaign / create polst): fixed
  *  preset segments and an honest helper line saying exactly what the
  *  choice means. The Custom segment (with its date input) appears only
  *  when the schedule being edited already holds a non-preset span —
@@ -401,7 +401,7 @@ export function DurationField({
   onCustomEndChange: (iso: string) => void;
   /** The run's start date (ISO), or "" when not set yet. */
   startAt: string;
-  /** "campaign" | "Polst" — the noun the helper line speaks. */
+  /** "campaign" | "polst" — the noun the helper line speaks. */
   subject: string;
 }) {
   const end = durationEnd(value, startAt, customEnd);
@@ -1037,9 +1037,9 @@ export function CtaButton({
   );
 }
 
-/* ── Campaigns & Polsts lists (Home) ─────────────────────────────── */
+/* ── Campaigns & polsts lists (Home) ─────────────────────────────── */
 
-/** Split thumbnail for a Polst — the real option pair either side of the
+/** Split thumbnail for a polst — the real option pair either side of the
  *  OR disc, in miniature (the MiniPoll thumb anatomy). */
 export function PollThumb({ options }: { options: [PollOption, PollOption] }) {
   return (
@@ -1053,7 +1053,7 @@ export function PollThumb({ options }: { options: [PollOption, PollOption] }) {
   );
 }
 
-/** A campaign's chain at a glance: the first three Polsts as split A/B
+/** A campaign's chain at a glance: the first three polsts as split A/B
  *  minis, slightly overlapping like an avatar stack, then a "+N" chip for
  *  the rest. Every image resolves through `polstImage`, the same assigner
  *  the full-size thumbs use. Row-height (h-8) for lists and tables. */
@@ -1062,7 +1062,7 @@ export function ThumbStrip({ ids, className }: { ids: string[]; className?: stri
   const shown = ids.slice(0, 3);
   const more = ids.length - shown.length;
   return (
-    <div className={cn("flex items-center", className)} aria-label={`${ids.length} Polsts`}>
+    <div className={cn("flex items-center", className)} aria-label={`${ids.length} polsts`}>
       {shown.map((id, i) => (
         <span
           key={id}
@@ -1200,7 +1200,7 @@ export function NextStepsCard({
 
 /* ── In-page tabs (detail pages) ─────────────────────────────────── */
 
-/** Local section tabs (e.g. campaign Overview / Polsts / Distribution) — the
+/** Local section tabs (e.g. campaign Overview / polsts / Distribution) — the
  *  same `SegmentedControl` as everywhere else. */
 export function PageTabs<T extends string>({
   tabs,
@@ -1501,7 +1501,7 @@ export function LockedCard({
 
 /* ── Split bar ───────────────────────────────────────────────────── */
 
-/** The Polst signature for any two-part share: one bar, two segments
+/** The polst signature for any two-part share: one bar, two segments
  *  meeting at a seam — the visual echo of a vote result. Use for exactly
  *  two slices (paid/organic, US/international); MixBars handles 3+. */
 export function SplitBar({ split, className }: { split: Split; className?: string }) {

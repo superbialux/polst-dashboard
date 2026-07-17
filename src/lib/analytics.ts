@@ -1,5 +1,5 @@
 /* ── Analytics — windowed, source-attributed views of the workspace ────
-   Rows are derived per request: each campaign/Polst's window totals come
+   Rows are derived per request: each campaign/polst's window totals come
    from the same daily series the Home stats read, then split across its
    sources' channels with exact integer allocation — so Analytics always
    reconciles with the rest of the dashboard by construction. */

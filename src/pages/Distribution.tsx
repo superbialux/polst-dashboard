@@ -87,7 +87,7 @@ export function DistributionPage() {
   };
 
   /* Campaign sources worst-completion first (the eroding source Home
-     points at), then Polst sources by volume — a single question has no
+     points at), then polst sources by volume — a single question has no
      completion to rank — then the silent sources, newest on top so a
      just-created one is visible. */
   const rows = useMemo(() => {
@@ -112,14 +112,14 @@ export function DistributionPage() {
     return m !== null && LIVE_STATUSES.includes(m.status);
   }).length;
   const unassignedCount = sources.filter((s) => !s.linked).length;
-  /* Single-question Polsts complete by definition (100%), so only sources
+  /* Single-question polsts complete by definition (100%), so only sources
      feeding multi-question campaigns can be ranked on completion. */
   const rankable = rows.filter(
     (s) => s.completionRate !== null && s.linked?.type === "campaign",
   );
   const worst = rankable[0];
   const best = rankable[rankable.length - 1];
-  const completionScope = `${METRIC_INFO.completionRate} Ranked across campaign sources — a single-question Polst always completes.`;
+  const completionScope = `${METRIC_INFO.completionRate} Ranked across campaign sources — a single-question polst always completes.`;
 
   const columns: Array<DataColumn<Source>> = [
     {
@@ -145,7 +145,7 @@ export function DistributionPage() {
               {m.name}
             </Link>
             <span className="block text-xs text-text-tertiary">
-              {m.type === "campaign" ? "Campaign" : "Polst"}
+              {m.type === "campaign" ? "Campaign" : "polst"}
             </span>
           </span>
         ) : (
@@ -164,7 +164,7 @@ export function DistributionPage() {
       header: "Completion",
       align: "right",
       /* Only campaign sources have a real completion story — a single-
-         question Polst completes the moment it votes, so "100%" would be
+         question polst completes the moment it votes, so "100%" would be
          a degenerate stat, not information. */
       cell: (s) => RateCell(s.linked?.type === "campaign" ? s.completionRate : null),
     },
@@ -226,7 +226,7 @@ export function DistributionPage() {
           label="Active sources"
           value={fmtInt(activeCount)}
           detail={unassignedCount > 0 ? `${fmtInt(unassignedCount)} unassigned` : undefined}
-          info="Sources assigned to a campaign or Polst that is live or scheduled."
+          info="Sources assigned to a campaign or polst that is live or scheduled."
         />
         <StatTile
           className="lg:col-span-3"
@@ -327,7 +327,7 @@ export function DistributionPage() {
           <EmptyState
             icon="link"
             title="No live links yet"
-            hint="Share links and embeds appear here while their campaign or Polst is live."
+            hint="Share links and embeds appear here while their campaign or polst is live."
             action={{ label: "Add source", onClick: () => setAddOpen(true) }}
           />
         )}
@@ -353,7 +353,7 @@ export function DistributionPage() {
         targetHelper={
           <p className="text-xs leading-4 text-text-secondary">
             An unassigned source doesn&rsquo;t collect voters yet — assign it to a campaign
-            or Polst when you&rsquo;re ready.
+            or polst when you&rsquo;re ready.
           </p>
         }
         // The library flow makes no assumptions: kind and channel start
@@ -436,7 +436,7 @@ function QrTile({
         items={[
           { label: "Scans", value: source.views > 0 ? fmtInt(source.views) : "—" },
           { label: "Voters", value: source.voters > 0 ? fmtInt(source.voters) : "—" },
-          // A single-question Polst always "completes" — its honest QR
+          // A single-question polst always "completes" — its honest QR
           // stat is scan → vote conversion instead.
           linked?.type === "polst"
             ? { label: "Conversion", value: pct(source.voters, source.views) }
@@ -464,7 +464,7 @@ function QrTile({
 
 /* ── Assign / create targets ─────────────────────────────────────── */
 
-/** Campaigns and Polsts a source can feed — nothing ended or archived. */
+/** Campaigns and polsts a source can feed — nothing ended or archived. */
 function targetOptions(
   campaigns: Array<{ id: string; name: string; status: Status }>,
   polsts: Array<{ id: string; question: string; status: Status }>,

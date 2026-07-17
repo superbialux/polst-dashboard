@@ -211,7 +211,7 @@ const DAILY_QUESTIONS: PollStep[] = [
 /** The Daily Six is a regular poll card in every way — author, meta,
  *  hashtags, actions — it just carries six questions instead of one. */
 export const DAILY_SIX_POLL: PollCardProps = {
-  author: "Polst",
+  author: "polst",
   authorColor: "var(--color-ink-purple)",
   authorBadge: "DAILY",
   isFollowing: true,
@@ -234,7 +234,7 @@ export const DAILY_SIX_POLL: PollCardProps = {
 /* ── Onboarding interest steps (step 3) ──────────────────────────
    Same shape as the multi-step poll so onboarding literally runs the
    product's poll UI; the vote counts are community shares, shown after
-   each pick to teach how Polst works. */
+   each pick to teach how polst works. */
 
 export const INTEREST_STEPS: PollStep[] = [
   {
@@ -653,7 +653,7 @@ const BEST_BURGER_PAGE: SeoAnswer = {
     { label: "Burgers", to: "/tag/burgers" },
   ],
   intro:
-    "Live public opinion from Chicago locals and visitors. Vote in Polsts, see what's trending, and help crown the best.",
+    "Live public opinion from Chicago locals and visitors. Vote in polsts, see what's trending, and help crown the best.",
   leader: {
     name: "Au Cheval",
     share: 35,
@@ -788,7 +788,7 @@ export function seoAnswerFor(slug: string): SeoAnswer | null {
       : undefined;
 
   // Champion ladder reuses the same field (top 4) so the drill-down + its
-  // create-a-Polst finale exist on every page.
+  // create-a-polst finale exist on every page.
   const contenders = field.slice(0, 4);
   const ladder = contenders.length >= 3 ? { contenders } : undefined;
 
@@ -805,7 +805,7 @@ export function seoAnswerFor(slug: string): SeoAnswer | null {
       })),
     ],
     intro:
-      "Live public opinion, aggregated across every matching Polst. Vote to sharpen the answer.",
+      "Live public opinion, aggregated across every matching polst. Vote to sharpen the answer.",
     leader: {
       name: field[0].label,
       share: shares[0],

@@ -1,6 +1,6 @@
 /* ── Workspace store — in-session mutations over the seed model ────────
    The dashboard is a mockup with no backend, but flows must actually
-   complete: create → add Polsts → publish → assign sources, visibly.
+   complete: create → add polsts → publish → assign sources, visibly.
    This context seeds from the static model and applies real state
    transitions in memory. Nothing persists across a reload — by design.
    New objects start with zero traffic, so every derived number stays
@@ -425,7 +425,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         // batching several mutations in one tick would need a reducer.
         const c = campaigns.find((x) => x.id === id);
         if (!c) return { ok: false as const, reason: "Campaign not found." };
-        if (!c.chain.length) return { ok: false as const, reason: "Add at least one Polst first." };
+        if (!c.chain.length) return { ok: false as const, reason: "Add at least one polst first." };
         if (!c.startAt) return { ok: false as const, reason: "Set a schedule first." };
         if (c.endAt && c.endAt < c.startAt)
           return { ok: false as const, reason: "The end date is before the start." };
@@ -527,14 +527,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       },
       // Deleting is for runs that never collected — a voted run's record
       // stays (the same evidence law that keeps voted sources assigned).
-      // Sources pointed at the deleted Polst unlink instead of dangling.
+      // Sources pointed at the deleted polst unlink instead of dangling.
       deletePolst: (id) => {
         const p = polsts.find((x) => x.id === id);
         if (!p) return { ok: false as const, reason: "Polst not found." };
         if (p.votes > 0)
           return {
             ok: false as const,
-            reason: "This Polst collected votes — its record can be archived, not deleted.",
+            reason: "This polst collected votes — its record can be archived, not deleted.",
           };
         setPolsts((all) => all.filter((x) => x.id !== id));
         setSources((all) =>

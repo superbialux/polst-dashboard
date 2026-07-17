@@ -32,9 +32,9 @@ import {
 } from "@/lib/engine";
 
 /* ══════════════════════════════════════════════════════════════════
-   BRAND WORKSPACE — the one system of record for the Polst dashboard
+   BRAND WORKSPACE — the one system of record for the polst dashboard
    ────────────────────────────────────────────────────────────────
-   Entities (campaigns, standalone Polsts, sources, key dates) are
+   Entities (campaigns, standalone polsts, sources, key dates) are
    authored below; every aggregate, series, table, and story is DERIVED
    from them through src/lib/engine.ts at module load. Nothing here is
    fetched or persisted; scripts/verify-model.ts checks the invariants.
@@ -145,7 +145,7 @@ export type SinglePolst = {
   views: number;
   engagementRate: number | null; // votes/views*100, 1dp
   /** Exact integer split of `interactions` (likes ≥ shares ≥ reposts,
-   *  deterministic per Polst) so the aggregate and its parts never
+   *  deterministic per polst) so the aggregate and its parts never
    *  disagree in a table. */
   interactionMix: { likes: number; shares: number; reposts: number };
   sources: Source[]; // back-refs
@@ -672,8 +672,8 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     shares: 0,
     decisionIndex: 0,
     chain: [],
-    summary: "Add at least one Polst before publishing.",
-    nextStep: "Create a new Polst or select one from the library.",
+    summary: "Add at least one polst before publishing.",
+    nextStep: "Create a new polst or select one from the library.",
     findings: [],
     caveats: [],
     sampleNote: "",
@@ -695,15 +695,15 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "rb-logo", question: "Which logo direction resonates?", optionA: "Wordmark", optionB: "Emblem", splitA: 0 },
       { id: "rb-voice", question: "Which voice fits the brand?", optionA: "Warm & homey", optionB: "Bold & modern", splitA: 0 },
     ],
-    summary: "Still a draft — both Polsts need visuals before this can be scheduled.",
-    nextStep: "Finish both Polsts, then schedule the campaign.",
+    summary: "Still a draft — both polsts need visuals before this can be scheduled.",
+    nextStep: "Finish both polsts, then schedule the campaign.",
     findings: [],
     caveats: ["Draft — nothing has run yet."],
     sampleNote: "",
   },
 ];
 
-/* ── Single Polst seeds ──────────────────────────────────────────── */
+/* ── Single polst seeds ──────────────────────────────────────────── */
 
 type PolstSeed = Omit<SinglePolst, "views" | "engagementRate" | "interactionMix" | "sources">;
 
@@ -768,7 +768,7 @@ const SOURCE_SEEDS: SourceSeed[] = shiftSeed([
   { id: "qr-endcap-holiday", name: "QR — End-cap Poster", kind: "QR code", channel: "QR", placement: "End-cap poster", linked: { type: "campaign", id: "holiday-gifting-bundles" }, createdAt: "2026-06-06", voterShare: 0.18, completionDelta: -6 },
   // Loyalty Program Naming — staged ahead of start, zero traffic
   { id: "embed-website-loyalty", name: "Website Embed — Loyalty", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "loyalty-program-naming" }, createdAt: "2026-06-12", voterShare: 1, completionDelta: 0 },
-  // Standalone Polsts (single source each)
+  // Standalone polsts (single source each)
   { id: "story-instagram-headline", name: "Instagram Story — Headline", kind: "Share link", channel: "Instagram", linked: { type: "polst", id: "which-headline-wins" }, createdAt: "2026-06-05", voterShare: 1, completionDelta: 0 },
   { id: "newsletter-price", name: "Share Link — Price Test Email", kind: "Share link", channel: "Email", linked: { type: "polst", id: "price-point-fair" }, createdAt: "2026-06-03", voterShare: 1, completionDelta: 0 },
   { id: "embed-website-snack", name: "Website Embed — Snack Size", kind: "Embed", channel: "Website", linked: { type: "polst", id: "snack-size-sells" }, createdAt: "2026-06-06", voterShare: 1, completionDelta: 0 },
@@ -815,7 +815,7 @@ const deriveCampaign = (seed: CampaignSeed): Campaign => {
   };
 };
 
-/** Split a Polst's interaction total into likes/shares/reposts without
+/** Split a polst's interaction total into likes/shares/reposts without
  *  inventing data: fixed shares (~58/26/16) hashed a step by the id so
  *  rows differ, remainder assigned largest-first so parts sum exactly. */
 const deriveInteractionMix = (id: string, total: number) => {
@@ -1030,7 +1030,7 @@ export type Stat = {
   annotations?: StatAnnotation[];
 };
 
-/** A point on the stat hero's chart. Every campaign/Polst launch and end
+/** A point on the stat hero's chart. Every campaign/polst launch and end
  *  inside the window gets a marker stating the metric's movement around
  *  it; material movements with no such event get an "insight" marker —
  *  so every movement on the curve carries its explanation. */
@@ -1154,7 +1154,7 @@ type LifecycleEvent = {
   to: string;
 };
 
-/** Every dated start/end across campaigns and Polsts — the only things that
+/** Every dated start/end across campaigns and polsts — the only things that
  *  can move the workspace totals, since each object's series lives inside
  *  its own [startAt, endAt]. */
 const lifecycleEvents = (campaigns: Campaign[], polsts: SinglePolst[]): LifecycleEvent[] => [
@@ -1214,7 +1214,7 @@ const annotateStat = (
         rest.length ? ` ${rest.length} other ${rest.length === 1 ? "run" : "runs"} changed here too.` : ""
       }`,
       link: {
-        label: primary.to.startsWith("/campaigns") ? "Open campaign" : "Open Polst",
+        label: primary.to.startsWith("/campaigns") ? "Open campaign" : "Open polst",
         to: primary.to,
       },
     }];
@@ -1230,7 +1230,7 @@ const annotateStat = (
       dateLabel: spanLabel(bounds[bucket]),
       kind: "insight",
       headline: `${subject} ${movePhrase(pct)}`,
-      detail: "No campaign or Polst launched or ended near this stretch — worth a look at sources.",
+      detail: "No campaign or polst launched or ended near this stretch — worth a look at sources.",
     });
   }
 
@@ -1317,7 +1317,7 @@ const STAT_INFO: Record<string, string> = {
 };
 
 /** The live stat strip — Home passes the store's entity arrays so marker
- *  attribution sees in-session campaigns and Polsts. Window totals still
+ *  attribution sees in-session campaigns and polsts. Window totals still
  *  derive from the seed series (store-created objects carry zero traffic). */
 export const dashboardStats = buildStats;
 
@@ -1348,7 +1348,7 @@ export type ListItem = {
 
 /** Rule-derived queue, ordered by severity (a→e in the derivation), cap 5.
  *  Pure over the entity arrays: Home and the Shell nag pass the LIVE store
- *  state, so assigning a source, adding a Polst, or finishing a draft clears
+ *  state, so assigning a source, adding a polst, or finishing a draft clears
  *  its item immediately. */
 export function attentionItems(
   campaigns: Campaign[],
@@ -1408,7 +1408,7 @@ export function attentionItems(
     items.push({
       id: `${uncovered.id}-uncovered`,
       title: `Nothing is planned for ${uncovered.title} (${fmtDate(uncovered.start)})`,
-      reason: "No campaign or Polst is attached to this key date yet.",
+      reason: "No campaign or polst is attached to this key date yet.",
       tone: "warning",
       action: "Plan a campaign",
       to: `/campaigns/new?event=${uncovered.id}`,
@@ -1423,19 +1423,19 @@ export function attentionItems(
     if (c.status === "Draft" && !c.chain.length) {
       items.push({
         id: `${c.id}-empty`,
-        title: `${c.name} has no Polsts yet`,
+        title: `${c.name} has no polsts yet`,
         reason: "The draft can't be scheduled until it has at least one question.",
         tone: "neutral",
-        action: "Add Polsts",
+        action: "Add polsts",
         to: `/campaigns/${c.id}?tab=polsts`,
         card: {
-          title: `Add Polsts to ${c.name}`,
+          title: `Add polsts to ${c.name}`,
           reason: "The draft can't be scheduled while it's empty.",
         },
       });
     }
   }
-  // e) Draft Polsts still missing a schedule.
+  // e) Draft polsts still missing a schedule.
   for (const p of polsts) {
     if (p.status === "Draft" && !p.startAt) {
       items.push({
@@ -1443,10 +1443,10 @@ export function attentionItems(
         title: `Finish "${p.question}"`,
         reason: "The draft has both options but no schedule or source yet.",
         tone: "neutral",
-        action: "Finish Polst",
+        action: "Finish polst",
         to: `/polsts/${p.id}`,
         card: {
-          title: "Finish your draft Polst",
+          title: "Finish your draft polst",
           reason: `"${p.question}" has no schedule or source yet.`,
         },
       });
@@ -1472,7 +1472,7 @@ export const CALENDAR_MONTH = {
 
 export type CalendarItemKind = "campaign" | "polst" | "date";
 
-/** Campaigns/Polsts render as bars from start to end; key dates carry no
+/** Campaigns/polsts render as bars from start to end; key dates carry no
  *  lifecycle status — they are moments, not objects. */
 export type CalendarItem = {
   id: string;
@@ -1622,9 +1622,9 @@ export function answerHeat(range: WindowRange): number[][] {
   return heat;
 }
 
-/* ── Vote velocity (Polst detail) ────────────────────────────────────
+/* ── Vote velocity (polst detail) ────────────────────────────────────
    votes/hr over the trailing 1h / 6h / 24h, staging's readout. Derived
-   from the Polst's REAL daily series spread across the daypart curve
+   from the polst's REAL daily series spread across the daypart curve
    (engine.hourlyVotes) — active runs only; nothing else has a pace. */
 
 export type VoteVelocity = { lastHour: number; perHour6: number; perHour24: number };
@@ -1941,8 +1941,8 @@ export const CAMPAIGN_REVIEWS: CampaignReview[] = shiftSeed([
    carry a non-recoverable secret (shown once at creation); the seeds
    mirror a workspace that already integrated once. */
 
-export type ApiScope = "Read analytics" | "Manage Polsts" | "Manage campaigns";
-export const API_SCOPES: ApiScope[] = ["Read analytics", "Manage Polsts", "Manage campaigns"];
+export type ApiScope = "Read analytics" | "Manage polsts" | "Manage campaigns";
+export const API_SCOPES: ApiScope[] = ["Read analytics", "Manage polsts", "Manage campaigns"];
 
 export type ApiKey = {
   id: string;
@@ -2015,9 +2015,9 @@ export const INTEGRATIONS: Integration[] = [
   { id: "int-klaviyo", name: "Klaviyo", icon: "mail", feeds: "Sends, opens, clicks, and unsubscribes", connected: false },
 ];
 
-/* ── Polst imagery ───────────────────────────────────────────────── */
+/* ── polst imagery ───────────────────────────────────────────────── */
 
-/** Deterministic tiny hash so every Polst side keeps the same photo. */
+/** Deterministic tiny hash so every polst side keeps the same photo. */
 const imageSeed = (key: string) => {
   let hash = 0;
   for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) % 997;
@@ -2057,7 +2057,7 @@ const libraryUrl = (index: number, w: number, h: number) =>
 export const curatedImage = (key: string, w = 600, h = 450) =>
   libraryUrl(imageSeed(key) % IMAGE_LIBRARY.length, w, h);
 
-/** Round-robin photo assignment in data-declaration order (standalone Polsts,
+/** Round-robin photo assignment in data-declaration order (standalone polsts,
  *  then every campaign chain question): each library photo is used evenly and
  *  same-page neighbours never collide. Unknown keys fall back to the hash. */
 let imageAssignments: Map<string, number> | null = null;
@@ -2092,7 +2092,7 @@ export const polstImage = (id: string, side: "a" | "b", w = 600, h = 450) => {
   return libraryUrl(index, w, h);
 };
 
-/** A dashboard Polst as the consumer card renders it: the real option pair
+/** A dashboard polst as the consumer card renders it: the real option pair
  *  (label · image · votes) derived from splitA and the vote count. */
 export const polstOptions = (polst: {
   id: string;

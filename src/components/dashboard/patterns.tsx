@@ -66,7 +66,7 @@ export function ConfirmModal({
 }: {
   open: boolean;
   onClose: () => void;
-  /** Visible header title ("Delete this Polst?"). */
+  /** Visible header title ("Delete this polst?"). */
   title: string;
   /** Accessible dialog name when it differs from the title. */
   label?: string;
@@ -127,7 +127,7 @@ export function LockNotice({ children, className }: { children: ReactNode; class
 /** The pre-publish gate both editors share: the exact thing voters will
  *  see, the facts of the run, the lock contract, then Back / Confirm.
  *  `factsFirst` flips the facts above the preview (the campaign review
- *  leads with the record; the Polst review leads with the card). */
+ *  leads with the record; the polst review leads with the card). */
 export function ReviewModal({
   open,
   onClose,
@@ -310,7 +310,7 @@ export const SOURCE_KINDS: Array<Source["kind"]> = [
 /** The channel families a source can belong to. */
 export const CHANNELS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
 
-/** A campaign/Polst a source can point at, ready for SelectMenu. */
+/** A campaign/polst a source can point at, ready for SelectMenu. */
 export type SourceTargetOption = SelectOption & { linked: NonNullable<Source["linked"]> };
 
 /** What the create flow hands back — the store's addSource input shape. */
@@ -388,7 +388,7 @@ export function SourceForm({
 export type UnlinkedSource = Pick<Source, "id" | "name" | "kind" | "channel">;
 
 /** The one create-or-assign source modal, covering both shapes:
- *  - Entity-scoped assign (Polst / campaign pages): pass `unlinked` +
+ *  - Entity-scoped assign (polst / campaign pages): pass `unlinked` +
  *    `onAssign` — the free sources list renders above the create form,
  *    with the "Unassigned sources" / "Create a new source" headings.
  *  - Library create (Distribution "Add source"): pass `targets` — a
@@ -420,7 +420,7 @@ export function AssignSourceModal({
   unlinked?: UnlinkedSource[];
   /** One-click assign for a listed source. Enables the list + headings. */
   onAssign?: (source: UnlinkedSource) => void;
-  /** Assignable campaigns/Polsts. Enables the "Link to" select. */
+  /** Assignable campaigns/polsts. Enables the "Link to" select. */
   targets?: SourceTargetOption[];
   targetLabel?: string;
   targetHelper?: ReactNode;
@@ -539,7 +539,7 @@ export function AssignSourceModal({
   );
 }
 
-/** Point an EXISTING source at a campaign or Polst (Distribution's row
+/** Point an EXISTING source at a campaign or polst (Distribution's row
  *  action). Opens while `source` is non-null; the chosen target's linked
  *  ref and label come back together so the caller's toast can name it. */
 export function AssignTargetModal({
@@ -598,7 +598,7 @@ export function AssignTargetModal({
             <SelectMenu
               id={id}
               label={targetLabel}
-              placeholder="Pick a campaign or Polst"
+              placeholder="Pick a campaign or polst"
               options={targets}
               value={target}
               onValueChange={setTarget}
@@ -768,9 +768,9 @@ export function ReadyDecisionRow({
   );
 }
 
-/* ── Polst list row ──────────────────────────────────────────────── */
+/* ── polst list row ──────────────────────────────────────────────── */
 
-/** A Polst named the way every list names one: the split thumb, the
+/** A polst named the way every list names one: the split thumb, the
  *  question, and "A vs B" under it. With `to` the whole row links and
  *  the question picks up the hover accent; `meta` pins trailing content
  *  (a StatusBadge, a count) outside the truncation. */
@@ -974,7 +974,7 @@ export function UnassignButton({
 /* ── Rate cell ───────────────────────────────────────────────────── */
 
 /** A completion-rate table cell: whole-percent, or an honest "—" where
- *  no rate exists (a single-question Polst has no completion story). */
+ *  no rate exists (a single-question polst has no completion story). */
 export function RateCell(rate: number | null): ReactNode {
   return <span className="tabular-nums">{rate !== null ? fmtPct(rate, 0) : "—"}</span>;
 }
@@ -1050,7 +1050,7 @@ export function Pager({
   pageSize: number;
   total: number;
   onPage: (page: number) => void;
-  /** Plural noun for the count line ("Polsts", "sources"). */
+  /** Plural noun for the count line ("polsts", "sources"). */
   noun: string;
   className?: string;
 }) {
