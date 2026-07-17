@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
+  ActivityFeed,
   CampaignCard,
   CampaignCardGrid,
   DashboardPage,
@@ -18,6 +19,7 @@ import { useWorkspace } from "@/lib/store";
 import {
   STAT_XTICKS,
   attentionItems,
+  workspaceActivity,
   dashboardStats,
   readyTitle,
   winnerLabel,
@@ -166,6 +168,9 @@ export function HomePage() {
   const dismissSuggestion = (id: string) =>
     setDismissed((prev) => new Set(prev).add(id));
 
+  /* The activity rail: recent launches and endings with their outcomes. */
+  const activity = useMemo(() => workspaceActivity(campaigns, polsts), [campaigns, polsts]);
+
   const activeCampaigns = campaigns.filter((c) => c.status === "Active");
   const queuedCampaigns = useMemo(
     () =>
@@ -223,7 +228,8 @@ export function HomePage() {
         onDismiss={dismissSuggestion}
       />
 
-      {/* 4 · One campaign, one card — its running polsts inside. */}
+      {/* 4 · One campaign, one row — the activity rail rides the last
+             quarter and says what launched, ended, and how it came out. */}
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
@@ -241,25 +247,30 @@ export function HomePage() {
             </Button>
           </div>
         </div>
-        {shownCampaigns.length ? (
-          <CampaignCardGrid>
-            {shownCampaigns.map((c: Campaign) => (
-              <CampaignCard
-                key={c.id}
-                campaign={c}
-                sourceCount={campaignSources(sources, c.id).length}
-              />
-            ))}
-          </CampaignCardGrid>
-        ) : (
-          <div className="rounded-card border border-border-default bg-surface-raised shadow-sm">
-            <EmptyState
-              icon="campaign"
-              title={campaignView === "Active" ? "No active campaigns" : "Nothing is scheduled"}
-              action={{ label: "Create campaign", to: "/campaigns/new" }}
-            />
+        <div className="grid items-start gap-3 lg:grid-cols-4">
+          <div className="lg:col-span-3">
+            {shownCampaigns.length ? (
+              <CampaignCardGrid>
+                {shownCampaigns.map((c: Campaign) => (
+                  <CampaignCard
+                    key={c.id}
+                    campaign={c}
+                    sourceCount={campaignSources(sources, c.id).length}
+                  />
+                ))}
+              </CampaignCardGrid>
+            ) : (
+              <div className="rounded-card border border-border-default bg-surface-raised shadow-sm">
+                <EmptyState
+                  icon="campaign"
+                  title={campaignView === "Active" ? "No active campaigns" : "Nothing is scheduled"}
+                  action={{ label: "Create campaign", to: "/campaigns/new" }}
+                />
+              </div>
+            )}
           </div>
-        )}
+          <ActivityFeed items={activity} />
+        </div>
       </section>
     </DashboardPage>
   );

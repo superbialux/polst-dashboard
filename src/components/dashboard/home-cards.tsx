@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { fmtDateRange, fmtInt, pct, relativeToToday } from "@/lib/canon";
-import { polstImage, type Campaign } from "@/lib/workspace";
+import { polstImage, type ActivityItem, type Campaign } from "@/lib/workspace";
 import { CtaButton, MediaFill, StatusBadge, type CardTone } from "./kit";
 
 /* ══════════════════════════════════════════════════════════════════
@@ -33,13 +33,7 @@ export type BannerInvite = {
  *  scale, the square art flush against the trailing edge. min-h-72 ≈
  *  the suggestion cards' height, so the two Home card rows read as one
  *  rhythm and the 1:1 art fills the height uncropped. */
-function InviteCard({
-  invite,
-  variant,
-}: {
-  invite: BannerInvite;
-  variant: "primary" | "secondary";
-}) {
+function InviteCard({ invite }: { invite: BannerInvite }) {
   return (
     <section className="flex min-h-72 items-stretch overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm">
       <div className="flex min-w-0 flex-1 flex-col items-start p-4">
@@ -51,7 +45,7 @@ function InviteCard({
         </h2>
         <p className="mt-1 text-sm leading-5 text-text-secondary">{invite.description}</p>
         <div className="mt-auto pt-4">
-          <CtaButton cta={invite.cta} variant={variant} />
+          <CtaButton cta={invite.cta} variant="primary" />
         </div>
       </div>
       {invite.image ? (
@@ -66,13 +60,13 @@ function InviteCard({
   );
 }
 
-/** The two ways in, one row of two cards: a campaign on the left
- *  (primary), a single polst on the right (secondary). */
+/** The two ways in, one row of two cards — both invitations carry the
+ *  primary CTA; neither way in outranks the other. */
 export function HeroBanner({ left, right }: { left: BannerInvite; right: BannerInvite }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <InviteCard invite={left} variant="primary" />
-      <InviteCard invite={right} variant="secondary" />
+      <InviteCard invite={left} />
+      <InviteCard invite={right} />
     </div>
   );
 }
@@ -292,5 +286,59 @@ export function CampaignCard({
 }
 
 export function CampaignCardGrid({ children }: { children: ReactNode }) {
-  return <div className={cn("grid items-start gap-3 lg:grid-cols-2")}>{children}</div>;
+  return <div className="grid items-start gap-3">{children}</div>;
+}
+
+/* ── What happened ───────────────────────────────────────────────── */
+
+const ACTIVITY_CHIP: Record<ActivityItem["kind"], { icon: string; tone: string }> = {
+  launch: { icon: "rocket_launch", tone: "bg-accent-soft text-accent-default" },
+  end: { icon: "flag", tone: "bg-surface-subtle text-text-secondary" },
+};
+
+/** The Hotjar "recent activity" rail, spoken from workspace facts:
+ *  what launched, what ended, and how it came out — the same glyph
+ *  language as the chart markers. */
+export function ActivityFeed({ items, className }: { items: ActivityItem[]; className?: string }) {
+  return (
+    <section
+      className={cn(
+        "rounded-card border border-border-default bg-surface-raised p-4 shadow-sm",
+        className,
+      )}
+    >
+      <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+        What happened
+      </h2>
+      {items.length ? (
+        <ul className="mt-2 divide-y divide-border-default">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link to={item.to} className="group flex items-start gap-2.5 py-2.5">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-pill",
+                    ACTIVITY_CHIP[item.kind].tone,
+                  )}
+                >
+                  <Icon name={ACTIVITY_CHIP[item.kind].icon} size={14} weight={300} filled />
+                </span>
+                <span className="min-w-0">
+                  <span className="line-clamp-2 text-sm font-medium leading-5 text-text-primary group-hover:underline">
+                    {item.title}
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-4 text-text-secondary">
+                    {item.detail} · {relativeToToday(item.date)}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-text-tertiary">Nothing has launched or ended yet.</p>
+      )}
+    </section>
+  );
 }

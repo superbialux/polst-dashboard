@@ -1330,6 +1330,75 @@ export const STAT_XTICKS: Record<StatRange, string[]> = Object.fromEntries(
   }),
 ) as Record<StatRange, string[]>;
 
+/* ── What happened (Home's activity rail) ────────────────────────── */
+
+export type ActivityItem = {
+  id: string;
+  kind: "launch" | "end";
+  date: string; // ISO
+  /** "Retail Shelf Layout launched" / the polst's question. */
+  title: string;
+  /** The outcome or state: voters so far, or the result. */
+  detail: string;
+  to: string;
+};
+
+/** The workspace's recent past, stated from the same lifecycle facts the
+ *  chart markers pin: what launched, what ended, and how it came out.
+ *  Newest first; pure over the passed arrays so in-session objects
+ *  appear the moment their dates are real. */
+export function workspaceActivity(
+  campaigns: Campaign[],
+  polsts: SinglePolst[],
+  limit = 8,
+): ActivityItem[] {
+  const items: ActivityItem[] = [];
+  for (const c of campaigns) {
+    if (c.startAt && c.startAt <= TODAY)
+      items.push({
+        id: `${c.id}-launch`,
+        kind: "launch",
+        date: c.startAt,
+        title: `${c.name} launched`,
+        detail: `${fmtInt(c.voters)} ${c.voters === 1 ? "voter" : "voters"} so far`,
+        to: `/campaigns/${c.id}`,
+      });
+    if (c.endAt && c.endAt <= TODAY)
+      items.push({
+        id: `${c.id}-end`,
+        kind: "end",
+        date: c.endAt,
+        title: `${c.name} ended`,
+        detail: c.winner
+          ? `${c.winner.option} won · ${c.winner.pctFor}% vs ${c.winner.pctAgainst}%`
+          : `${fmtInt(c.voters)} ${c.voters === 1 ? "voter" : "voters"}`,
+        to: `/campaigns/${c.id}`,
+      });
+  }
+  for (const p of polsts) {
+    const lead = p.splitA >= 50 ? { option: p.optionA, pct: p.splitA } : { option: p.optionB, pct: 100 - p.splitA };
+    if (p.startAt && p.startAt <= TODAY)
+      items.push({
+        id: `${p.id}-launch`,
+        kind: "launch",
+        date: p.startAt,
+        title: `${p.question} went live`,
+        detail: `${fmtInt(p.votes)} ${p.votes === 1 ? "vote" : "votes"} so far`,
+        to: `/polsts/${p.id}`,
+      });
+    if (p.endAt && p.endAt <= TODAY)
+      items.push({
+        id: `${p.id}-end`,
+        kind: "end",
+        date: p.endAt,
+        title: `${p.question} closed`,
+        detail: p.votes > 0 ? `${lead.option} won · ${lead.pct}% vs ${100 - lead.pct}%` : "No votes",
+        to: `/polsts/${p.id}`,
+      });
+  }
+  return items.sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
+}
+
 /* ── Ready to decide & attention (Home) ──────────────────────────── */
 
 export const READY_TO_DECIDE: Campaign[] = CAMPAIGNS.filter(isReadyToDecide);
