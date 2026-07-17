@@ -198,7 +198,7 @@ export function HomePage() {
     );
     return KEY_DATES.filter((k) => k.end >= TODAY)
       .sort((a, b) => a.start.localeCompare(b.start))
-      .slice(0, 5)
+      .slice(0, 6)
       .map((k) => {
         const campaign = coveredBy.get(k.id);
         const range = fmtDateRange(k.start, k.end);
@@ -274,6 +274,7 @@ export function HomePage() {
     >
       {tab === "Calendar" ? (
         <>
+          <WorkspaceCalendar />
           {/* Upcoming key dates as a bento — covered dates open their
               campaign, uncovered ones open planning. */}
           <SuggestionBento
@@ -281,7 +282,6 @@ export function HomePage() {
             suggestions={eventSuggestions}
             onDismiss={dismissSuggestion}
           />
-          <WorkspaceCalendar />
         </>
       ) : (
         <>

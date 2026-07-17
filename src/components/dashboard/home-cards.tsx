@@ -170,12 +170,14 @@ export function SuggestionGrid({
   );
 }
 
-/* Bento spans on the 4-column track, repeating per five cards:
-   2+1+1 fills the first row, 2+2 the second — no gaps at any count. */
-const BENTO_SPANS = ["lg:col-span-2", "", "", "lg:col-span-2", "lg:col-span-2"];
+/* Bento spans on the 4-column track, six cards to two full rows: the
+   FIRST cell of row one and the LAST cell of row two run wide
+   (2+1+1 / 1+1+2) — the majors bookend, the smaller moments sit
+   between, and no cell goes empty. */
+const BENTO_SPANS = ["lg:col-span-2", "", "", "", "", "lg:col-span-2"];
 
-/** The suggestion cards on a bento rhythm — wide lead card, two
- *  supports, then wide pairs. Same anatomy, varied cell widths. */
+/** The suggestion cards on a bento rhythm — wide lead, four supports,
+ *  wide close. Same anatomy, varied cell widths. */
 export function SuggestionBento({
   title,
   suggestions,

@@ -209,12 +209,22 @@ function shiftSeed<T>(value: T): T {
 
 /* ── Key dates (planning events, authored) ───────────────────────── */
 
-export const KEY_DATES: KeyDate[] = shiftSeed([
-  { id: "world-cup", title: "World Cup Kickoff", start: "2026-06-18", end: "2026-06-18" },
-  { id: "product-launch", title: "Product Launch Week", start: "2026-06-22", end: "2026-06-26" },
-  { id: "fancy-food-show", title: "Summer Fancy Food Show", start: "2026-06-28", end: "2026-06-30" },
+/** REAL calendar events on their real 2026 dates — the world's calendar
+ *  never rides shiftSeed. Majors (World Cup Final, Thanksgiving, New
+ *  Year's) anchor the planning horizon; the rest are the smaller retail
+ *  moments between them. */
+export const KEY_DATES: KeyDate[] = [
   { id: "july-fourth", title: "Independence Day", start: "2026-07-04", end: "2026-07-04" },
-]);
+  { id: "world-cup", title: "World Cup Final", start: "2026-07-19", end: "2026-07-19" },
+  { id: "product-launch", title: "Product Launch Week", start: "2026-07-27", end: "2026-07-31" },
+  { id: "back-to-school", title: "Back-to-School Season", start: "2026-08-17", end: "2026-08-28" },
+  { id: "labor-day", title: "Labor Day", start: "2026-09-07", end: "2026-09-07" },
+  { id: "halloween", title: "Halloween", start: "2026-10-31", end: "2026-10-31" },
+  { id: "thanksgiving", title: "Thanksgiving", start: "2026-11-26", end: "2026-11-26" },
+  { id: "black-friday", title: "Black Friday", start: "2026-11-27", end: "2026-11-30" },
+  { id: "holiday-season", title: "Holiday Season", start: "2026-12-14", end: "2026-12-24" },
+  { id: "new-years-eve", title: "New Year's Eve", start: "2026-12-31", end: "2026-12-31" },
+];
 
 /* ── Campaign seeds (authored observations + narrative) ──────────── */
 
