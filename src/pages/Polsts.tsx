@@ -19,7 +19,6 @@ import {
   AssignSourceModal,
   ChecklistItem,
   ConfirmModal,
-  CreatedRange,
   DashboardCard,
   DashboardPage,
   DataTable,
@@ -28,12 +27,15 @@ import {
   EmptyState,
   InfoHint,
   NotFoundCard,
-  Pager,
   PollResults,
   PollThumb,
   PolstListRow,
   ReviewModal,
   TableToolbar,
+  TablePagination,
+  StatusSelect,
+  ViewToggle,
+  DateRangePicker,
   SectionGrid,
   SegmentedControl,
   StatTile,
@@ -342,7 +344,13 @@ export function PolstsPage() {
       : { label: "Create polst", to: "/polsts/new" };
 
   const pager = (
-    <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} noun="polsts" />
+    <TablePagination
+      page={safePage}
+      pageSize={PAGE_SIZE}
+      total={rows.length}
+      onPage={setPage}
+      noun="polsts"
+    />
   );
 
   const toolbar = (
@@ -351,21 +359,22 @@ export function PolstsPage() {
       query={query}
       onQueryChange={setFilterAndResetPage(setQuery)}
     >
-      <SelectMenu
-        label="Status"
-        compact
-        icon="filter_list"
-        options={POLST_FILTERS.map((f) => ({ value: f, label: f }))}
+      <StatusSelect
+        options={POLST_FILTERS}
         value={active}
-        onValueChange={setFilterAndResetPage(setActive)}
+        onChange={setFilterAndResetPage(setActive)}
       />
-      <CreatedRange
+      <DateRangePicker
         from={createdFrom}
         to={createdTo}
-        onFromChange={setFilterAndResetPage(setCreatedFrom)}
-        onToChange={setFilterAndResetPage(setCreatedTo)}
+        placeholder="Created date"
+        onChange={(f, t) => {
+          setCreatedFrom(f);
+          setCreatedTo(t);
+          setPage(0);
+        }}
       />
-      <SegmentedControl tabs={VIEWS} active={view} onChange={setView} />
+      <ViewToggle value={view} onChange={setView} />
     </TableToolbar>
   );
 
@@ -388,29 +397,29 @@ export function PolstsPage() {
                   <PolstGridCard key={polst.id} polst={polst} />
                 ))}
               </SectionGrid>
-              <DashboardCard padded={false}>{pager}</DashboardCard>
+              {pager}
             </>
           ) : (
             <DashboardCard padded={false}>
               <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
             </DashboardCard>
           )
+        ) : rows.length ? (
+          <>
+            <DashboardCard padded={false}>
+              <DataTable
+                rows={pageRows}
+                columns={tableColumns}
+                onRowClick={(row) => navigate(`/polsts/${row.id}`)}
+                sort={sort}
+                onSortChange={setFilterAndResetPage(setSort)}
+              />
+            </DashboardCard>
+            {pager}
+          </>
         ) : (
           <DashboardCard padded={false}>
-            {rows.length ? (
-              <>
-                <DataTable
-                  rows={pageRows}
-                  columns={tableColumns}
-                  onRowClick={(row) => navigate(`/polsts/${row.id}`)}
-                  sort={sort}
-                  onSortChange={setFilterAndResetPage(setSort)}
-                />
-                {pager}
-              </>
-            ) : (
-              <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
-            )}
+            <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
           </DashboardCard>
         )}
       </section>

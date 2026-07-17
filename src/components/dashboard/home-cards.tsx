@@ -257,7 +257,9 @@ export function CampaignCard({
   campaign: Campaign;
   sourceCount: number;
 }) {
-  const live = campaign.status === "Active";
+  // Ran = Active or Ended: both have real numbers to state. Only
+  // Scheduled/Draft cards speak in plans ("starts in 2 days · staged").
+  const live = campaign.status === "Active" || campaign.status === "Ended";
   // The audit's list contract: votes and completion, never "voters /
   // target" — the participant goal is a planning target, not a cap,
   // and the fraction reads as a hard limit.

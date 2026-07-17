@@ -5,6 +5,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
 import { IconButton, IconTile } from "@/components/ui/icon-button";
+import { SearchField } from "@/components/ui/search-field";
 import { TrendChart } from "./charts";
 import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
@@ -494,28 +495,16 @@ export function TableToolbar({
   children?: ReactNode;
   className?: string;
 }) {
-  const searchId = useId();
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between",
-        className,
-      )}
-    >
-      <div className="w-full lg:w-72">
-        <label htmlFor={searchId} className="sr-only">
-          {placeholder}
-        </label>
-        <TextInput
-          id={searchId}
-          type="search"
-          icon="search"
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          className="h-8 text-sm"
-          placeholder={placeholder}
-        />
-      </div>
+    <div className={cn("flex flex-col gap-2 lg:flex-row lg:items-center", className)}>
+      {/* The one search anatomy (the sidebar's), stretched — the row's
+          full remaining width belongs to the query. */}
+      <SearchField
+        placeholder={placeholder}
+        value={query}
+        onChange={onQueryChange}
+        className="lg:flex-1"
+      />
       {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
     </div>
   );
@@ -583,44 +572,6 @@ export function filterByStatus<T extends { status: string }>(
   if (active === "All") return rows;
   const normalized = active === "Drafts" ? "Draft" : active;
   return rows.filter((row) => row.status === normalized);
-}
-
-/** Created-date range inputs (staging parity): from/to on the toolbar's
- *  32px control height. An empty side is an open bound. */
-export function CreatedRange({
-  from,
-  to,
-  onFromChange,
-  onToChange,
-}: {
-  from: string;
-  to: string;
-  onFromChange: (iso: string) => void;
-  onToChange: (iso: string) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <TextInput
-        type="date"
-        aria-label="Created from"
-        value={from}
-        max={to || undefined}
-        onChange={(e) => onFromChange(e.target.value)}
-        className="h-8 w-36 text-sm"
-      />
-      <span aria-hidden className="text-text-tertiary">
-        –
-      </span>
-      <TextInput
-        type="date"
-        aria-label="Created to"
-        value={to}
-        min={from || undefined}
-        onChange={(e) => onToChange(e.target.value)}
-        className="h-8 w-36 text-sm"
-      />
-    </div>
-  );
 }
 
 /** Apply an inclusive created-date range (ISO bounds; "" = open). */

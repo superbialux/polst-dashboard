@@ -37,11 +37,17 @@ import {
   PageTabs,
   PollResults,
   PolstListRow,
-  CreatedRange,
   RateCell,
   ReportPreview,
   ReviewModal,
   TableToolbar,
+  TablePagination,
+  StatusSelect,
+  ViewToggle,
+  DateRangePicker,
+  CampaignCard,
+  sortRows,
+  type SortState,
   SectionGrid,
   SectionTitle,
   filterByCreated,
@@ -142,23 +148,15 @@ const listColumns: Array<DataColumn<Campaign>> = [
     sort: (row) => row.chain.length,
     cell: (row) => <ThumbStrip ids={row.chain.map((q) => q.id)} />,
   },
-  /* Funnel columns only — the audit's contract for the index. Started,
-     Completed, and Finish rate are participant facts; interpretation
-     ("Result so far") moved to campaign Insights, and the participant
-     goal lives on the detail, never as a "1,486 / 1,200" shorthand. */
+  /* The index speaks the card line's vocabulary: total votes across the
+     chain, and the finish rate. The participant goal lives on the
+     detail, never as a "1,486 / 1,200" shorthand. */
   {
-    header: "Started",
-    info: METRIC_INFO.started,
+    header: "Total votes",
+    info: METRIC_INFO.votes,
     align: "right",
-    sort: (row) => row.voters,
-    cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
-  },
-  {
-    header: "Completed",
-    info: METRIC_INFO.completed,
-    align: "right",
-    sort: (row) => row.completed,
-    cell: (row) => <span className="tabular-nums">{fmtInt(row.completed)}</span>,
+    sort: (row) => row.votes,
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.votes)}</span>,
   },
   {
     header: "Finish rate",
@@ -169,24 +167,41 @@ const listColumns: Array<DataColumn<Campaign>> = [
   },
 ];
 
+const PAGE_SIZE = 10;
+
 export function CampaignsPage() {
-  const { campaigns } = useWorkspace();
+  const { campaigns, sources } = useWorkspace();
   const navigate = useNavigate();
   const [active, setActive] = useState<string>("All");
+  const [view, setView] = useState<"list" | "grid">("list");
   const [query, setQuery] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<SortState | null>(null);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return filterByCreated(filterByStatus(campaigns, active), createdFrom, createdTo).filter(
+    const filtered = filterByCreated(filterByStatus(campaigns, active), createdFrom, createdTo).filter(
       (c) =>
         !q ||
         [c.name, c.decision, eventTitle(c.event), c.category].some((v) =>
           v.toLowerCase().includes(q),
         ),
     );
-  }, [campaigns, active, query, createdFrom, createdTo]);
+    // The FULL list sorts before pagination — page 2 continues page 1's order.
+    return sortRows(filtered, listColumns, sort);
+  }, [campaigns, active, query, createdFrom, createdTo, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = rows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const resetPage = <T,>(setter: (v: T) => void) => (value: T) => {
+    setter(value);
+    setPage(0);
+  };
+  const sourceCount = (id: string) =>
+    sources.filter((s) => s.linked?.type === "campaign" && s.linked.id === id).length;
 
   const searching = query.trim().length > 0;
   const dateFiltered = Boolean(createdFrom || createdTo);
@@ -201,22 +216,40 @@ export function CampaignsPage() {
     >
       {/* The action row rides ABOVE the card — the stat hero's altitude. */}
       <section className="space-y-2">
-        <TableToolbar placeholder="Search campaigns" query={query} onQueryChange={setQuery}>
-          <SelectMenu
-            label="Status"
-            compact
-            icon="filter_list"
-            options={CAMPAIGN_FILTERS.map((f) => ({ value: f, label: f }))}
+        <TableToolbar placeholder="Search campaigns" query={query} onQueryChange={resetPage(setQuery)}>
+          <StatusSelect
+            options={CAMPAIGN_FILTERS}
             value={active}
-            onValueChange={setActive}
+            onChange={resetPage(setActive)}
           />
-          <CreatedRange
+          <DateRangePicker
             from={createdFrom}
             to={createdTo}
-            onFromChange={setCreatedFrom}
-            onToChange={setCreatedTo}
+            placeholder="Created date"
+            onChange={(f, t) => {
+              setCreatedFrom(f);
+              setCreatedTo(t);
+              setPage(0);
+            }}
           />
+          <ViewToggle value={view} onChange={setView} />
         </TableToolbar>
+        {rows.length > 0 && view === "grid" ? (
+          <>
+            <div className="grid items-start gap-3 lg:grid-cols-2">
+              {pageRows.map((c) => (
+                <CampaignCard key={c.id} campaign={c} sourceCount={sourceCount(c.id)} />
+              ))}
+            </div>
+            <TablePagination
+              page={safePage}
+              pageSize={PAGE_SIZE}
+              total={rows.length}
+              onPage={setPage}
+              noun="campaigns"
+            />
+          </>
+        ) : (
         <DashboardCard padded={false}>
         {searching && rows.length > 0 ? (
           <p className="border-b border-border-default px-4 py-2 text-xs text-text-secondary">
@@ -226,9 +259,11 @@ export function CampaignsPage() {
         ) : null}
         {rows.length > 0 ? (
           <DataTable
-            rows={rows}
+            rows={pageRows}
             columns={listColumns}
             onRowClick={(row) => navigate(`/campaigns/${row.id}`)}
+            sort={sort}
+            onSortChange={resetPage(setSort)}
           />
         ) : searching || dateFiltered ? (
           <EmptyState
@@ -265,6 +300,16 @@ export function CampaignsPage() {
           />
         )}
         </DashboardCard>
+        )}
+        {rows.length > 0 && view === "list" ? (
+          <TablePagination
+            page={safePage}
+            pageSize={PAGE_SIZE}
+            total={rows.length}
+            onPage={setPage}
+            noun="campaigns"
+          />
+        ) : null}
       </section>
     </DashboardPage>
   );

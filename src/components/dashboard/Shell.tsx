@@ -22,6 +22,7 @@ import { relativeToToday } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import { SegmentedControl } from "@/components/dashboard/kit";
 import { IconButton, IconTile } from "@/components/dashboard/patterns";
+import { SearchButton } from "@/components/ui/search-field";
 import { WORKSPACE, WORKSPACES, attentionItems } from "@/lib/workspace";
 
 type NavItem = {
@@ -208,21 +209,12 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
         <WorkspaceMenu />
       </div>
       <div className="px-2 pb-3">
-        <button
-          type="button"
+        <SearchButton
+          label="Search"
           onClick={onSearch}
-          aria-label="Search the workspace"
+          kbd="⌘K"
           aria-keyshortcuts="Meta+K Control+K"
-          className="flex h-8 w-full items-center gap-2 rounded-sm border border-white/10 px-2 text-left text-sm font-medium text-sidenav-muted transition-colors hover:bg-white/5 hover:text-sidenav-fg"
-        >
-          <span className="grid h-4 w-4 shrink-0 place-items-center">
-            <Icon name="search" size={16} />
-          </span>
-          <span className="min-w-0 flex-1 truncate">Search</span>
-          <kbd className="rounded-sm border border-white/10 px-1 py-0.5 font-sans text-micro font-medium text-sidenav-muted">
-            ⌘K
-          </kbd>
-        </button>
+        />
       </div>
 
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
