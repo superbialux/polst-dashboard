@@ -25,38 +25,24 @@ export type BannerInvite = {
   title: string;
   description: string;
   cta: { label: string; to: string };
+  /** Full-bleed art on the cell's trailing edge. */
+  image?: string;
 };
-
-/** A real polst's A/B pair in miniature — the product advertising itself. */
-function PolstPairTile({ id }: { id: string }) {
-  return (
-    <span
-      aria-hidden
-      className="relative hidden h-20 w-20 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg shadow-sm ring-4 ring-accent-soft lg:grid"
-    >
-      <img src={polstImage(id, "a", 240, 320)} alt="" className="h-full w-full object-cover" />
-      <img src={polstImage(id, "b", 240, 320)} alt="" className="h-full w-full object-cover" />
-      <span className="absolute left-1/2 top-1/2 grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill bg-surface-raised font-display text-micro font-semibold text-text-primary shadow-sm">
-        OR
-      </span>
-    </span>
-  );
-}
 
 function InviteCell({
   invite,
   variant,
   className,
-  children,
 }: {
   invite: BannerInvite;
   variant: "primary" | "secondary";
   className?: string;
-  children?: ReactNode;
 }) {
   return (
-    <div className={cn("flex items-center gap-5 p-6", className)}>
-      <div className="flex min-w-0 flex-1 flex-col items-start self-stretch">
+    // min-h-72 ≈ the suggestion cards' height, so the two Home card rows
+    // read as one rhythm; the square art fills the cell's full height.
+    <div className={cn("flex min-h-72 items-stretch", className)}>
+      <div className="flex min-w-0 flex-1 flex-col items-start p-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
           {invite.eyebrow}
         </p>
@@ -68,7 +54,14 @@ function InviteCell({
           <CtaButton cta={invite.cta} variant={variant} />
         </div>
       </div>
-      {children}
+      {invite.image ? (
+        <img
+          src={invite.image}
+          alt=""
+          aria-hidden
+          className="hidden h-72 w-72 shrink-0 self-center object-cover sm:block"
+        />
+      ) : null}
     </div>
   );
 }
@@ -78,24 +71,25 @@ function InviteCell({
 export function HeroBanner({
   left,
   right,
-  mediaPolstId,
   onDismiss,
 }: {
   left: BannerInvite;
   right: BannerInvite;
-  /** A real polst whose A/B pair decorates the single-polst invite. */
-  mediaPolstId?: string;
   onDismiss: () => void;
 }) {
   return (
     <section className="relative overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm">
       <div className="grid divide-y divide-border-default sm:grid-cols-2 sm:divide-x sm:divide-y-0">
         <InviteCell invite={left} variant="primary" />
-        <InviteCell invite={right} variant="secondary" className="sm:pr-12">
-          {mediaPolstId ? <PolstPairTile id={mediaPolstId} /> : null}
-        </InviteCell>
+        <InviteCell invite={right} variant="secondary" />
       </div>
-      <IconButton aria-label="Dismiss" onClick={onDismiss} className="absolute right-2 top-2">
+      {/* The dismiss rides the right cell's art — a raised chip keeps it
+          readable over any image. */}
+      <IconButton
+        aria-label="Dismiss"
+        onClick={onDismiss}
+        className="absolute right-2 top-2 bg-surface-raised shadow-sm"
+      >
         <Icon name="close" size={18} />
       </IconButton>
     </section>

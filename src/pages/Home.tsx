@@ -206,6 +206,7 @@ export function HomePage() {
             description:
               "Chain a few polsts into one run, point your sources at it, and the decision takes shape as votes come in.",
             cta: { label: "Create campaign", to: "/campaigns/new" },
+            image: "/campaign.jpg",
           }}
           right={{
             eyebrow: "Polsts",
@@ -213,8 +214,8 @@ export function HomePage() {
             description:
               "One question, two options — live in a minute and ready to share anywhere.",
             cta: { label: "Create a polst", to: "/polsts/new" },
+            image: "/polst.jpg",
           }}
-          mediaPolstId={activeCampaigns[0]?.chain[0]?.id ?? polsts[0]?.id}
           onDismiss={() => setBannerDismissed(true)}
         />
       ) : null}
