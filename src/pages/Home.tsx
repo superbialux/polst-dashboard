@@ -164,14 +164,23 @@ export function HomePage() {
         />
       </section>
 
-      {/* 2 · The page's one primary invitation. */}
+      {/* 2 · The two ways in — a campaign, or one quick Polst. */}
       {!bannerDismissed ? (
         <HeroBanner
-          eyebrow="Campaigns"
-          title="Create a new campaign"
-          description="Chain a few Polsts into one run, point your sources at it, and the decision takes shape as votes come in."
-          cta={{ label: "Create campaign", to: "/campaigns/new" }}
-          icon="campaign"
+          left={{
+            eyebrow: "Campaigns",
+            title: "Create a new campaign",
+            description:
+              "Chain a few Polsts into one run, point your sources at it, and the decision takes shape as votes come in.",
+            cta: { label: "Create campaign", to: "/campaigns/new" },
+          }}
+          right={{
+            eyebrow: "Polsts",
+            title: "Start with a single Polst",
+            description:
+              "One question, two options — live in a minute and ready to share anywhere.",
+            cta: { label: "Create Polst", to: "/polsts/new" },
+          }}
           mediaPolstId={activeCampaigns[0]?.chain[0]?.id ?? polsts[0]?.id}
           onDismiss={() => setBannerDismissed(true)}
         />

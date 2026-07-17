@@ -20,67 +20,81 @@ import { CtaButton, MediaFill, StatusBadge, type CardTone } from "./kit";
 
 /* ── Hero banner ─────────────────────────────────────────────────── */
 
-export function HeroBanner({
-  eyebrow,
-  title,
-  description,
-  cta,
-  icon,
-  mediaPolstId,
-  onDismiss,
-}: {
+export type BannerInvite = {
   eyebrow: string;
   title: string;
   description: string;
   cta: { label: string; to: string };
-  /** Glyph fallback for the illustration slot when no Polst id is given. */
-  icon: string;
-  /** A real Polst whose A/B pair illustrates the banner — the product
-   *  advertises itself instead of a lone glyph in a wash. */
+};
+
+/** A real Polst's A/B pair in miniature — the product advertising itself. */
+function PolstPairTile({ id }: { id: string }) {
+  return (
+    <span
+      aria-hidden
+      className="relative hidden h-20 w-20 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg shadow-sm ring-4 ring-accent-soft lg:grid"
+    >
+      <img src={polstImage(id, "a", 240, 320)} alt="" className="h-full w-full object-cover" />
+      <img src={polstImage(id, "b", 240, 320)} alt="" className="h-full w-full object-cover" />
+      <span className="absolute left-1/2 top-1/2 grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill bg-surface-raised font-display text-micro font-semibold text-text-primary shadow-sm">
+        OR
+      </span>
+    </span>
+  );
+}
+
+function InviteCell({
+  invite,
+  variant,
+  className,
+  children,
+}: {
+  invite: BannerInvite;
+  variant: "primary" | "secondary";
+  className?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className={cn("flex items-center gap-5 p-6", className)}>
+      <div className="flex min-w-0 flex-1 flex-col items-start self-stretch">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          {invite.eyebrow}
+        </p>
+        <h2 className="mt-1.5 font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+          {invite.title}
+        </h2>
+        <p className="mt-1 text-sm leading-5 text-text-secondary">{invite.description}</p>
+        <div className="mt-auto pt-4">
+          <CtaButton cta={invite.cta} variant={variant} />
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** The two ways in, side by side: a campaign on the left (primary), a
+ *  single Polst on the right (secondary) — one dismiss for the pair. */
+export function HeroBanner({
+  left,
+  right,
+  mediaPolstId,
+  onDismiss,
+}: {
+  left: BannerInvite;
+  right: BannerInvite;
+  /** A real Polst whose A/B pair decorates the single-Polst invite. */
   mediaPolstId?: string;
   onDismiss: () => void;
 }) {
   return (
-    <section className="relative flex overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm">
-      <div className="flex min-w-0 flex-1 flex-col items-start p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-          {eyebrow}
-        </p>
-        <h2 className="mt-1.5 font-display text-xl font-semibold leading-7 tracking-tight text-text-primary">
-          {title}
-        </h2>
-        <p className="mt-1.5 max-w-xl text-sm leading-5 text-text-secondary">{description}</p>
-        <div className="mt-5">
-          <CtaButton cta={cta} variant="primary" />
-        </div>
+    <section className="relative overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm">
+      <div className="grid divide-y divide-border-default sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <InviteCell invite={left} variant="primary" />
+        <InviteCell invite={right} variant="secondary" className="sm:pr-12">
+          {mediaPolstId ? <PolstPairTile id={mediaPolstId} /> : null}
+        </InviteCell>
       </div>
-      {mediaPolstId ? (
-        <div
-          aria-hidden
-          className="hidden w-2/5 max-w-72 shrink-0 items-center justify-center self-stretch bg-accent-soft sm:flex"
-        >
-          <span className="relative grid h-28 w-28 grid-cols-2 gap-0.5 overflow-hidden rounded-lg shadow-md ring-4 ring-surface-raised">
-            <img
-              src={polstImage(mediaPolstId, "a", 240, 320)}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-            <img
-              src={polstImage(mediaPolstId, "b", 240, 320)}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-            <span className="absolute left-1/2 top-1/2 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-pill bg-surface-raised font-display text-xs font-semibold text-text-primary shadow-sm">
-              OR
-            </span>
-          </span>
-        </div>
-      ) : (
-        <MediaFill
-          media={{ tone: "accent", icon }}
-          className="hidden w-2/5 max-w-72 shrink-0 self-stretch sm:block"
-        />
-      )}
       <IconButton aria-label="Dismiss" onClick={onDismiss} className="absolute right-2 top-2">
         <Icon name="close" size={18} />
       </IconButton>

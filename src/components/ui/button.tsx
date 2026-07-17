@@ -24,10 +24,11 @@ const buttonVariants = cva(
           "bg-btn-secondary-bg text-status-danger border border-btn-secondary-border hover:bg-btn-secondary-bg-hover",
       },
       size: {
-        // Three physical weights: row actions (28) < toolbar (32) < primary page actions (36).
-        sm: "h-7 px-2.5",
+        // ONE control height: every button is 32px tall; sizes differ only
+        // in horizontal padding (row action < toolbar < page action).
+        sm: "h-8 px-2.5",
         md: "h-8 px-3",
-        lg: "h-9 px-4",
+        lg: "h-8 px-4",
         icon: "h-8 w-8 p-0",
       },
     },

@@ -46,7 +46,7 @@ type PageProps = {
  *  `max-w-dashboard` container — no per-page widths. */
 export function DashboardPage({ actions, children }: PageProps) {
   return (
-    <div className="mx-auto max-w-dashboard space-y-6">
+    <div className="mx-auto max-w-dashboard space-y-8">
       {actions ? <HeaderActions>{actions}</HeaderActions> : null}
       {children}
     </div>
@@ -269,14 +269,13 @@ export function DecisionBrief({
  *  name — the view-mode toggles ride the same control as status filters. */
 export type SegmentItem<T extends string> = T | { value: T; label?: string; icon?: string };
 
-/** The three segmented weights, matching the control-height contract —
- *  every height rides the 4px grid: 36px list toolbars (default), 28px
- *  compact in-card switches, 40px enumerated form choices under a Field
- *  label (full width). Segments stretch to the track minus its padding —
- *  no per-size inner heights. */
+/** The control-height contract: every action control is 32px tall —
+ *  toolbar and compact are the same track now and survive as aliases.
+ *  Only enumerated form choices under a Field label keep the 40px form
+ *  input height. Segments stretch to the track minus its padding. */
 const SEGMENT_SIZES = {
-  toolbar: "h-9 p-1",
-  compact: "h-7 p-0.5",
+  toolbar: "h-8 p-0.5",
+  compact: "h-8 p-0.5",
   form: "h-10 w-full p-1",
 } as const;
 
@@ -473,7 +472,7 @@ export function SearchAndFilters({
             icon="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            className="h-9 text-sm"
+            className="h-8 text-sm"
             placeholder={placeholder}
           />
         </div>
@@ -495,7 +494,7 @@ export function filterByStatus<T extends { status: string }>(
 }
 
 /** Created-date range inputs (staging parity): from/to on the toolbar's
- *  36px control height. An empty side is an open bound. */
+ *  32px control height. An empty side is an open bound. */
 export function CreatedRange({
   from,
   to,
@@ -515,7 +514,7 @@ export function CreatedRange({
         value={from}
         max={to || undefined}
         onChange={(e) => onFromChange(e.target.value)}
-        className="h-9 w-36 text-sm"
+        className="h-8 w-36 text-sm"
       />
       <span aria-hidden className="text-text-tertiary">
         –
@@ -526,7 +525,7 @@ export function CreatedRange({
         value={to}
         min={from || undefined}
         onChange={(e) => onToChange(e.target.value)}
-        className="h-9 w-36 text-sm"
+        className="h-8 w-36 text-sm"
       />
     </div>
   );
