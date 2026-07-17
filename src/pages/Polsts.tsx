@@ -460,6 +460,9 @@ export function PolstDetailPage() {
   const [qrOpen, setQrOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // The full social card is preview-on-demand (real feedback: the always-on
+  // preview was "too big — a waste of real estate").
+  const [previewOpen, setPreviewOpen] = useState(false);
   const polst = polstById(id);
   if (!polst) return <NotFoundCard kind="Polst" />;
 
@@ -705,26 +708,40 @@ export function PolstDetailPage() {
           </div>
           <DashboardCard
             title="Voter preview"
-            padded={false}
+            padded={previewOpen ? false : undefined}
             className="self-start lg:col-span-5"
-            bodyClassName="pt-2"
+            bodyClassName={previewOpen ? "pt-2" : undefined}
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setPreviewOpen((v) => !v)}>
+                {previewOpen ? "Hide preview" : "Preview as voter"}
+              </Button>
+            }
           >
-            <PollCard
-              preview
-              author={WORKSPACE.brand}
-              authorBadge={WORKSPACE.initials}
-              authorColor="var(--color-purple-tint)"
-              isFollowing
-              postedAgo={startedDaysAgo > 0 ? `${startedDaysAgo}d` : undefined}
-              categories={[polst.category]}
-              question={polst.question}
-              options={polstOptions(polst)}
-              tags={[]}
-              likes={previewLikes}
-              reposts={previewReposts}
-              votes={polst.votes}
-              timeLeft={previewTimeLeft}
-            />
+            {previewOpen ? (
+              <PollCard
+                preview
+                author={WORKSPACE.brand}
+                authorBadge={WORKSPACE.initials}
+                authorColor="var(--color-purple-tint)"
+                isFollowing
+                postedAgo={startedDaysAgo > 0 ? `${startedDaysAgo}d` : undefined}
+                categories={[polst.category]}
+                question={polst.question}
+                options={polstOptions(polst)}
+                tags={[]}
+                likes={previewLikes}
+                reposts={previewReposts}
+                votes={polst.votes}
+                timeLeft={previewTimeLeft}
+              />
+            ) : (
+              <div className="flex items-center gap-3">
+                <PollThumb options={polstOptions(polst)} />
+                <p className="min-w-0 text-sm leading-5 text-text-secondary">
+                  See the exact card voters get — question, images, and live tallies.
+                </p>
+              </div>
+            )}
           </DashboardCard>
         </SectionGrid>
       ) : (

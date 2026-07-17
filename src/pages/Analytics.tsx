@@ -112,9 +112,35 @@ function useCopyText() {
   };
 }
 
-/** Header export: a real copy and a real print — never a fake download. */
-function ExportMenu({ summary }: { summary: () => string }) {
+/** One CSV cell, quoted only when it must be. */
+const csvCell = (value: string | number) => {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+/** A real file download: rows → CSV blob → the browser's save flow. */
+function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
+  const content = rows.map((row) => row.map(csvCell).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Header export: a real copy, a real CSV file, and a real print (the
+ *  browser's save-as-PDF path) — every artifact named, never fake. */
+function ExportMenu({
+  summary,
+  csv,
+}: {
+  summary: () => string;
+  /** The page's tabular data; present when a CSV makes sense. */
+  csv?: () => { filename: string; rows: Array<Array<string | number>> };
+}) {
   const copy = useCopyText();
+  const toast = useToast();
   return (
     <Menu
       label="Export"
@@ -126,7 +152,18 @@ function ExportMenu({ summary }: { summary: () => string }) {
       )}
     >
       <MenuItem icon="content_copy" label="Copy summary" onClick={() => void copy(summary())} />
-      <MenuItem icon="print" label="Print page" onClick={() => window.print()} />
+      {csv ? (
+        <MenuItem
+          icon="download"
+          label="Download CSV"
+          onClick={() => {
+            const { filename, rows } = csv();
+            downloadCsv(filename, rows);
+            toast(`Downloaded ${filename}`);
+          }}
+        />
+      ) : null}
+      <MenuItem icon="print" label="Print / save as PDF" onClick={() => window.print()} />
     </Menu>
   );
 }
@@ -451,6 +488,36 @@ export function AnalyticsOverviewPage() {
       ),
     ].join("\n");
 
+  /* The CSV carries exactly what the page shows for the visible scope —
+     the totals and both performance tables — never a wider export than
+     the filters state (the artifact must match the screen). */
+  const csv = () => ({
+    filename: `polst-analytics-${scopeLine(filters).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.csv`,
+    rows: [
+      ["Scope", scopeLine(filters)],
+      [],
+      ["Metric", "Value"],
+      ["Total views", views],
+      ["Total votes", votes],
+      ["Voters", voters],
+      ["Completed", completed],
+      ["Engagement rate", pct(votes, views, 1)],
+      ["Completion rate", pct(completed, voters, 1)],
+      [],
+      ["Campaign", "Status", "Voters", "Completion", "Result so far"],
+      ...campaignPerf.map((row) => [
+        row.name,
+        row.status,
+        row.voters,
+        pct(row.completed, row.voters),
+        row.verdict,
+      ]),
+      [],
+      ["Standalone Polst", "Views", "Votes"],
+      ...polstPerf.map((row) => [row.question, row.views, row.votes]),
+    ] as Array<Array<string | number>>,
+  });
+
   if (!rows.length) {
     return (
       <DashboardPage>
@@ -461,7 +528,7 @@ export function AnalyticsOverviewPage() {
   }
 
   return (
-    <DashboardPage actions={<ExportMenu summary={summary} />}>
+    <DashboardPage actions={<ExportMenu summary={summary} csv={csv} />}>
       <AnalyticsFilterBar />
 
       {/* Decisions first, telemetry after. The title follows the rows'

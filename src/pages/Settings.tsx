@@ -435,13 +435,35 @@ const TYPEFACE_CLASSES = {
 } as const;
 type TypefaceChoice = keyof typeof TYPEFACE_CLASSES;
 
-/* The four choices persist in localStorage — the module-flags pattern
+const TITLE_SIZE_CLASSES = {
+  Small: "text-xs",
+  Medium: "text-sm",
+  Large: "text-base",
+} as const;
+type TitleSize = keyof typeof TITLE_SIZE_CLASSES;
+
+const TITLE_WEIGHT_CLASSES = {
+  Semibold: "font-semibold",
+  Bold: "font-bold",
+} as const;
+type TitleWeight = keyof typeof TITLE_WEIGHT_CLASSES;
+
+const DENSITY_CLASSES = {
+  Comfortable: "p-4",
+  Compact: "p-2.5",
+} as const;
+type DensityChoice = keyof typeof DENSITY_CLASSES;
+
+/* The choices persist in localStorage — the module-flags pattern
    (lib/modules) — so "Save changes" is a real write: the card round-trips
    section switches and reloads, and the toast never claims what didn't
    happen. Unknown stored values fall back to the defaults. */
 type EmbedAppearance = {
   accent: string;
   titlePlacement: TitlePlacement;
+  titleSize: TitleSize;
+  titleWeight: TitleWeight;
+  density: DensityChoice;
   radius: RadiusChoice;
   typeface: TypefaceChoice;
 };
@@ -450,6 +472,9 @@ const EMBED_APPEARANCE_KEY = "polst-embed-appearance-v1";
 const EMBED_APPEARANCE_DEFAULT: EmbedAppearance = {
   accent: "#6161c7",
   titlePlacement: "Above",
+  titleSize: "Medium",
+  titleWeight: "Semibold",
+  density: "Comfortable",
   radius: "Medium",
   typeface: "System UI",
 };
@@ -466,6 +491,16 @@ function readEmbedAppearance(): EmbedAppearance {
       titlePlacement: (TITLE_PLACEMENTS as readonly string[]).includes(stored.titlePlacement)
         ? stored.titlePlacement
         : EMBED_APPEARANCE_DEFAULT.titlePlacement,
+      titleSize:
+        stored.titleSize in TITLE_SIZE_CLASSES
+          ? stored.titleSize
+          : EMBED_APPEARANCE_DEFAULT.titleSize,
+      titleWeight:
+        stored.titleWeight in TITLE_WEIGHT_CLASSES
+          ? stored.titleWeight
+          : EMBED_APPEARANCE_DEFAULT.titleWeight,
+      density:
+        stored.density in DENSITY_CLASSES ? stored.density : EMBED_APPEARANCE_DEFAULT.density,
       radius:
         stored.radius in RADIUS_CLASSES ? stored.radius : EMBED_APPEARANCE_DEFAULT.radius,
       typeface:
@@ -477,39 +512,37 @@ function readEmbedAppearance(): EmbedAppearance {
 }
 
 /** Every control here drives the live preview — accent, question
- *  placement, corner radius, typeface — so nothing on this card is
- *  decorative. The preview is the real PollResults block. Saving writes
- *  localStorage; the button dirty-tracks against the saved state, like
- *  every other save in the app. */
+ *  placement/size/weight, density, corner radius, typeface — so nothing
+ *  on this card is decorative. The preview is the real PollResults
+ *  block. Saving writes localStorage; the button dirty-tracks against
+ *  the saved state, and Revert / Reset restore the saved or default
+ *  choices (staging's revert/reset pair). */
 function EmbedAppearanceCard() {
   const toast = useToast();
   const { polsts } = useWorkspace();
   const sample = polsts.find((p) => p.votes > 0) ?? polsts[0];
 
   const [saved, setSaved] = useState<EmbedAppearance>(readEmbedAppearance);
-  const [accent, setAccent] = useState(saved.accent);
-  const [titlePlacement, setTitlePlacement] = useState<TitlePlacement>(saved.titlePlacement);
-  const [radius, setRadius] = useState<RadiusChoice>(saved.radius);
-  const [typeface, setTypeface] = useState<TypefaceChoice>(saved.typeface);
+  const [draft, setDraft] = useState<EmbedAppearance>(saved);
+  const patch = <K extends keyof EmbedAppearance>(key: K) => (value: EmbedAppearance[K]) =>
+    setDraft((d) => ({ ...d, [key]: value }));
 
-  const dirty =
-    accent !== saved.accent ||
-    titlePlacement !== saved.titlePlacement ||
-    radius !== saved.radius ||
-    typeface !== saved.typeface;
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const isDefault = JSON.stringify(draft) === JSON.stringify(EMBED_APPEARANCE_DEFAULT);
 
   const save = () => {
-    const next: EmbedAppearance = { accent, titlePlacement, radius, typeface };
-    localStorage.setItem(EMBED_APPEARANCE_KEY, JSON.stringify(next));
-    setSaved(next);
+    localStorage.setItem(EMBED_APPEARANCE_KEY, JSON.stringify(draft));
+    setSaved(draft);
     toast("Embed appearance saved");
   };
 
   const question = (placement: TitlePlacement) =>
-    titlePlacement === placement ? (
+    draft.titlePlacement === placement ? (
       <p
         className={cn(
-          "text-sm font-semibold text-text-primary",
+          "text-text-primary",
+          TITLE_SIZE_CLASSES[draft.titleSize],
+          TITLE_WEIGHT_CLASSES[draft.titleWeight],
           placement === "Above" ? "mb-3" : "mt-3",
         )}
       >
@@ -521,9 +554,22 @@ function EmbedAppearanceCard() {
     <DashboardCard
       title="Embed appearance"
       action={
-        <Button size="sm" disabled={!dirty} onClick={save}>
-          Save changes
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" disabled={!dirty} onClick={() => setDraft(saved)}>
+            Revert
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={isDefault}
+            onClick={() => setDraft(EMBED_APPEARANCE_DEFAULT)}
+          >
+            Reset to defaults
+          </Button>
+          <Button size="sm" disabled={!dirty} onClick={save}>
+            Save changes
+          </Button>
+        </div>
       }
     >
       <SectionGrid>
@@ -534,13 +580,13 @@ function EmbedAppearanceCard() {
                 <input
                   id={id}
                   type="color"
-                  value={accent}
-                  onChange={(e) => setAccent(e.target.value)}
+                  value={draft.accent}
+                  onChange={(e) => patch("accent")(e.target.value)}
                   aria-label="Accent color"
                   className="h-10 w-14 cursor-pointer rounded-md border border-border-default bg-surface-raised p-1"
                 />
                 <span className="font-mono text-sm text-text-secondary">
-                  {accent.toUpperCase()}
+                  {draft.accent.toUpperCase()}
                 </span>
               </div>
             )}
@@ -550,18 +596,50 @@ function EmbedAppearanceCard() {
               <SegmentedControl
                 size="form"
                 tabs={TITLE_PLACEMENTS}
-                active={titlePlacement}
-                onChange={setTitlePlacement}
+                active={draft.titlePlacement}
+                onChange={patch("titlePlacement")}
               />
             )}
           </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Question size">
+              {() => (
+                <SegmentedControl
+                  size="form"
+                  tabs={Object.keys(TITLE_SIZE_CLASSES) as TitleSize[]}
+                  active={draft.titleSize}
+                  onChange={patch("titleSize")}
+                />
+              )}
+            </Field>
+            <Field label="Question weight">
+              {() => (
+                <SegmentedControl
+                  size="form"
+                  tabs={Object.keys(TITLE_WEIGHT_CLASSES) as TitleWeight[]}
+                  active={draft.titleWeight}
+                  onChange={patch("titleWeight")}
+                />
+              )}
+            </Field>
+          </div>
           <Field label="Corner radius">
             {() => (
               <SegmentedControl
                 size="form"
                 tabs={Object.keys(RADIUS_CLASSES) as RadiusChoice[]}
-                active={radius}
-                onChange={setRadius}
+                active={draft.radius}
+                onChange={patch("radius")}
+              />
+            )}
+          </Field>
+          <Field label="Density">
+            {() => (
+              <SegmentedControl
+                size="form"
+                tabs={Object.keys(DENSITY_CLASSES) as DensityChoice[]}
+                active={draft.density}
+                onChange={patch("density")}
               />
             )}
           </Field>
@@ -570,8 +648,8 @@ function EmbedAppearanceCard() {
               <SelectMenu
                 id={id}
                 label="Typeface"
-                value={typeface}
-                onValueChange={(next) => setTypeface(next as TypefaceChoice)}
+                value={draft.typeface}
+                onValueChange={(next) => patch("typeface")(next as TypefaceChoice)}
                 options={optionsOf(Object.keys(TYPEFACE_CLASSES))}
               />
             )}
@@ -582,11 +660,12 @@ function EmbedAppearanceCard() {
           <p className={fieldLabelClass}>Live preview</p>
           <div
             className={cn(
-              "mt-1.5 border border-border-default bg-surface-subtle p-4",
-              RADIUS_CLASSES[radius],
-              TYPEFACE_CLASSES[typeface],
+              "mt-1.5 border border-border-default bg-surface-subtle",
+              DENSITY_CLASSES[draft.density],
+              RADIUS_CLASSES[draft.radius],
+              TYPEFACE_CLASSES[draft.typeface],
             )}
-            style={{ "--accent-default": accent } as CSSProperties}
+            style={{ "--accent-default": draft.accent } as CSSProperties}
           >
             {question("Above")}
             <PollResults options={polstOptions(sample)} dense />
