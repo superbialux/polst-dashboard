@@ -95,12 +95,14 @@ export type Suggestion = {
 export function SuggestionCard({
   suggestion,
   onDismiss,
+  className,
 }: {
   suggestion: Suggestion;
   onDismiss: (id: string) => void;
+  className?: string;
 }) {
   return (
-    <div className="group relative">
+    <div className={cn("group relative", className)}>
       <Link
         to={suggestion.to}
         className="flex h-full flex-col overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm transition-colors hover:border-border-strong"
@@ -162,6 +164,41 @@ export function SuggestionGrid({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {suggestions.map((s) => (
           <SuggestionCard key={s.id} suggestion={s} onDismiss={onDismiss} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* Bento spans on the 4-column track, repeating per five cards:
+   2+1+1 fills the first row, 2+2 the second — no gaps at any count. */
+const BENTO_SPANS = ["lg:col-span-2", "", "", "lg:col-span-2", "lg:col-span-2"];
+
+/** The suggestion cards on a bento rhythm — wide lead card, two
+ *  supports, then wide pairs. Same anatomy, varied cell widths. */
+export function SuggestionBento({
+  title,
+  suggestions,
+  onDismiss,
+}: {
+  title: string;
+  suggestions: Suggestion[];
+  onDismiss: (id: string) => void;
+}) {
+  if (!suggestions.length) return null;
+  return (
+    <section>
+      <h2 className="mb-3 font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+        {title}
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {suggestions.map((s, i) => (
+          <SuggestionCard
+            key={s.id}
+            suggestion={s}
+            onDismiss={onDismiss}
+            className={BENTO_SPANS[i % BENTO_SPANS.length]}
+          />
         ))}
       </div>
     </section>

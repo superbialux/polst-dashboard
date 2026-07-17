@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   StatsListCard,
@@ -9,14 +9,18 @@ import {
   DateRangeMenu,
   EmptyState,
   HeroBanner,
+  PageTabs,
   SegmentedControl,
   StatsStrip,
+  SuggestionBento,
   SuggestionGrid,
+  WorkspaceCalendar,
   type Suggestion,
 } from "@/components/dashboard";
-import { fmtInt, isReadyToDecide } from "@/lib/canon";
+import { TODAY, fmtDateRange, fmtInt, isReadyToDecide } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import {
+  KEY_DATES,
   STAT_XTICKS,
   attentionItems,
 
@@ -104,7 +108,22 @@ const DISCOVERY: Suggestion[] = [
 const campaignSources = (sources: Source[], id: string) =>
   sources.filter((s) => s.linked?.type === "campaign" && s.linked.id === id);
 
+const HOME_TABS = ["Overview", "Calendar"] as const;
+type HomeTab = (typeof HOME_TABS)[number];
+
+/** Tab state lives in `?tab=` (the detail pages' pattern) so the
+ *  calendar can be deep-linked. Overview is the default. */
+function useHomeTab(): [HomeTab, (t: HomeTab) => void] {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get("tab");
+  const active = HOME_TABS.find((t) => t.toLowerCase() === raw) ?? "Overview";
+  const set = (t: HomeTab) =>
+    setParams(t === "Overview" ? {} : { tab: t.toLowerCase() }, { replace: true });
+  return [active, set];
+}
+
 export function HomePage() {
+  const [tab, setTab] = useHomeTab();
   const [range, setRange] = useState<StatRange>("30D");
   const [campaignView, setCampaignView] = useState<"Active" | "Queued">("Active");
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -168,6 +187,48 @@ export function HomePage() {
   const dismissSuggestion = (id: string) =>
     setDismissed((prev) => new Set(prev).add(id));
 
+  /* Calendar tab's bento: every upcoming key date as a suggestion — a
+     covered date links to its campaign, an uncovered one to planning. */
+  const eventSuggestions = useMemo<Suggestion[]>(() => {
+    const coveredBy = new Map(
+      campaigns.filter((c) => c.event && c.status !== "Archived").map((c) => [c.event!, c]),
+    );
+    const polstEvents = new Set(
+      polsts.filter((p) => p.event && p.status !== "Archived").map((p) => p.event!),
+    );
+    return KEY_DATES.filter((k) => k.end >= TODAY)
+      .sort((a, b) => a.start.localeCompare(b.start))
+      .slice(0, 5)
+      .map((k) => {
+        const campaign = coveredBy.get(k.id);
+        const range = fmtDateRange(k.start, k.end);
+        if (campaign)
+          return {
+            id: `event-${k.id}`,
+            icon: "event_available",
+            tone: "green" as const,
+            title: k.title,
+            description: `${range} — covered by ${campaign.name}.`,
+            action: "Open campaign",
+            to: `/campaigns/${campaign.id}`,
+            image: "/review-active-campaign.png",
+          };
+        return {
+          id: `event-${k.id}`,
+          icon: "event",
+          tone: polstEvents.has(k.id) ? ("accent" as const) : ("amber" as const),
+          title: `Plan for ${k.title}`,
+          description: `${range} — ${
+            polstEvents.has(k.id) ? "a polst is attached, no campaign yet" : "nothing is planned yet"
+          }.`,
+          action: "Plan campaign",
+          to: `/campaigns/new?event=${k.id}`,
+          image: "/edit-campaign.png",
+        };
+      })
+      .filter((s) => !dismissed.has(s.id));
+  }, [campaigns, polsts, dismissed]);
+
   /* The rail: two parallel overview panels — the same row shape over
      campaigns and over standalone polsts, so every number carries its
      universe. Votes are all-time (the objects' full runs). */
@@ -210,6 +271,22 @@ export function HomePage() {
         </Button>
       }
     >
+      {/* The page's two faces: today's work, and the weeks around it. */}
+      <PageTabs tabs={HOME_TABS} active={tab} onChange={setTab} />
+
+      {tab === "Calendar" ? (
+        <>
+          {/* Upcoming key dates as a bento — covered dates open their
+              campaign, uncovered ones open planning. */}
+          <SuggestionBento
+            title="Coming up"
+            suggestions={eventSuggestions}
+            onDismiss={dismissSuggestion}
+          />
+          <WorkspaceCalendar />
+        </>
+      ) : (
+        <>
       {/* 1 · Workspace health leads; every delta states its comparison window. */}
       <section className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -302,6 +379,8 @@ export function HomePage() {
           </div>
         </div>
       </section>
+        </>
+      )}
     </DashboardPage>
   );
 }
