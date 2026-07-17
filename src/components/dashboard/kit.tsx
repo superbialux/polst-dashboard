@@ -269,13 +269,14 @@ export function DecisionBrief({
  *  name — the view-mode toggles ride the same control as status filters. */
 export type SegmentItem<T extends string> = T | { value: T; label?: string; icon?: string };
 
-/** The three segmented weights, matching the control-height contract:
- *  37px list toolbars (default), 29px compact in-card switches, 40px
- *  enumerated form choices under a Field label (full width). Segments
- *  stretch to the track minus its padding — no per-size inner heights. */
+/** The three segmented weights, matching the control-height contract —
+ *  every height rides the 4px grid: 36px list toolbars (default), 28px
+ *  compact in-card switches, 40px enumerated form choices under a Field
+ *  label (full width). Segments stretch to the track minus its padding —
+ *  no per-size inner heights. */
 const SEGMENT_SIZES = {
-  toolbar: "h-[37px] p-1",
-  compact: "h-[29px] p-0.5",
+  toolbar: "h-9 p-1",
+  compact: "h-7 p-0.5",
   form: "h-10 w-full p-1",
 } as const;
 
@@ -472,7 +473,7 @@ export function SearchAndFilters({
             icon="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            className="h-[37px] text-ui"
+            className="h-9 text-ui"
             placeholder={placeholder}
           />
         </div>
@@ -494,7 +495,7 @@ export function filterByStatus<T extends { status: string }>(
 }
 
 /** Created-date range inputs (staging parity): from/to on the toolbar's
- *  37px control height. An empty side is an open bound. */
+ *  36px control height. An empty side is an open bound. */
 export function CreatedRange({
   from,
   to,
@@ -514,7 +515,7 @@ export function CreatedRange({
         value={from}
         max={to || undefined}
         onChange={(e) => onFromChange(e.target.value)}
-        className="h-[37px] w-36 text-ui"
+        className="h-9 w-36 text-ui"
       />
       <span aria-hidden className="text-text-tertiary">
         –
@@ -525,7 +526,7 @@ export function CreatedRange({
         value={to}
         min={from || undefined}
         onChange={(e) => onToChange(e.target.value)}
-        className="h-[37px] w-36 text-ui"
+        className="h-9 w-36 text-ui"
       />
     </div>
   );
@@ -551,7 +552,10 @@ export type DataColumn<T> = {
   align?: "right";
 };
 
-/** The one list primitive. Typed columns, hover rows, honest empty label. */
+/** The one list primitive (Navattic anatomy): quiet 12px gray header
+ *  labels — never uppercase — over ~52px rows (py-4 around a 20px text
+ *  line), full-row hover tint, px-5 outer gutters flush with the card's
+ *  padding. Typed columns, hover rows, honest empty label. */
 export function DataTable<T extends { id: string }>({
   rows,
   columns,
@@ -566,13 +570,13 @@ export function DataTable<T extends { id: string }>({
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left text-sm">
-        <thead className="border-b border-border-default text-xs font-medium text-text-secondary">
+        <thead className="border-b border-border-default text-xs text-text-secondary">
           <tr>
             {columns.map((column) => (
               <th
                 key={column.header}
                 className={cn(
-                  "whitespace-nowrap px-3 py-3 font-semibold first:pl-5 last:pr-5",
+                  "whitespace-nowrap px-3 py-3 font-medium first:pl-5 last:pr-5",
                   column.align === "right" && "text-right",
                   column.className,
                 )}
@@ -597,7 +601,7 @@ export function DataTable<T extends { id: string }>({
                   <td
                     key={column.header}
                     className={cn(
-                      "px-3 py-3 align-middle text-text-primary first:pl-5 last:pr-5",
+                      "px-3 py-4 align-middle text-text-primary first:pl-5 last:pr-5",
                       column.align === "right" && "text-right",
                       column.className,
                     )}
