@@ -44,19 +44,26 @@ type TrendDatum = {
   mark: number | null;
 };
 
-/* Annotation markers: the dot is always the house accent — the event
-   KIND changes the glyph inside it (rocket for a launch, flag for an
-   end, an exclamation for an unexplained movement), so meaning never
-   rides on colour. */
+/* Annotation markers: the KIND sets both the glyph (rocket for a
+   launch, flag for an end, an exclamation for an unexplained movement)
+   and the dot's fill — launches wear the brand accent, ends the quiet
+   secondary ink, insights the warning amber — so the two encodings
+   agree and neither carries the reading alone. */
 const MARKER_ICONS: Record<StatAnnotation["kind"], string> = {
   launch: "rocket_launch",
   end: "flag",
   insight: "priority_high",
 };
 
+const MARKER_FILL: Record<StatAnnotation["kind"], string> = {
+  launch: "var(--accent-default)",
+  end: "var(--text-secondary)",
+  insight: "var(--status-warning)",
+};
+
 const MARKER_CHIP: Record<StatAnnotation["kind"], string> = {
   launch: "bg-accent-soft text-accent-default",
-  end: "bg-accent-soft text-accent-default",
+  end: "bg-surface-subtle text-text-secondary",
   insight: "bg-status-warning-soft text-status-warning",
 };
 
@@ -99,14 +106,20 @@ function AnnotationDot({
         cx={cx}
         cy={cy}
         r={10}
-        fill="var(--accent-default)"
+        fill={MARKER_FILL[annotation.kind]}
         stroke="var(--surface-raised)"
         strokeWidth={2}
         className="transition-all"
       />
       <foreignObject x={cx - 7} y={cy - 7} width={14} height={14} className="pointer-events-none">
         <span className="grid h-full w-full place-items-center">
-          <Icon name={MARKER_ICONS[annotation.kind]} size={12} filled className="text-white" />
+          <Icon
+            name={MARKER_ICONS[annotation.kind]}
+            size={12}
+            weight={300}
+            filled
+            className="text-white"
+          />
         </span>
       </foreignObject>
     </g>
@@ -126,7 +139,7 @@ function AnnotationCard({ annotation }: { annotation: StatAnnotation }) {
             MARKER_CHIP[annotation.kind],
           )}
         >
-          <Icon name={MARKER_ICONS[annotation.kind]} size={14} filled />
+          <Icon name={MARKER_ICONS[annotation.kind]} size={12} weight={300} filled />
         </span>
         <span className="text-xs text-text-tertiary">{annotation.dateLabel}</span>
       </p>
