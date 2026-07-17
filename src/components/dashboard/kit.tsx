@@ -4,6 +4,7 @@ import { cn, copyText } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
+import { IconButton, IconTile } from "@/components/ui/icon-button";
 import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
@@ -966,13 +967,13 @@ export function StatsStrip({
             );
           })}
         </div>
-        <button
+        <IconButton
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? "Collapse chart" : "Expand chart"}
-          className="grid w-9 shrink-0 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle"
+          className="h-auto w-9 self-stretch"
         >
           <Icon name={open ? "expand_less" : "expand_more"} size={20} />
-        </button>
+        </IconButton>
       </div>
 
       <div
@@ -1331,15 +1332,13 @@ export function NextStepsCard({
             <p className="mt-1 text-sm leading-5 text-text-secondary">{intro}</p>
           ) : null}
         </div>
-        <button
-          type="button"
+        <IconButton
           onClick={() => setCollapsed((c) => !c)}
           aria-label={collapsed ? "Expand" : "Collapse"}
           aria-expanded={!collapsed}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle"
         >
           <Icon name={collapsed ? "expand_more" : "expand_less"} size={20} />
-        </button>
+        </IconButton>
       </div>
 
       {!collapsed ? (
@@ -1677,9 +1676,9 @@ export function LockedCard({
         className,
       )}
     >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-surface-strong text-icon-secondary">
+      <IconTile size={9} className="bg-surface-strong">
         <Icon name="lock" size={20} />
-      </span>
+      </IconTile>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-display text-sm font-semibold text-text-primary">{title}</p>
@@ -1860,9 +1859,9 @@ export function ConnectCard({ integration }: { integration: Integration }) {
     // it the nowrap name/action row forces the card wider than the column
     // and the parent card's overflow-hidden clips the Connect button.
     <div className="flex min-w-0 items-center gap-3 rounded-md border border-border-default bg-surface-raised p-4">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-primary">
+      <IconTile size={10} className="text-icon-primary">
         <Icon name={integration.icon} size={22} />
-      </span>
+      </IconTile>
       <div className="min-w-0 flex-1">
         <p className="font-display text-sm font-semibold text-text-primary">{integration.name}</p>
         <p className="mt-0.5 truncate text-xs text-text-secondary">{integration.feeds}</p>

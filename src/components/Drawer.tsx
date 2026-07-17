@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "./Icon";
+import { IconButton } from "@/components/ui/icon-button";
 
 /** Keep Tab cycling inside the panel while it's open. */
 function trapFocus(panel: HTMLElement, e: KeyboardEvent) {
@@ -99,14 +100,15 @@ export function Drawer({
           <h2 className="font-display text-2xl font-bold text-text-primary">
             {title}
           </h2>
-          <button
+          <IconButton
             ref={closeRef}
             onClick={onClose}
             aria-label="Close"
-            className="grid h-10 w-10 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle"
+            size="lg"
+            shape="pill"
           >
             <Icon name="close" size={24} />
-          </button>
+          </IconButton>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pb-4">{children}</div>
       </div>

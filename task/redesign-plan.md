@@ -17,7 +17,13 @@ build, browser) and commit+push after every pass — main only.
       (popover/destructive/success/warning/chart-1..5+grid/sidebar),
       tailwindcss-animate enabled, 23 shadcn primitives added (button/badge
       kept custom), recharts+lucide-react+sonner installed.
-- [ ] Pass 6b — DRY consolidation (raw components, replace call sites).
+- [x] Pass 6b — DRY consolidation: patterns.tsx (19 shared components) +
+      ui/icon-button.tsx leaf module + useCopyToClipboard + windowTileDelta;
+      all 7 pages + Shell/Calendar/ReportPreview/kit/Modal/Drawer swapped
+      (~-830 lines of duplication); PollCard option-img parity restored.
+      MiniPoll's PollThumb kept — genuinely different variant (64px/24px).
+      Note: kit's private SectionTitle-ish headers largely gone; Audience.tsx
+      "Browsers" header still inline (audit ref had moved) — fold into 6d.
 - [ ] Pass 6c — Recharts chart kit (dataviz skill first) replacing inline SVG.
 - [ ] Pass 6d — Mobbin restyle: shell/sidebar (Vercel), analytics (Amplitude),
       charts polish (Dub/Origin), overlays → shadcn Dialog/DropdownMenu/Sheet,
@@ -117,3 +123,36 @@ means), action (CTA into the app), tone }. Views lead with the story
 (Trends strip, insight feed), raw tables demoted below. Apple-Fitness-style
 trend rows: metric, arrow, "keep it up / needs attention" coaching line.
 Hotjar-style: every chart gets a "What this means" caption derived from data.
+
+## patterns.tsx API contract
+
+New file `src/components/dashboard/patterns.tsx` (re-exported from
+`src/components/dashboard/index.ts`). All presentational/data-driven —
+callers pass derived facts and own store writes + toasts.
+
+- `ModalFooter` — { children, start?: ReactNode (left helper), className? } → the `flex justify-end gap-2 p-4` action row.
+- `ConfirmModal` — { open, onClose, title, label? (a11y name if ≠ title), children (body copy), confirmLabel, cancelLabel?="Cancel", tone?: "danger"|"default", onConfirm, confirmDisabled? }; caller closes in onConfirm.
+- `LockNotice` — { children, className? } → lock-icon paragraph on the subtle wash.
+- `ReviewModal` — { open, onClose, title, label?, children (preview), facts: Array<[string, ReactNode]>, factsFirst? (campaign review = true), lockText, confirmLabel, confirmDisabled?, onConfirm, backLabel?="Back to editing", className? (width, e.g. "lg:max-w-xl") }.
+- `CopyableField` — { value, label?="Copy", successMessage?, size?: "sm"|"xs" (mono size), onCopied?, className? }; copies via useCopyToClipboard.
+- `RevealSecretModal` — { open, onClose, title, intro, secret, secretSize?, copyMessage?, hint?, doneLabel?="Done" }.
+- `SOURCE_KINDS: Array<Source["kind"]>`, `CHANNELS: Channel[]` — the one source vocabulary.
+- `SourceForm` — controlled { name/onNameChange, kind/onKindChange, channel/onChannelChange, namePlaceholder?, gridClassName? } fieldset (kind/channel may be "").
+- `AssignSourceModal` — { open, onClose, title?="Assign source", confirmLabel?="Create & assign", unlinked?: UnlinkedSource[], onAssign?: (source)=>void (enables list+headings — Polsts/Campaigns shape), targets?: SourceTargetOption[] (enables "Link to" select — Distribution Add shape), targetLabel?/targetHelper?, onCreate: (SourceDraft)=>void, defaultKind?="QR code" / defaultChannel?="Website" (pass "" for Distribution), namePlaceholder?, gridClassName? }. Field state + double-click guard live inside; resets on open.
+- `AssignTargetModal` — { source: {name}|null (open while non-null), onClose, targets, onAssign: (linked, targetName)=>void, title?, targetLabel?="Assign to", targetHelper? } — Distribution's assign-existing flow.
+- `toneDot` — Record<"danger"|"warning"|"neutral", dot class>; `AttentionRow` — { item: AttentionItem { id?, tone, title, reason, action:{label, to?|onClick?} }, variant?: "compact" (Home) | "spacious" (Insights) }; `AttentionList` — { items, variant?, className? } (divide-y ul).
+- `ReadyDecisionRow` — { layout?: "card"|"row", eyebrow (readyTitle), title (name), to, confidence? (omit when "—"), confidenceInfo?, note? (card), sublabel? (row), stats?: MiniStat[] (card), cta:{label,to}, more?:{label,to} (card), className? }.
+- `PolstListRow` — { options: [PollOption, PollOption], question, sublabel? (defaults "{A} vs {B}"), to? (links + hover accent), meta? (trailing slot), className? }.
+- `MiniStatGrid` — { items: {label, value}[], cols?: 2|3, tone?: "bordered" (hairlines, Home) | "subtle" (inset wash, QrTile), className? }.
+- `IconButton` — button props + required aria-label, size?: "sm"(28)|"md"(32), shape?: "rounded"|"pill"; children = the Icon.
+- `IconTile` — { size?: 8|9|10|11|12, className? (override wash/ink), children } icon disc.
+- `ChecklistItem` — { tone: "done"|"todo"|"warning", align?: "center" (publish checks) | "start" (findings/caveats), children }; `CheckboxList` — { items: {id,label,description?,checked}[], onToggle(id,next), mono?, className? }.
+- `UnassignButton` — { voters, onClick, className? }; disables with the attribution-record title when voters > 0.
+- `RateCell(rate: number|null): ReactNode` — tabular `fmtPct(rate,0)` or "—".
+- `SectionNav` — { items: {id,label,icon}[], active, onSelect, label?="Sections", className? }; sticky/col-span stays at call site.
+- `Pager` — { page, pageSize, total, onPage, noun, className? }; null when total ≤ pageSize, clamps to the last page.
+- `SectionTitle` — { children, className? } in-card sub-header (ReportPreview keeps its private copy untouched).
+
+Also:
+- `useCopyToClipboard()` (src/components/Toast.tsx) — returns `(text, successMsg?="Copied to clipboard") => Promise<void>`; toasts honestly via copyText.
+- `windowTileDelta(current, previous, compareLabel?, opts?: { basis?: "window"|"ratio", fallbackDetail?, zeroDetail? }): TileDelta` and `ratioDelta(current, previous)` (src/lib/engine.ts) — the shared StatTile delta computation (Analytics tileDelta, Audience vsPrevious/ratioDelta, Distribution voters tile).

@@ -2,18 +2,18 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
+  AttentionList,
   DashboardCard,
   DashboardPage,
   DateRangeMenu,
   EmptyState,
-  InfoHint,
+  ReadyDecisionRow,
   SectionGrid,
   SegmentedControl,
   StatsStrip,
   ThumbStrip,
   WorkspaceCalendar,
 } from "@/components/dashboard";
-import { cn } from "@/lib/utils";
 import {
   METRIC_INFO,
   fmtDate,
@@ -32,7 +32,6 @@ import {
   winnerLabel,
   workspaceWindow,
   type Campaign,
-  type ListItem,
   type Source,
   type StatRange,
 } from "@/lib/workspace";
@@ -54,33 +53,6 @@ const StatDot = () => (
   </span>
 );
 
-/* ── Attention queue ─────────────────────────────────────────────────
-   Ranked by severity in the model (blocked launches → eroding sources →
-   waiting drafts); the same rows drive the sidebar count. */
-
-const TONE_DOT: Record<ListItem["tone"], string> = {
-  danger: "bg-status-danger",
-  warning: "bg-status-warning",
-  neutral: "bg-icon-secondary",
-};
-
-function AttentionRow({ item }: { item: ListItem }) {
-  return (
-    <li className="flex items-center gap-3 py-2.5">
-      <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-pill", TONE_DOT[item.tone])} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
-          {item.title}
-        </p>
-        <p className="truncate text-xs leading-4 text-text-secondary">{item.reason}</p>
-      </div>
-      <Button variant="secondary" size="sm" className="shrink-0" asChild>
-        <Link to={item.to}>{item.action}</Link>
-      </Button>
-    </li>
-  );
-}
-
 /* ── Ready to decide ─────────────────────────────────────────────── */
 
 function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more?: string }) {
@@ -89,51 +61,34 @@ function ReadyDecisionCard({ campaign, more }: { campaign: Campaign; more?: stri
   // "ready to decide" — that read belongs to a finished race.
   const decided = campaign.status === "Ended";
   return (
-    <DashboardCard title={readyTitle(campaign)} className="lg:col-span-4">
-      {/* The card title already carries the state — this line adds the
-          evidence strength with its method one hover away. */}
-      {campaign.confidence !== "—" ? (
-        <p className="flex items-center gap-1 text-sm font-semibold text-status-success">
-          {campaign.confidence} confidence
-          <InfoHint label="Confidence" text={METRIC_INFO.confidence} />
-        </p>
-      ) : null}
-      {!decided && campaign.endAt ? (
-        <p className="mt-0.5 text-xs text-text-secondary">
-          Collecting until {fmtDate(campaign.endAt)}
-        </p>
-      ) : null}
-      <Link
-        to={`/campaigns/${campaign.id}`}
-        className="mt-2 block font-display text-base font-semibold leading-6 text-text-primary hover:text-text-accent"
-      >
-        {campaign.name}
-      </Link>
-      <dl className="mt-3 grid grid-cols-2 gap-3 border-y border-border-default py-3">
-        <div>
-          <dt className="text-xs text-text-secondary">Lead</dt>
-          <dd className="mt-0.5 text-sm font-semibold text-text-primary">{winnerLabel(campaign)}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-text-secondary">Voters</dt>
-          <dd className="mt-0.5 text-sm font-semibold tabular-nums text-text-primary">
-            {fmtInt(campaign.voters)}
-            {campaign.target ? ` / ${fmtInt(campaign.target)}` : ""}
-          </dd>
-        </div>
-      </dl>
-      <Button className="mt-3 w-full" asChild>
-        <Link to={`/campaigns/${campaign.id}`}>{decided ? "Open report" : "Review decision"}</Link>
-      </Button>
-      {more ? (
-        <Link
-          to="/campaigns"
-          className="mt-2.5 block text-center text-xs font-semibold text-text-accent hover:underline"
-        >
-          {more}
-        </Link>
-      ) : null}
-    </DashboardCard>
+    <ReadyDecisionRow
+      layout="card"
+      className="lg:col-span-4"
+      // The card title already carries the state — confidence adds the
+      // evidence strength with its method one hover away.
+      eyebrow={readyTitle(campaign)}
+      title={campaign.name}
+      to={`/campaigns/${campaign.id}`}
+      confidence={campaign.confidence !== "—" ? campaign.confidence : undefined}
+      confidenceInfo={METRIC_INFO.confidence}
+      note={
+        !decided && campaign.endAt ? `Collecting until ${fmtDate(campaign.endAt)}` : undefined
+      }
+      stats={[
+        { label: "Lead", value: winnerLabel(campaign) },
+        {
+          label: "Voters",
+          value: `${fmtInt(campaign.voters)}${
+            campaign.target ? ` / ${fmtInt(campaign.target)}` : ""
+          }`,
+        },
+      ]}
+      cta={{
+        label: decided ? "Open report" : "Review decision",
+        to: `/campaigns/${campaign.id}`,
+      }}
+      more={more ? { label: more, to: "/campaigns" } : undefined}
+    />
   );
 }
 
@@ -216,8 +171,18 @@ export function HomePage() {
     () => dashboardStats(range, campaigns, polsts, sources),
     [range, campaigns, polsts, sources],
   );
+  /* Ranked by severity in the model (blocked launches → eroding sources →
+     waiting drafts); the same rows drive the sidebar count. The store's
+     ListItems reshape into the shared AttentionRow's action object. */
   const attention = useMemo(
-    () => attentionItems(campaigns, polsts, sources),
+    () =>
+      attentionItems(campaigns, polsts, sources).map((item) => ({
+        id: item.id,
+        tone: item.tone,
+        title: item.title,
+        reason: item.reason,
+        action: { label: item.action, to: item.to },
+      })),
     [campaigns, polsts, sources],
   );
 
@@ -288,11 +253,7 @@ export function HomePage() {
           bodyClassName="pt-2"
         >
           {attention.length ? (
-            <ul className="divide-y divide-border-default">
-              {attention.map((item) => (
-                <AttentionRow key={item.id} item={item} />
-              ))}
-            </ul>
+            <AttentionList items={attention} />
           ) : (
             <EmptyState icon="verified" title="Nothing needs attention right now" />
           )}

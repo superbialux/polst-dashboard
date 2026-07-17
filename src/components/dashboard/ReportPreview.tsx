@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/Toast";
+import { useCopyToClipboard } from "@/components/Toast";
 import { METRIC_INFO, fmtDateRange, fmtInt, fmtPct, pct } from "@/lib/canon";
 import {
   decisionEyebrow,
@@ -22,6 +22,7 @@ import {
   type Source,
 } from "@/lib/workspace";
 import { DetailList, Funnel, InfoHint, PollResults, type FunnelStep } from "./kit";
+import { ChecklistItem, RateCell, SectionTitle } from "./patterns";
 
 const campaignSummary = (c: Campaign, sources: Source[]): string => {
   const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
@@ -44,10 +45,6 @@ const polstSummary = (p: SinglePolst): string =>
     `Views: ${fmtInt(p.views)} · Votes: ${fmtInt(p.votes)} · Interactions: ${fmtInt(p.interactions)}`,
     `Ran: ${fmtDateRange(p.startAt, p.endAt)}`,
   ].join("\n");
-
-function SectionTitle({ children }: { children: string }) {
-  return <h4 className="font-display text-sm font-semibold text-text-secondary">{children}</h4>;
-}
 
 function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: Source[] }) {
   const topSource = [...sources].sort((a, b) => b.voters - a.voters)[0];
@@ -126,9 +123,7 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
                   {source.name}
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-text-secondary">
-                  {fmtInt(source.voters)} voters ·{" "}
-                  {source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—"}{" "}
-                  completion
+                  {fmtInt(source.voters)} voters · {RateCell(source.completionRate)} completion
                 </span>
               </li>
             ))}
@@ -140,15 +135,9 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
           <SectionTitle>Key findings</SectionTitle>
           <ul className="mt-2 space-y-2">
             {campaign.findings.map((finding) => (
-              <li key={finding} className="flex items-start gap-2.5 text-sm leading-6">
-                <Icon
-                  name="check_circle"
-                  size={20}
-                  filled
-                  className="mt-0.5 shrink-0 text-status-success"
-                />
-                <span className="text-text-secondary">{finding}</span>
-              </li>
+              <ChecklistItem key={finding} tone="done" align="start">
+                {finding}
+              </ChecklistItem>
             ))}
           </ul>
         </section>
@@ -158,15 +147,9 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
           <SectionTitle>Caveats</SectionTitle>
           <ul className="mt-2 space-y-2">
             {campaign.caveats.map((caveat) => (
-              <li key={caveat} className="flex items-start gap-2.5 text-sm leading-6">
-                <Icon
-                  name="error"
-                  size={20}
-                  filled
-                  className="mt-0.5 shrink-0 text-status-warning"
-                />
-                <span className="text-text-secondary">{caveat}</span>
-              </li>
+              <ChecklistItem key={caveat} tone="warning" align="start">
+                {caveat}
+              </ChecklistItem>
             ))}
           </ul>
         </section>
@@ -217,16 +200,11 @@ export function ReportPreview({
   sources?: Source[];
   polst?: SinglePolst;
 }) {
-  const toast = useToast();
+  const copy = useCopyToClipboard();
 
-  const copySummary = async () => {
+  const copySummary = () => {
     const text = campaign ? campaignSummary(campaign, sources) : polst ? polstSummary(polst) : "";
-    try {
-      await navigator.clipboard.writeText(text);
-      toast("Summary copied to clipboard");
-    } catch {
-      toast("Copy failed — the browser blocked clipboard access");
-    }
+    return copy(text, "Summary copied to clipboard");
   };
 
   return (

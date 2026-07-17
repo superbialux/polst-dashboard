@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Menu, MenuItem } from "@/components/Menu";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/Toast";
+import { useCopyToClipboard, useToast } from "@/components/Toast";
 import {
   CONTROL,
   Checkbox,
@@ -16,7 +16,10 @@ import {
 } from "@/components/Field";
 import { QrCodeModal } from "@/components/DistributionActions";
 import {
+  AssignSourceModal,
   Chip,
+  ConfirmModal,
+  CopyableField,
   DashboardCard,
   DashboardPage,
   DataTable,
@@ -28,20 +31,24 @@ import {
   InfoHint,
   durationEnd,
   durationPresetFor,
+  ModalFooter,
   NextStepsCard,
   NotFoundCard,
   PageTabs,
   PollResults,
-  PollThumb,
+  PolstListRow,
   CreatedRange,
+  RateCell,
   ReportPreview,
+  ReviewModal,
   SearchAndFilters,
   SectionGrid,
+  SectionTitle,
   filterByCreated,
-  SegmentedControl,
   SnippetCard,
   StatusBadge,
   ThumbStrip,
+  UnassignButton,
   filterByStatus,
   type DataColumn,
   type DurationPreset,
@@ -55,7 +62,6 @@ import {
   fmtDate,
   fmtDateRange,
   fmtInt,
-  fmtPct,
   isReadyToDecide,
   pct,
   relativeToToday,
@@ -73,7 +79,6 @@ import {
   verdictLabel,
   type Campaign,
   type ChainQuestion,
-  type Channel,
   type Source,
 } from "@/lib/workspace";
 import { useWorkspace } from "@/lib/store";
@@ -89,12 +94,6 @@ const EVENT_OPTIONS = [
 ];
 
 const eventTitle = (id?: string) => KEY_DATES.find((k) => k.id === id)?.title ?? "—";
-
-/** Best-effort clipboard write — the mockup's copy affordances stay honest
- *  in normal browsers and never crash where the permission is denied. */
-const copyText = (text: string) => {
-  navigator.clipboard?.writeText(text).catch(() => {});
-};
 
 /** This campaign's sources, read live from the store (never the stale
  *  back-refs baked onto the entity at module load). */
@@ -450,6 +449,7 @@ export function CampaignDetailPage() {
   const { id } = useParams();
   const store = useWorkspace();
   const toast = useToast();
+  const copy = useCopyToClipboard();
   const campaign = store.campaignById(id);
   const [tab, setTab] = useDetailTab();
   const [qrOpen, setQrOpen] = useState(false);
@@ -484,8 +484,7 @@ export function CampaignDetailPage() {
   };
 
   const copyLink = () => {
-    copyText(shareUrl("campaign", campaign.id));
-    toast("Share link copied");
+    void copy(shareUrl("campaign", campaign.id), "Share link copied");
   };
 
   return (
@@ -576,102 +575,65 @@ export function CampaignDetailPage() {
       />
       {/* The pre-publish review: the final ordered journey, the schedule,
           and the exact lock rule — confirmed, never skipped. */}
-      <Modal
+      <ReviewModal
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}
         label="Review and publish campaign"
         title="Review before publishing"
         className="lg:max-w-2xl"
-        footer={
-          <div className="flex justify-end gap-2 p-4">
-            <Button variant="secondary" onClick={() => setReviewOpen(false)}>
-              Back to editing
-            </Button>
-            <Button onClick={publish}>Confirm & publish</Button>
-          </div>
-        }
+        factsFirst
+        facts={[
+          ["Campaign", campaign.name],
+          ["Public URL", shareUrl("campaign", campaign.id)],
+          ["Runs", fmtDateRange(campaign.startAt, campaign.endAt)],
+          ...(campaign.decision ? [["Decision", campaign.decision] as [string, ReactNode]] : []),
+          ...(campaign.target
+            ? [["Voter target", fmtInt(campaign.target)] as [string, ReactNode]]
+            : []),
+        ]}
+        lockText="Once the first vote arrives, the Polst chain, its order, and the start date lock, and the campaign can no longer be unpublished — only ended. Until then you can still unpublish it back to a draft."
+        confirmLabel="Confirm & publish"
+        onConfirm={publish}
       >
-        <div className="space-y-4 p-4">
-          <DetailList
-            items={[
-              ["Campaign", campaign.name],
-              ["Public URL", shareUrl("campaign", campaign.id)],
-              ["Runs", fmtDateRange(campaign.startAt, campaign.endAt)],
-              ...(campaign.decision ? [["Decision", campaign.decision] as [string, ReactNode]] : []),
-              ...(campaign.target
-                ? [["Voter target", fmtInt(campaign.target)] as [string, ReactNode]]
-                : []),
-            ]}
-          />
-          <div>
-            <h4 className="font-display text-sm font-semibold text-text-secondary">
-              Voters answer in this order
-            </h4>
-            <ol className="mt-2 divide-y divide-border-default rounded-md border border-border-default">
-              {campaign.chain.map((q, index) => (
-                <li key={q.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <span className="w-5 shrink-0 text-center font-display text-sm font-semibold tabular-nums text-text-tertiary">
-                    {index + 1}
-                  </span>
-                  <PollThumb
-                    options={polstOptions({
-                      id: q.id,
-                      optionA: q.optionA,
-                      optionB: q.optionB,
-                      splitA: q.splitA,
-                      votes: 0,
-                    })}
-                  />
-                  <span className="min-w-0">
-                    <span className="block truncate font-display text-sm font-semibold text-text-primary">
-                      {q.question}
-                    </span>
-                    <span className="mt-0.5 block truncate text-xs text-text-secondary">
-                      {q.optionA} vs {q.optionB}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <p className="flex items-start gap-1.5 rounded-md bg-surface-subtle p-3 text-sm leading-5 text-text-secondary">
-            <Icon name="lock" size={18} className="mt-0.5 shrink-0 text-icon-secondary" />
-            <span>
-              Once the first vote arrives, the Polst chain, its order, and the start date
-              lock, and the campaign can no longer be unpublished — only ended. Until then
-              you can still unpublish it back to a draft.
-            </span>
-          </p>
+        <div>
+          <SectionTitle>Voters answer in this order</SectionTitle>
+          <ol className="mt-2 divide-y divide-border-default rounded-md border border-border-default">
+            {campaign.chain.map((q, index) => (
+              <li key={q.id} className="flex items-center gap-3 px-3 py-2.5">
+                <span className="w-5 shrink-0 text-center font-display text-sm font-semibold tabular-nums text-text-tertiary">
+                  {index + 1}
+                </span>
+                <PolstListRow
+                  options={polstOptions({
+                    id: q.id,
+                    optionA: q.optionA,
+                    optionB: q.optionB,
+                    splitA: q.splitA,
+                    votes: 0,
+                  })}
+                  question={q.question}
+                />
+              </li>
+            ))}
+          </ol>
         </div>
-      </Modal>
-      <Modal
+      </ReviewModal>
+      <ConfirmModal
         open={endOpen}
         onClose={() => setEndOpen(false)}
         label="End campaign"
         title="End campaign?"
-        footer={
-          <div className="flex justify-end gap-2 p-4">
-            <Button variant="secondary" onClick={() => setEndOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                store.endCampaign(campaign.id);
-                setEndOpen(false);
-                toast("Campaign ended — voting is closed");
-              }}
-            >
-              End campaign
-            </Button>
-          </div>
-        }
+        tone="danger"
+        confirmLabel="End campaign"
+        onConfirm={() => {
+          store.endCampaign(campaign.id);
+          setEndOpen(false);
+          toast("Campaign ended — voting is closed");
+        }}
       >
-        <p className="p-4 text-sm leading-6 text-text-secondary">
-          Voting stops immediately and {campaign.name} becomes read-only. The{" "}
-          {fmtInt(campaign.voters)} voters collected so far are kept.
-        </p>
-      </Modal>
+        Voting stops immediately and {campaign.name} becomes read-only. The{" "}
+        {fmtInt(campaign.voters)} voters collected so far are kept.
+      </ConfirmModal>
       <ReportPreview
         open={reportOpen}
         onClose={() => setReportOpen(false)}
@@ -758,11 +720,7 @@ function CampaignOverview({
     },
     { header: "Channel", cell: (s) => s.channel },
     { header: "Voters", align: "right", cell: (s) => fmtInt(s.voters) },
-    {
-      header: "Completion",
-      align: "right",
-      cell: (s) => (s.completionRate !== null ? fmtPct(s.completionRate, 0) : "—"),
-    },
+    { header: "Completion", align: "right", cell: (s) => RateCell(s.completionRate) },
   ];
 
   return (
@@ -1139,39 +1097,29 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
         onClose={() => setLibraryOpen(false)}
         campaign={campaign}
       />
-      <Modal
+      <ConfirmModal
         open={removeTarget !== null}
         onClose={() => setRemoveTarget(null)}
         label="Remove Polst from campaign"
         title="Remove this Polst?"
-        footer={
-          <div className="flex justify-end gap-2 p-4">
-            <Button variant="secondary" onClick={() => setRemoveTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (removeTarget) {
-                  removeChainQuestion(campaign.id, removeTarget.id);
-                  toast("Polst removed from the chain");
-                }
-                setRemoveTarget(null);
-              }}
-            >
-              Remove Polst
-            </Button>
-          </div>
-        }
+        tone="danger"
+        confirmLabel="Remove Polst"
+        onConfirm={() => {
+          if (removeTarget) {
+            removeChainQuestion(campaign.id, removeTarget.id);
+            toast("Polst removed from the chain");
+          }
+          setRemoveTarget(null);
+        }}
       >
         {removeTarget ? (
-          <p className="p-4 text-sm leading-6 text-text-secondary">
+          <>
             “{removeTarget.question}” leaves the voting sequence, and the questions after it
             move up one position. No votes are lost — a chain can only be edited before
             voters arrive.
-          </p>
+          </>
         ) : null}
-      </Modal>
+      </ConfirmModal>
     </>
   );
 }
@@ -1219,14 +1167,14 @@ function AddPolstModal({
       label="New Polst"
       title="New Polst"
       footer={
-        <div className="flex justify-end gap-2 p-4">
+        <ModalFooter>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button disabled={!complete || submitting} onClick={add}>
             Add Polst
           </Button>
-        </div>
+        </ModalFooter>
       }
     >
       <div className="space-y-4 p-4">
@@ -1296,14 +1244,14 @@ function SelectFromLibraryModal({
       title="Select from library"
       className="lg:max-w-2xl"
       footer={
-        <div className="flex justify-end gap-2 p-4">
+        <ModalFooter>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button disabled={selected.size === 0} onClick={add}>
             {selected.size > 1 ? `Add ${selected.size} Polsts` : "Add Polst"}
           </Button>
-        </div>
+        </ModalFooter>
       }
     >
       {candidates.length > 0 ? (
@@ -1318,16 +1266,11 @@ function SelectFromLibraryModal({
                 checked={selected.has(polst.id)}
                 onCheckedChange={(next) => toggle(polst.id, next)}
               />
-              <PollThumb options={polstOptions(polst)} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-sm font-semibold text-text-primary">
-                  {polst.question}
-                </p>
-                <p className="mt-0.5 truncate text-xs text-text-secondary">
-                  {polst.optionA} vs {polst.optionB}
-                </p>
-              </div>
-              <StatusBadge status={polst.status} />
+              <PolstListRow
+                options={polstOptions(polst)}
+                question={polst.question}
+                meta={<StatusBadge status={polst.status} />}
+              />
             </label>
           ))}
         </div>
@@ -1353,7 +1296,7 @@ function CampaignSources({
   sources: Source[];
   onOpenQr: () => void;
 }) {
-  const { unassignSource } = useWorkspace();
+  const { unassignSource, assignSource, addSource, sources: allSources } = useWorkspace();
   const toast = useToast();
   const [assignOpen, setAssignOpen] = useState(false);
   const assignable = campaign.status !== "Ended" && campaign.status !== "Archived";
@@ -1374,11 +1317,7 @@ function CampaignSources({
     { header: "Kind", cell: (s) => <Chip>{s.kind}</Chip> },
     { header: "Channel", cell: (s) => s.channel },
     { header: "Voters", align: "right", cell: (s) => fmtInt(s.voters) },
-    {
-      header: "Completion",
-      align: "right",
-      cell: (s) => (s.completionRate !== null ? fmtPct(s.completionRate, 0) : "—"),
-    },
+    { header: "Completion", align: "right", cell: (s) => RateCell(s.completionRate) },
     // A mis-assigned source can be freed while its wiring is still clean;
     // once it delivered voters its attribution is part of the record, so
     // the action is disabled with the store's reason (and the store refuses
@@ -1389,22 +1328,13 @@ function CampaignSources({
             header: "",
             align: "right" as const,
             cell: (s: Source) => (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={s.voters > 0}
-                title={
-                  s.voters > 0
-                    ? "This source has collected voters — its attribution is part of the record."
-                    : undefined
-                }
+              <UnassignButton
+                voters={s.voters}
                 onClick={() => {
                   const result = unassignSource(s.id);
                   toast(result.ok ? `${s.name} unassigned` : result.reason);
                 }}
-              >
-                Unassign
-              </Button>
+              />
             ),
           },
         ]
@@ -1452,22 +1382,13 @@ function CampaignSources({
           }
         >
           <div className="space-y-4">
-            <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-subtle p-2 pl-3">
-              <p className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary">
-                {url}
-              </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  copyText(url);
-                  toast("Share link copied");
-                }}
-              >
-                <Icon name="content_copy" size={18} />
-                Copy link
-              </Button>
-            </div>
+            <CopyableField
+              value={url}
+              label="Copy link"
+              successMessage="Share link copied"
+              size="xs"
+              className="p-2 pl-3"
+            />
             <div className="grid gap-4 lg:grid-cols-2">
               <SnippetCard
                 title="iframe embed"
@@ -1487,141 +1408,19 @@ function CampaignSources({
       <AssignSourceModal
         open={assignOpen}
         onClose={() => setAssignOpen(false)}
-        campaign={campaign}
+        unlinked={allSources.filter((s) => !s.linked)}
+        onAssign={(s) => {
+          assignSource(s.id, { type: "campaign", id: campaign.id });
+          toast(`${s.name} assigned to ${campaign.name}`);
+          setAssignOpen(false);
+        }}
+        onCreate={(draft) => {
+          addSource({ ...draft, linked: { type: "campaign", id: campaign.id } });
+          toast(`${draft.name} created and assigned`);
+          setAssignOpen(false);
+        }}
       />
     </>
-  );
-}
-
-const SOURCE_KINDS: Array<Source["kind"]> = ["QR code", "Share link", "Embed", "Tracked link"];
-const CHANNELS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
-
-function AssignSourceModal({
-  open,
-  onClose,
-  campaign,
-}: {
-  open: boolean;
-  onClose: () => void;
-  campaign: Campaign;
-}) {
-  const { sources, assignSource, addSource } = useWorkspace();
-  const toast = useToast();
-  const unlinked = sources.filter((s) => !s.linked);
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<string>("QR code");
-  const [channel, setChannel] = useState<string>("Website");
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (open) setSubmitting(false);
-  }, [open]);
-
-  const create = () => {
-    if (submitting) return; // a double-click must not mint a duplicate source
-    setSubmitting(true);
-    addSource({
-      name: name.trim(),
-      kind: kind as Source["kind"],
-      channel: channel as Channel,
-      linked: { type: "campaign", id: campaign.id },
-    });
-    toast(`${name.trim()} created and assigned`);
-    setName("");
-    onClose();
-  };
-
-  return (
-    // Titled like the button that opens it, with the standard modal footer
-    // (Cancel + primary) every sibling form modal carries.
-    <Modal
-      open={open}
-      onClose={onClose}
-      label="Assign source"
-      title="Assign source"
-      footer={
-        <div className="flex justify-end gap-2 p-4">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!name.trim() || submitting} onClick={create}>
-            Create &amp; assign
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-4 p-4">
-        {unlinked.length > 0 ? (
-          <div>
-            <p className="mb-2 font-display text-sm font-semibold text-text-primary">
-              Unassigned sources
-            </p>
-            <div className="divide-y divide-border-default overflow-hidden rounded-md border border-border-default">
-              {unlinked.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-text-primary">{s.name}</p>
-                    <p className="mt-0.5 text-xs text-text-secondary">
-                      {s.kind} · {s.channel}
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      assignSource(s.id, { type: "campaign", id: campaign.id });
-                      toast(`${s.name} assigned to ${campaign.name}`);
-                      onClose();
-                    }}
-                  >
-                    Assign
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        <div className="space-y-4">
-          <p className="font-display text-sm font-semibold text-text-primary">
-            Create a new source
-          </p>
-          <Field label="Name">
-            {(id) => (
-              <TextInput
-                id={id}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="QR — Shelf talker"
-              />
-            )}
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Kind">
-              {(id) => (
-                <SelectMenu
-                  id={id}
-                  label="Kind"
-                  value={kind}
-                  onValueChange={setKind}
-                  options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))}
-                />
-              )}
-            </Field>
-            <Field label="Channel">
-              {(id) => (
-                <SelectMenu
-                  id={id}
-                  label="Channel"
-                  value={channel}
-                  onValueChange={setChannel}
-                  options={CHANNELS.map((c) => ({ value: c, label: c }))}
-                />
-              )}
-            </Field>
-          </div>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -1860,40 +1659,28 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
         </DashboardCard>
       </div>
 
-      <Modal
+      <ConfirmModal
         open={confirm !== null}
         onClose={() => setConfirm(null)}
         label={confirm === "archive" ? "Archive campaign" : "Unpublish campaign"}
         title={confirm === "archive" ? "Archive campaign?" : "Unpublish campaign?"}
-        footer={
-          <div className="flex justify-end gap-2 p-4">
-            <Button variant="secondary" onClick={() => setConfirm(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant={confirm === "archive" ? "destructive" : "primary"}
-              onClick={() => {
-                if (confirm === "archive") {
-                  store.archiveCampaign(campaign.id);
-                  toast("Campaign archived");
-                } else {
-                  const result = store.unpublishCampaign(campaign.id);
-                  toast(result.ok ? "Campaign unpublished — back to draft" : result.reason);
-                }
-                setConfirm(null);
-              }}
-            >
-              {confirm === "archive" ? "Archive" : "Unpublish"}
-            </Button>
-          </div>
-        }
+        tone={confirm === "archive" ? "danger" : "default"}
+        confirmLabel={confirm === "archive" ? "Archive" : "Unpublish"}
+        onConfirm={() => {
+          if (confirm === "archive") {
+            store.archiveCampaign(campaign.id);
+            toast("Campaign archived");
+          } else {
+            const result = store.unpublishCampaign(campaign.id);
+            toast(result.ok ? "Campaign unpublished — back to draft" : result.reason);
+          }
+          setConfirm(null);
+        }}
       >
-        <p className="p-4 text-sm leading-6 text-text-secondary">
-          {confirm === "archive"
-            ? `${campaign.name} moves out of the active views. Its results are kept.`
-            : `Voters can no longer reach ${campaign.name} until you publish it again.`}
-        </p>
-      </Modal>
+        {confirm === "archive"
+          ? `${campaign.name} moves out of the active views. Its results are kept.`
+          : `Voters can no longer reach ${campaign.name} until you publish it again.`}
+      </ConfirmModal>
     </SectionGrid>
   );
 }

@@ -3,31 +3,35 @@ import { Link } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Modal } from "@/components/Modal";
 import { QrCodeModal } from "@/components/DistributionActions";
-import { Field, SelectMenu, TextInput, type SelectOption } from "@/components/Field";
 import {
+  AssignSourceModal,
+  AssignTargetModal,
   Chip,
   ConnectCard,
   DashboardCard,
   DashboardPage,
   DataTable,
   EmptyState,
+  IconTile,
   LockedCard,
+  MiniStatGrid,
+  RateCell,
   SectionGrid,
   SnippetCard,
   StatTile,
+  UnassignButton,
   type DataColumn,
+  type SourceTargetOption,
 } from "@/components/dashboard";
 import { useWorkspace } from "@/lib/store";
 import { METRIC_INFO, fmtInt, fmtPct, pct, relativeToToday } from "@/lib/canon";
-import { windowDelta } from "@/lib/engine";
+import { windowTileDelta } from "@/lib/engine";
 import {
   INTEGRATIONS,
   embedIframe,
   shareUrl,
   workspaceWindow,
-  type Channel,
   type Source,
   type Status,
 } from "@/lib/workspace";
@@ -46,8 +50,6 @@ type LinkedMeta = {
   to: string;
 };
 
-const KIND_OPTIONS: Array<Source["kind"]> = ["QR code", "Share link", "Embed", "Tracked link"];
-const CHANNEL_OPTIONS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
 const LIVE_STATUSES: Status[] = ["Active", "Scheduled"];
 
 /** Share links get the source id appended so every visit stays attributed. */
@@ -102,7 +104,9 @@ export function DistributionPage() {
   }, [sources]);
 
   const window30 = workspaceWindow("30D");
-  const votersDelta = window30.prev ? windowDelta(window30.voters, window30.prev.voters) : null;
+  const votersTile = windowTileDelta(window30.voters, window30.prev?.voters, window30.compareLabel, {
+    fallbackDetail: window30.label,
+  });
   const activeCount = sources.filter((s) => {
     const m = metaFor(s);
     return m !== null && LIVE_STATUSES.includes(m.status);
@@ -162,13 +166,7 @@ export function DistributionPage() {
       /* Only campaign sources have a real completion story — a single-
          question Polst completes the moment it votes, so "100%" would be
          a degenerate stat, not information. */
-      cell: (s) => (
-        <span className="tabular-nums">
-          {s.linked?.type === "campaign" && s.completionRate !== null
-            ? fmtPct(s.completionRate, 0)
-            : "—"}
-        </span>
-      ),
+      cell: (s) => RateCell(s.linked?.type === "campaign" ? s.completionRate : null),
     },
     {
       header: "Last activity",
@@ -187,22 +185,13 @@ export function DistributionPage() {
       // store refuses regardless).
       cell: (s) =>
         s.linked ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={s.voters > 0}
-            title={
-              s.voters > 0
-                ? "This source has collected voters — its attribution is part of the record."
-                : undefined
-            }
+          <UnassignButton
+            voters={s.voters}
             onClick={() => {
               const result = unassignSource(s.id);
               toast(result.ok ? `${s.name} unassigned` : result.reason);
             }}
-          >
-            Unassign
-          </Button>
+          />
         ) : (
           <Button variant="secondary" size="sm" onClick={() => setAssignTarget(s)}>
             Assign
@@ -243,14 +232,8 @@ export function DistributionPage() {
           className="lg:col-span-3"
           label="Voters · last 30 days"
           value={fmtInt(window30.voters)}
-          detail={
-            votersDelta === null || !window30.compareLabel
-              ? window30.label
-              : `${Math.abs(votersDelta)}% ${window30.compareLabel}`
-          }
-          trend={
-            votersDelta === null || votersDelta === 0 ? "flat" : votersDelta > 0 ? "up" : "down"
-          }
+          detail={votersTile.detail}
+          trend={votersTile.trend}
           info={METRIC_INFO.voters}
         />
         <StatTile
@@ -361,24 +344,44 @@ export function DistributionPage() {
         </div>
       </DashboardCard>
 
-      <AddSourceModal
+      <AssignSourceModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
+        title="Add source"
+        confirmLabel="Add source"
         targets={targetOptions(campaigns, polsts)}
+        targetHelper={
+          <p className="text-xs leading-4 text-text-secondary">
+            An unassigned source doesn&rsquo;t collect voters yet — assign it to a campaign
+            or Polst when you&rsquo;re ready.
+          </p>
+        }
+        // The library flow makes no assumptions: kind and channel start
+        // unchosen so every asset is described deliberately.
+        defaultKind=""
+        defaultChannel=""
+        namePlaceholder="QR — Farmers market booth"
+        gridClassName="grid grid-cols-2 gap-3"
         onCreate={(input) => {
           addSource(input);
           setAddOpen(false);
           toast(`${input.name} added`);
         }}
       />
-      <AssignSourceModal
+      <AssignTargetModal
         source={assignTarget}
         onClose={() => setAssignTarget(null)}
         targets={targetOptions(campaigns, polsts)}
-        onAssign={(source, linked, targetName) => {
-          assignSource(source.id, linked);
+        targetHelper={
+          <p className="text-xs leading-4 text-text-secondary">
+            From the first scan or click, every voter it collects is attributed here.
+          </p>
+        }
+        onAssign={(linked, targetName) => {
+          if (!assignTarget) return;
+          assignSource(assignTarget.id, linked);
           setAssignTarget(null);
-          toast(`${source.name} assigned to ${targetName}`);
+          toast(`${assignTarget.name} assigned to ${targetName}`);
         }}
       />
       <QrCodeModal
@@ -407,9 +410,9 @@ function QrTile({
   return (
     <div className="flex flex-col rounded-md border border-border-default p-4">
       <div className="flex items-start gap-3">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-primary">
+        <IconTile size={12} className="text-icon-primary">
           <Icon name="qr_code_2" size={32} />
-        </span>
+        </IconTile>
         <div className="min-w-0 flex-1">
           <p className="font-display text-sm font-semibold text-text-primary">{source.name}</p>
           {source.placement ? (
@@ -426,29 +429,23 @@ function QrTile({
           </p>
         </div>
       </div>
-      <dl className="mt-3 grid grid-cols-3 gap-2 rounded-md bg-surface-subtle p-2.5 text-center">
-        {(
-          [
-            ["Scans", source.views > 0 ? fmtInt(source.views) : "—"],
-            ["Voters", source.voters > 0 ? fmtInt(source.voters) : "—"],
-            // A single-question Polst always "completes" — its honest QR
-            // stat is scan → vote conversion instead.
-            linked?.type === "polst"
-              ? ["Conversion", pct(source.voters, source.views)]
-              : [
-                  "Completion",
-                  source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—",
-                ],
-          ] as Array<[string, string]>
-        ).map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-xs font-medium text-text-secondary">{label}</dt>
-            <dd className="mt-0.5 font-display text-sm font-semibold tabular-nums text-text-primary">
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <MiniStatGrid
+        className="mt-3"
+        cols={3}
+        tone="subtle"
+        items={[
+          { label: "Scans", value: source.views > 0 ? fmtInt(source.views) : "—" },
+          { label: "Voters", value: source.voters > 0 ? fmtInt(source.voters) : "—" },
+          // A single-question Polst always "completes" — its honest QR
+          // stat is scan → vote conversion instead.
+          linked?.type === "polst"
+            ? { label: "Conversion", value: pct(source.voters, source.views) }
+            : {
+                label: "Completion",
+                value: source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—",
+              },
+        ]}
+      />
       <div className="mt-3 flex gap-2">
         {onOpen ? (
           <Button variant="secondary" size="sm" onClick={onOpen}>
@@ -467,13 +464,11 @@ function QrTile({
 
 /* ── Assign / create targets ─────────────────────────────────────── */
 
-type TargetOption = SelectOption & { linked: NonNullable<Source["linked"]> };
-
 /** Campaigns and Polsts a source can feed — nothing ended or archived. */
 function targetOptions(
   campaigns: Array<{ id: string; name: string; status: Status }>,
   polsts: Array<{ id: string; question: string; status: Status }>,
-): TargetOption[] {
+): SourceTargetOption[] {
   const open = (status: Status) => status !== "Ended" && status !== "Archived";
   return [
     ...campaigns
@@ -493,202 +488,4 @@ function targetOptions(
         linked: { type: "polst" as const, id: p.id },
       })),
   ];
-}
-
-/* ── Add source ──────────────────────────────────────────────────── */
-
-function AddSourceModal({
-  open,
-  onClose,
-  targets,
-  onCreate,
-}: {
-  open: boolean;
-  onClose: () => void;
-  targets: TargetOption[];
-  onCreate: (input: {
-    name: string;
-    kind: Source["kind"];
-    channel: Channel;
-    linked?: Source["linked"];
-  }) => void;
-}) {
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState("");
-  const [channel, setChannel] = useState("");
-  const [target, setTarget] = useState("");
-
-  const reset = () => {
-    setName("");
-    setKind("");
-    setChannel("");
-    setTarget("");
-  };
-  const close = () => {
-    reset();
-    onClose();
-  };
-  const canSubmit = name.trim().length > 0 && kind !== "" && channel !== "";
-
-  return (
-    <Modal
-      open={open}
-      onClose={close}
-      label="Add source"
-      title="Add source"
-      footer={
-        <div className="flex justify-end gap-2 p-4">
-          <Button variant="secondary" onClick={close}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!canSubmit}
-            onClick={() => {
-              onCreate({
-                name: name.trim(),
-                kind: kind as Source["kind"],
-                channel: channel as Channel,
-                linked: targets.find((t) => t.value === target)?.linked ?? null,
-              });
-              reset();
-            }}
-          >
-            Add source
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-4 p-4">
-        <Field label="Name">
-          {(id) => (
-            <TextInput
-              id={id}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="QR — Farmers market booth"
-            />
-          )}
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Kind">
-            {(id) => (
-              <SelectMenu
-                id={id}
-                label="Kind"
-                options={KIND_OPTIONS.map((k) => ({ value: k, label: k }))}
-                value={kind}
-                onValueChange={setKind}
-              />
-            )}
-          </Field>
-          <Field label="Channel">
-            {(id) => (
-              <SelectMenu
-                id={id}
-                label="Channel"
-                options={CHANNEL_OPTIONS.map((c) => ({ value: c, label: c }))}
-                value={channel}
-                onValueChange={setChannel}
-              />
-            )}
-          </Field>
-        </div>
-        <Field
-          label="Link to"
-          helper={
-            <p className="text-xs leading-4 text-text-secondary">
-              An unassigned source doesn&rsquo;t collect voters yet — assign it to a campaign
-              or Polst when you&rsquo;re ready.
-            </p>
-          }
-        >
-          {(id) => (
-            <SelectMenu
-              id={id}
-              label="Link to"
-              placeholder="Not linked yet"
-              options={targets}
-              value={target}
-              onValueChange={setTarget}
-            />
-          )}
-        </Field>
-      </div>
-    </Modal>
-  );
-}
-
-/* ── Assign an existing source ───────────────────────────────────── */
-
-function AssignSourceModal({
-  source,
-  onClose,
-  targets,
-  onAssign,
-}: {
-  source: Source | null;
-  onClose: () => void;
-  targets: TargetOption[];
-  onAssign: (
-    source: Source,
-    linked: NonNullable<Source["linked"]>,
-    targetName: string,
-  ) => void;
-}) {
-  const [target, setTarget] = useState("");
-  const close = () => {
-    setTarget("");
-    onClose();
-  };
-  const chosen = targets.find((t) => t.value === target);
-
-  return (
-    <Modal
-      open={Boolean(source)}
-      onClose={close}
-      label="Assign source"
-      title="Assign source"
-      footer={
-        <div className="flex justify-end gap-2 p-4">
-          <Button variant="secondary" onClick={close}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!chosen}
-            onClick={() => {
-              if (source && chosen) {
-                onAssign(source, chosen.linked, chosen.label);
-                setTarget("");
-              }
-            }}
-          >
-            Assign
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-4 p-4">
-        <p className="truncate text-sm text-text-secondary">{source?.name}</p>
-        <Field
-          label="Assign to"
-          helper={
-            <p className="text-xs leading-4 text-text-secondary">
-              From the first scan or click, every voter it collects is attributed here.
-            </p>
-          }
-        >
-          {(id) => (
-            <SelectMenu
-              id={id}
-              label="Assign to"
-              placeholder="Pick a campaign or Polst"
-              options={targets}
-              value={target}
-              onValueChange={setTarget}
-            />
-          )}
-        </Field>
-      </div>
-    </Modal>
-  );
 }

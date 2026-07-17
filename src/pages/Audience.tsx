@@ -11,8 +11,9 @@ import {
   TimeHeatmap,
   type DataColumn,
 } from "@/components/dashboard";
+import { RateCell } from "@/components/dashboard";
 import { METRIC_INFO, fmtInt, fmtPct } from "@/lib/canon";
-import { windowDelta } from "@/lib/engine";
+import { windowTileDelta } from "@/lib/engine";
 import {
   HEATMAP_BUCKETS,
   HEATMAP_DAYS,
@@ -33,25 +34,11 @@ import {
    income stay locked until respondent-level collection exists; nothing
    here is invented. */
 
-type TileDelta = { detail?: string; trend: "up" | "down" | "flat" };
-
-/** The tile's delta line. The window and its comparison period are
- *  stated ONCE at band level — tiles never repeat the dates. */
-const vsPrevious = (delta: number | null): TileDelta => {
-  if (delta === null) return { trend: "flat" };
-  if (delta === 0) return { detail: "No change vs the previous period", trend: "flat" };
-  return {
-    detail: `${Math.abs(delta)}% vs the previous period`,
-    trend: delta > 0 ? "up" : "down",
-  };
-};
-
-/** % change for small-base ratios (votes per voter), where windowDelta's
- *  low-volume guard would always suppress the comparison. */
-const ratioDelta = (current: number | null, previous: number | null) =>
-  current !== null && previous !== null && previous > 0
-    ? Math.round(((current - previous) / previous) * 100)
-    : null;
+/** The tile's delta line rides the shared windowTileDelta. The window and
+ *  its comparison period are stated ONCE at band level — tiles never repeat
+ *  the dates, so the compare label stays generic. */
+const VS_PREVIOUS = "vs the previous period";
+const NO_CHANGE = { zeroDetail: `No change ${VS_PREVIOUS}` };
 
 /** The busiest day × 2-hour cell, spoken in the heatmap's own labels. */
 const peakLabel = (heat: number[][]): string => {
@@ -87,11 +74,7 @@ const countryColumns: Array<DataColumn<CountryRow>> = [
   {
     header: "Completion",
     align: "right",
-    cell: (row) => (
-      <span className="tabular-nums">
-        {row.completionRate !== null ? fmtPct(row.completionRate, 0) : "—"}
-      </span>
-    ),
+    cell: (row) => RateCell(row.completionRate),
   },
 ];
 
@@ -109,19 +92,22 @@ export function AudiencePage() {
       label: "Voters",
       value: fmtInt(w.voters),
       info: METRIC_INFO.voters,
-      ...vsPrevious(w.prev ? windowDelta(w.voters, w.prev.voters) : null),
+      ...windowTileDelta(w.voters, w.prev?.voters, VS_PREVIOUS, NO_CHANGE),
     },
     {
       label: "Views",
       value: fmtInt(w.views),
       info: METRIC_INFO.views,
-      ...vsPrevious(w.prev ? windowDelta(w.views, w.prev.views) : null),
+      ...windowTileDelta(w.views, w.prev?.views, VS_PREVIOUS, NO_CHANGE),
     },
     {
       label: "Votes per voter",
       value: votesPerVoter !== null ? votesPerVoter.toFixed(1) : "—",
       info: METRIC_INFO.votesPerVoter,
-      ...vsPrevious(ratioDelta(votesPerVoter, prevVotesPerVoter)),
+      ...windowTileDelta(votesPerVoter, prevVotesPerVoter, VS_PREVIOUS, {
+        ...NO_CHANGE,
+        basis: "ratio",
+      }),
     },
   ];
 

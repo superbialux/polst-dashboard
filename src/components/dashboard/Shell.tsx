@@ -19,6 +19,7 @@ import { useModules } from "@/lib/modules";
 import { relativeToToday } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import { SegmentedControl } from "@/components/dashboard/kit";
+import { IconButton, IconTile } from "@/components/dashboard/patterns";
 import { WORKSPACE, WORKSPACES, attentionItems } from "@/lib/workspace";
 
 type NavItem = {
@@ -344,14 +345,9 @@ function Header({
     <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border-default bg-surface-raised px-4 sm:px-5">
       {/* Below lg the rail is hidden — a menu button opens the nav drawer
           and the wordmark rides the header. */}
-      <button
-        type="button"
-        onClick={onMenu}
-        aria-label="Open navigation"
-        className={cn(headerButton, "-ml-1 lg:hidden")}
-      >
+      <IconButton onClick={onMenu} aria-label="Open navigation" className="-ml-1 lg:hidden">
         <Icon name="menu" size={20} />
-      </button>
+      </IconButton>
       <Link to="/" aria-label="Home" className="lg:hidden">
         <PolstWordmark className="h-6" />
       </Link>
@@ -642,9 +638,9 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
                         i === selected && "bg-surface-subtle",
                       )}
                     >
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-secondary">
+                      <IconTile>
                         <Icon name={hit.icon} size={18} />
-                      </span>
+                      </IconTile>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-display text-sm font-semibold text-text-primary">
                           <HighlightMatch label={hit.label} query={query} />
@@ -690,10 +686,6 @@ function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-/** A 32×32 quiet icon control, sized to the 48px white header. */
-const headerButton =
-  "grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle hover:text-icon-primary";
-
 /** Notification rows name their destination; the source label derives
  *  from it so the two can never disagree. */
 const notificationSource = (to: string) =>
@@ -716,21 +708,21 @@ function NotificationsMenu() {
       label="Notifications"
       className="w-96 p-0"
       trigger={({ toggle }) => (
-        <button
+        <IconButton
           onClick={toggle}
           aria-label={unreadCount ? `Notifications — ${unreadCount} unread` : "Notifications"}
-          className={cn(headerButton, "relative")}
+          className="relative"
         >
           <Icon name="notifications" size={20} />
           {unreadCount > 0 ? (
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-pill bg-status-danger ring-2 ring-surface-raised" />
           ) : null}
-        </button>
+        </IconButton>
       )}
     >
       <div className="flex items-center justify-between border-b border-border-default py-2 pl-4 pr-2">
         <p className="font-display text-base font-semibold text-text-primary">Notifications</p>
-        <button
+        <IconButton
           aria-label="Mark all as read"
           disabled={unreadCount === 0}
           onClick={(e) => {
@@ -738,10 +730,10 @@ function NotificationsMenu() {
             e.stopPropagation();
             markAllNotificationsRead();
           }}
-          className={cn(headerButton, "disabled:pointer-events-none disabled:opacity-40")}
+          className="disabled:pointer-events-none disabled:opacity-40"
         >
           <Icon name="done_all" size={20} />
-        </button>
+        </IconButton>
       </div>
 
       <ul className="max-h-96 overflow-y-auto py-1">

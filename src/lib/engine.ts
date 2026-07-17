@@ -127,6 +127,49 @@ export function windowDelta(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100);
 }
 
+/** % change for small-base ratios (votes per voter), where windowDelta's
+ *  low-volume guard would always suppress the comparison. */
+export function ratioDelta(current: number | null, previous: number | null): number | null {
+  return current !== null && previous !== null && previous > 0
+    ? Math.round(((current - previous) / previous) * 100)
+    : null;
+}
+
+/** What a StatTile's delta line renders. `detail` is withheld (not
+ *  zero-decorated) when no honest comparison exists. */
+export type TileDelta = { detail?: string; trend: "up" | "down" | "flat" };
+
+/** The one current-vs-previous tile computation (Analytics, Audience,
+ *  Distribution KPI rows). The window comparison suppresses itself when
+ *  the previous period is missing, too small (windowDelta's honesty
+ *  floor), or unlabeled — a delta without its baseline dates is a
+ *  decoration, not a fact.
+ *  - `basis: "ratio"` swaps in ratioDelta for small-base ratios.
+ *  - `fallbackDetail` states the window itself when no comparison
+ *    survives (Distribution's tile keeps its label line).
+ *  - `zeroDetail` replaces the literal "0% …" with plain language. */
+export function windowTileDelta(
+  current: number | null,
+  previous: number | null | undefined,
+  compareLabel?: string | null,
+  opts: { basis?: "window" | "ratio"; fallbackDetail?: string; zeroDetail?: string } = {},
+): TileDelta {
+  const delta =
+    current === null || previous == null
+      ? null
+      : opts.basis === "ratio"
+        ? ratioDelta(current, previous)
+        : windowDelta(current, previous);
+  if (delta === null || !compareLabel) {
+    return opts.fallbackDetail ? { detail: opts.fallbackDetail, trend: "flat" } : { trend: "flat" };
+  }
+  if (delta === 0 && opts.zeroDetail) return { detail: opts.zeroDetail, trend: "flat" };
+  return {
+    detail: `${Math.abs(delta)}% ${compareLabel}`,
+    trend: delta === 0 ? "flat" : delta > 0 ? "up" : "down",
+  };
+}
+
 /* ── Chain drop-off ───────────────────────────────────────────────────
    Voters decline from `started` to `completed` across n questions on a
    geometric curve — every intermediate question count is derived, so

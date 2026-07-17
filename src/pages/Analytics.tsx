@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Menu, MenuItem } from "@/components/Menu";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/Toast";
+import { useCopyToClipboard, useToast } from "@/components/Toast";
 import {
   ActionCard,
+  AttentionList,
   Chip,
   ConnectCard,
   DashboardCard,
@@ -17,6 +17,8 @@ import {
   InfoHint,
   LockedCard,
   MixBars,
+  RateCell,
+  ReadyDecisionRow,
   ReportPreview,
   SectionGrid,
   StatTile,
@@ -35,7 +37,14 @@ import {
   relativeToToday,
   type Status,
 } from "@/lib/canon";
-import { allocate, dateSpan, windowBounds, windowDelta, type WindowRange } from "@/lib/engine";
+import {
+  allocate,
+  dateSpan,
+  windowBounds,
+  windowDelta,
+  windowTileDelta,
+  type WindowRange,
+} from "@/lib/engine";
 import {
   CAMPAIGNS,
   INTEGRATIONS,
@@ -99,19 +108,6 @@ function EmptyAnalytics() {
   );
 }
 
-/** Copies text for real and tells the truth about the outcome. */
-function useCopyText() {
-  const toast = useToast();
-  return async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast("Summary copied to clipboard");
-    } catch {
-      toast("Copy failed — the browser blocked clipboard access");
-    }
-  };
-}
-
 /** One CSV cell, quoted only when it must be. */
 const csvCell = (value: string | number) => {
   const s = String(value);
@@ -139,7 +135,7 @@ function ExportMenu({
   /** The page's tabular data; present when a CSV makes sense. */
   csv?: () => { filename: string; rows: Array<Array<string | number>> };
 }) {
-  const copy = useCopyText();
+  const copy = useCopyToClipboard();
   const toast = useToast();
   return (
     <Menu
@@ -151,7 +147,11 @@ function ExportMenu({
         </Button>
       )}
     >
-      <MenuItem icon="content_copy" label="Copy summary" onClick={() => void copy(summary())} />
+      <MenuItem
+        icon="content_copy"
+        label="Copy summary"
+        onClick={() => void copy(summary(), "Summary copied to clipboard")}
+      />
       {csv ? (
         <MenuItem
           icon="download"
@@ -351,11 +351,7 @@ const categoryColumns: Array<DataColumn<CategoryRow>> = [
     // Distribution); one decimal is reserved for the rate stat tiles.
     header: "Completion",
     align: "right",
-    cell: (row) => (
-      <span className="tabular-nums">
-        {row.completionRate !== null ? fmtPct(row.completionRate, 0) : "—"}
-      </span>
-    ),
+    cell: (row) => RateCell(row.completionRate),
   },
   {
     // An aggregate across every content in the category — canon's
@@ -377,42 +373,24 @@ const categoryColumns: Array<DataColumn<CategoryRow>> = [
 function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
   return (
     <ul className="divide-y divide-border-default">
-      {campaigns.map((campaign) => {
-        const decided = campaign.status === "Ended";
-        return (
-          <li
-            key={campaign.id}
-            className="flex flex-col items-start gap-3 px-5 py-3 sm:flex-row sm:items-center"
-          >
-            <div className="min-w-0 flex-1">
-              <Link
-                to={`/campaigns/${campaign.id}`}
-                className="font-display text-sm font-semibold text-text-primary hover:text-text-accent"
-              >
-                {campaign.name}
-              </Link>
-              <p className="mt-0.5 text-xs text-text-secondary">
-                {winnerLabel(campaign)} · {fmtInt(campaign.voters)} voters
-                {campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""} · run to date
-              </p>
-            </div>
-            <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-              <span className="flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-status-success">
-                {readyTitle(campaign)}
-                {campaign.confidence !== "—" ? ` · ${campaign.confidence} confidence` : ""}
-                {campaign.confidence !== "—" ? (
-                  <InfoHint label="Confidence" text={METRIC_INFO.confidence} />
-                ) : null}
-              </span>
-              <Button variant="secondary" size="sm" asChild>
-                <Link to={`/campaigns/${campaign.id}`}>
-                  {decided ? "Open report" : "Review decision"}
-                </Link>
-              </Button>
-            </div>
-          </li>
-        );
-      })}
+      {campaigns.map((campaign) => (
+        <ReadyDecisionRow
+          key={campaign.id}
+          layout="row"
+          eyebrow={readyTitle(campaign)}
+          title={campaign.name}
+          to={`/campaigns/${campaign.id}`}
+          sublabel={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters${
+            campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""
+          } · run to date`}
+          confidence={campaign.confidence !== "—" ? campaign.confidence : undefined}
+          confidenceInfo={METRIC_INFO.confidence}
+          cta={{
+            label: campaign.status === "Ended" ? "Open report" : "Review decision",
+            to: `/campaigns/${campaign.id}`,
+          }}
+        />
+      ))}
     </ul>
   );
 }
@@ -447,16 +425,6 @@ export function AnalyticsOverviewPage() {
      the dashed previous line are withheld rather than decorating zeros. */
   const comparable = prev !== null && windowDelta(views, prev.views) !== null;
   const compareLabel = comparable ? `vs ${fmtDate(prevStart)} – ${fmtDate(prevEnd)}` : null;
-  /** Trend + "12% vs May 13 – Jun 11" for a tile; {} when the previous
-   *  window is too small for an honest comparison (windowDelta's rule). */
-  const tileDelta = (current: number, previous: number | null | undefined) => {
-    const d = previous == null || !compareLabel ? null : windowDelta(current, previous);
-    if (d === null) return {};
-    return {
-      detail: `${Math.abs(d)}% ${compareLabel}`,
-      trend: (d === 0 ? "flat" : d > 0 ? "up" : "down") as "up" | "down" | "flat",
-    };
-  };
   const rate = (numer: number, denom: number) => (denom > 0 ? (numer / denom) * 100 : null);
   const engagement = rate(votes, views);
   const prevEngagement = prev ? rate(prev.votes, prev.views) : null;
@@ -560,28 +528,28 @@ export function AnalyticsOverviewPage() {
           label="Total views"
           value={fmtInt(views)}
           info={METRIC_INFO.views}
-          {...tileDelta(views, prev?.views)}
+          {...windowTileDelta(views, prev?.views, compareLabel)}
         />
         <StatTile
           className="lg:col-span-3"
           label="Total votes"
           value={fmtInt(votes)}
           info={METRIC_INFO.votes}
-          {...tileDelta(votes, prev?.votes)}
+          {...windowTileDelta(votes, prev?.votes, compareLabel)}
         />
         <StatTile
           className="lg:col-span-3"
           label="Engagement rate"
           value={pct(votes, views, 1)}
           info={METRIC_INFO.engagementRate}
-          {...tileDelta(engagement ?? 0, prevEngagement)}
+          {...windowTileDelta(engagement ?? 0, prevEngagement, compareLabel)}
         />
         <StatTile
           className="lg:col-span-3"
           label="Completion rate"
           value={pct(completed, voters, 1)}
           info={METRIC_INFO.completionRate}
-          {...tileDelta(completion ?? 0, prevCompletion)}
+          {...windowTileDelta(completion ?? 0, prevCompletion, compareLabel)}
         />
       </SectionGrid>
 
@@ -715,12 +683,6 @@ export function AnalyticsRetentionPage() {
    No date filter: these are current workspace facts, each row carries
    its own stamp. */
 
-const TONE_DOT: Record<"danger" | "warning" | "neutral", string> = {
-  danger: "bg-status-danger",
-  warning: "bg-status-warning",
-  neutral: "bg-icon-secondary",
-};
-
 export function AnalyticsInsightsPage() {
   const { campaigns, polsts, sources } = useWorkspace();
   const ready = campaigns.filter(isReadyToDecide);
@@ -768,25 +730,16 @@ export function AnalyticsInsightsPage() {
       <SectionGrid>
         <DashboardCard title="Needs attention" className="lg:col-span-7" bodyClassName="pt-2">
           {attention.length ? (
-            <ul className="divide-y divide-border-default">
-              {attention.map((item) => (
-                <li key={item.id} className="flex items-start gap-3 py-3 first:pt-1">
-                  <span
-                    aria-hidden
-                    className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-pill", TONE_DOT[item.tone])}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-display text-sm font-semibold text-text-primary">
-                      {item.title}
-                    </p>
-                    <p className="mt-0.5 text-sm leading-5 text-text-secondary">{item.reason}</p>
-                  </div>
-                  <Button variant="secondary" size="sm" className="shrink-0" asChild>
-                    <Link to={item.to}>{item.action}</Link>
-                  </Button>
-                </li>
-              ))}
-            </ul>
+            <AttentionList
+              variant="spacious"
+              items={attention.map((item) => ({
+                id: item.id,
+                tone: item.tone,
+                title: item.title,
+                reason: item.reason,
+                action: { label: item.action, to: item.to },
+              }))}
+            />
           ) : (
             <EmptyState icon="verified" title="Nothing needs attention right now" />
           )}

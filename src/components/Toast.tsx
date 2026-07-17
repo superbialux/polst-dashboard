@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Icon } from "./Icon";
+import { copyText } from "@/lib/utils";
 
 type ToastContextValue = { toast: (message: string) => void };
 
@@ -55,4 +56,20 @@ export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast requires ToastProvider");
   return ctx.toast;
+}
+
+/** Copy + toast in one move, and the toast tells the truth: the success
+ *  message only appears when the clipboard write actually landed. */
+export function useCopyToClipboard() {
+  const toast = useToast();
+  return useCallback(
+    async (text: string, successMsg = "Copied to clipboard") => {
+      toast(
+        (await copyText(text))
+          ? successMsg
+          : "Copy failed — the browser blocked clipboard access",
+      );
+    },
+    [toast],
+  );
 }

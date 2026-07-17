@@ -553,11 +553,13 @@ function PollOptionCard({
       {/* Desktop hover (pre-vote): the photo zooms in slightly while a purple
           vignette swells at the edges — a "pick me" cue. */}
       <div className="relative min-h-0 flex-1 overflow-hidden bg-accent-default">
+        {/* Absolutely positioned so a portrait photo's intrinsic ratio can't
+            impose a min-height and stretch the pair past its 4:3 box. */}
         <img
           src={image}
-          alt={label}
+          alt=""
           className={cn(
-            "h-full w-full object-cover",
+            "absolute inset-0 h-full w-full object-cover",
             !hasVoted &&
               "transition-transform duration-500 ease-out lg:group-hover:scale-[1.04]",
           )}

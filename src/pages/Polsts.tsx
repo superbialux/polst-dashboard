@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Link,
   Navigate,
@@ -9,14 +9,16 @@ import {
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Modal } from "@/components/Modal";
-import { Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
+import { Field, FieldHelper, TextInput } from "@/components/Field";
 import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
 import { PollCard } from "@/components/PollCard";
 import { PollComposer, type ComposerState } from "@/components/PollComposer";
 import { QrCodeModal, SocialShareModal } from "@/components/DistributionActions";
 import {
   ActionCard,
+  AssignSourceModal,
+  ChecklistItem,
+  ConfirmModal,
   CreatedRange,
   DashboardCard,
   DashboardPage,
@@ -26,8 +28,11 @@ import {
   EmptyState,
   InfoHint,
   NotFoundCard,
+  Pager,
   PollResults,
   PollThumb,
+  PolstListRow,
+  ReviewModal,
   SearchAndFilters,
   SectionGrid,
   SegmentedControl,
@@ -59,9 +64,7 @@ import {
   shareUrl,
   verdictLabel,
   voteVelocity,
-  type Channel,
   type SinglePolst,
-  type Source,
   type Category,
 } from "@/lib/workspace";
 import { publishedStatus, useWorkspace } from "@/lib/store";
@@ -190,17 +193,7 @@ const columns = (
   {
     header: "Polst",
     cell: (row) => (
-      <Link to={`/polsts/${row.id}`} className="group flex min-w-0 items-center gap-3">
-        <PollThumb options={polstOptions(row)} />
-        <span className="min-w-0">
-          <span className="block truncate font-display font-semibold text-text-primary group-hover:text-text-accent">
-            {row.question}
-          </span>
-          <span className="mt-0.5 block truncate text-xs text-text-secondary">
-            {row.optionA} vs {row.optionB}
-          </span>
-        </span>
-      </Link>
+      <PolstListRow options={polstOptions(row)} question={row.question} to={`/polsts/${row.id}`} />
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
@@ -339,33 +332,9 @@ export function PolstsPage() {
       ? { label: "View all Polsts", onClick: () => setActive("All") }
       : { label: "Create a Polst", to: "/polsts/new" };
 
-  const pager =
-    rows.length > PAGE_SIZE ? (
-      <div className="flex items-center justify-between gap-3 border-t border-border-default px-5 py-3">
-        <p className="text-xs tabular-nums text-text-secondary">
-          {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, rows.length)} of{" "}
-          {rows.length} Polsts
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={safePage === 0}
-            onClick={() => setPage(safePage - 1)}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={safePage >= pageCount - 1}
-            onClick={() => setPage(safePage + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
-    ) : null;
+  const pager = (
+    <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} noun="Polsts" />
+  );
 
   const toolbar = (
     <SearchAndFilters
@@ -453,7 +422,8 @@ export function PolstsPage() {
 
 export function PolstDetailPage() {
   const { id } = useParams();
-  const { polstById, archivePolst, restorePolst, deletePolst, sources } = useWorkspace();
+  const { polstById, archivePolst, restorePolst, deletePolst, sources, assignSource, addSource } =
+    useWorkspace();
   const toast = useToast();
   const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
@@ -772,183 +742,47 @@ export function PolstDetailPage() {
         objectName={polst.question}
         url={qrUrl(polst)}
       />
+      {/* The campaign Sources tab's assign flow, scoped to this Polst — the
+          attention card's CTA finishes the job in place instead of landing
+          one click short on Distribution. "Assign" links; create makes a
+          pre-linked source. */}
       <AssignSourceModal
         open={assignOpen}
         onClose={() => setAssignOpen(false)}
-        polst={polst}
+        unlinked={sources.filter((s) => !s.linked)}
+        onAssign={(s) => {
+          assignSource(s.id, { type: "polst", id: polst.id });
+          toast(`${s.name} assigned to this Polst`);
+          setAssignOpen(false);
+        }}
+        onCreate={(draft) => {
+          addSource({ ...draft, linked: { type: "polst", id: polst.id } });
+          toast(`${draft.name} created and assigned`);
+          setAssignOpen(false);
+        }}
       />
-      <Modal
+      <ConfirmModal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         label="Delete Polst"
         title="Delete this Polst?"
-        footer={
-          <div className="flex justify-end gap-2 p-4">
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                const result = deletePolst(polst.id);
-                setDeleteOpen(false);
-                if (result.ok) {
-                  toast("Polst deleted");
-                  navigate("/polsts");
-                } else {
-                  toast(result.reason);
-                }
-              }}
-            >
-              Delete Polst
-            </Button>
-          </div>
-        }
+        confirmLabel="Delete Polst"
+        tone="danger"
+        onConfirm={() => {
+          const result = deletePolst(polst.id);
+          setDeleteOpen(false);
+          if (result.ok) {
+            toast("Polst deleted");
+            navigate("/polsts");
+          } else {
+            toast(result.reason);
+          }
+        }}
       >
-        <p className="p-4 text-sm leading-6 text-text-secondary">
-          “{polst.question}” never collected votes, so nothing is lost with it. This can't be
-          undone.
-        </p>
-      </Modal>
+        “{polst.question}” never collected votes, so nothing is lost with it. This can't be
+        undone.
+      </ConfirmModal>
     </DashboardPage>
-  );
-}
-
-/* ── Assign source (scheduled runs) ───────────────────────────────────
-   The campaign Sources tab's assign flow, scoped to this Polst — the
-   attention card's CTA finishes the job in place instead of landing one
-   click short on Distribution. "Assign" links; "Add" (Distribution)
-   creates. */
-
-const SOURCE_KINDS: Array<Source["kind"]> = ["QR code", "Share link", "Embed", "Tracked link"];
-const CHANNELS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
-
-function AssignSourceModal({
-  open,
-  onClose,
-  polst,
-}: {
-  open: boolean;
-  onClose: () => void;
-  polst: SinglePolst;
-}) {
-  const { sources, assignSource, addSource } = useWorkspace();
-  const toast = useToast();
-  const unlinked = sources.filter((s) => !s.linked);
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<string>("QR code");
-  const [channel, setChannel] = useState<string>("Website");
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (open) setSubmitting(false);
-  }, [open]);
-
-  const create = () => {
-    if (submitting) return; // a double-click must not mint a duplicate source
-    setSubmitting(true);
-    addSource({
-      name: name.trim(),
-      kind: kind as Source["kind"],
-      channel: channel as Channel,
-      linked: { type: "polst", id: polst.id },
-    });
-    toast(`${name.trim()} created and assigned`);
-    setName("");
-    onClose();
-  };
-
-  return (
-    // Titled like the button that opens it, with the standard modal footer
-    // (Cancel + primary) every sibling form modal carries.
-    <Modal
-      open={open}
-      onClose={onClose}
-      label="Assign source"
-      title="Assign source"
-      footer={
-        <div className="flex justify-end gap-2 p-4">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!name.trim() || submitting} onClick={create}>
-            Create &amp; assign
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-4 p-4">
-        {unlinked.length > 0 ? (
-          <div>
-            <p className="mb-2 font-display text-sm font-semibold text-text-primary">
-              Unassigned sources
-            </p>
-            <div className="divide-y divide-border-default overflow-hidden rounded-md border border-border-default">
-              {unlinked.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-text-primary">{s.name}</p>
-                    <p className="mt-0.5 text-xs text-text-secondary">
-                      {s.kind} · {s.channel}
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      assignSource(s.id, { type: "polst", id: polst.id });
-                      toast(`${s.name} assigned to this Polst`);
-                      onClose();
-                    }}
-                  >
-                    Assign
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        <div className="space-y-4">
-          <p className="font-display text-sm font-semibold text-text-primary">
-            Create a new source
-          </p>
-          <Field label="Name">
-            {(fieldId) => (
-              <TextInput
-                id={fieldId}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="QR — Shelf talker"
-              />
-            )}
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Kind">
-              {(fieldId) => (
-                <SelectMenu
-                  id={fieldId}
-                  label="Kind"
-                  value={kind}
-                  onValueChange={setKind}
-                  options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))}
-                />
-              )}
-            </Field>
-            <Field label="Channel">
-              {(fieldId) => (
-                <SelectMenu
-                  id={fieldId}
-                  label="Channel"
-                  value={channel}
-                  onValueChange={setChannel}
-                  options={CHANNELS.map((c) => ({ value: c, label: c }))}
-                />
-              )}
-            </Field>
-          </div>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -1139,17 +973,9 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
           <DashboardCard title="Ready to publish">
             <ul className="space-y-3">
               {checks.map(([label, done]) => (
-                <li key={label} className="flex items-center gap-2.5 text-sm">
-                  <Icon
-                    name={done ? "check_circle" : "radio_button_unchecked"}
-                    size={20}
-                    filled={done}
-                    className={done ? "text-status-success" : "text-text-tertiary"}
-                  />
-                  <span className={done ? "text-text-tertiary" : "text-text-primary"}>
-                    {label}
-                  </span>
-                </li>
+                <ChecklistItem key={label} tone={done ? "done" : "todo"}>
+                  {label}
+                </ChecklistItem>
               ))}
             </ul>
           </DashboardCard>
@@ -1158,67 +984,50 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
 
       {/* The pre-publish review: the exact card voters will see, the
           schedule it runs on, and the lock warning — confirmed. */}
-      <Modal
+      <ReviewModal
         open={reviewOpen}
         onClose={() => setReviewOpen(false)}
         label="Review and publish Polst"
         title="Review before publishing"
         className="lg:max-w-xl"
-        footer={
-          <div className="flex justify-end gap-2 p-4">
-            <Button variant="secondary" onClick={() => setReviewOpen(false)}>
-              Back to editing
-            </Button>
-            <Button disabled={submitting} onClick={publish}>
-              Confirm & publish
-            </Button>
-          </div>
-        }
+        facts={[
+          ["Category", composer.category ?? "—"],
+          ["Runs", fmtDateRange(startDate || undefined, endDate)],
+          [
+            "Goes live",
+            !startDate || startDate <= TODAY
+              ? endDate && endDate < TODAY
+                ? "Dates are already past — it will land as Ended"
+                : "Immediately after you confirm"
+              : `${fmtDate(startDate)} (${relativeToToday(startDate)})`,
+          ],
+        ]}
+        lockText="The question, both options, and their images lock when you publish. You can end the run early, but you can't edit it."
+        confirmLabel="Confirm & publish"
+        confirmDisabled={submitting}
+        onConfirm={publish}
       >
-        <div className="space-y-4 p-4">
-          <PollCard
-            preview
-            author={WORKSPACE.brand}
-            authorBadge={WORKSPACE.initials}
-            authorColor="var(--color-purple-tint)"
-            isFollowing
-            categories={composer.category ? [composer.category] : []}
-            question={composer.question}
-            options={polstOptions({
-              id: draft?.id ?? (composer.question || "new-polst"),
-              optionA: composer.optionA,
-              optionB: composer.optionB,
-              splitA: 50,
-              votes: 0,
-            })}
-            tags={[]}
-            likes={0}
-            reposts={0}
-            votes={0}
-          />
-          <DetailList
-            items={[
-              ["Category", composer.category ?? "—"],
-              ["Runs", fmtDateRange(startDate || undefined, endDate)],
-              [
-                "Goes live",
-                !startDate || startDate <= TODAY
-                  ? endDate && endDate < TODAY
-                    ? "Dates are already past — it will land as Ended"
-                    : "Immediately after you confirm"
-                  : `${fmtDate(startDate)} (${relativeToToday(startDate)})`,
-              ],
-            ]}
-          />
-          <p className="flex items-start gap-1.5 rounded-md bg-surface-subtle p-3 text-sm leading-5 text-text-secondary">
-            <Icon name="lock" size={18} className="mt-0.5 shrink-0 text-icon-secondary" />
-            <span>
-              The question, both options, and their images lock when you publish. You can end
-              the run early, but you can't edit it.
-            </span>
-          </p>
-        </div>
-      </Modal>
+        <PollCard
+          preview
+          author={WORKSPACE.brand}
+          authorBadge={WORKSPACE.initials}
+          authorColor="var(--color-purple-tint)"
+          isFollowing
+          categories={composer.category ? [composer.category] : []}
+          question={composer.question}
+          options={polstOptions({
+            id: draft?.id ?? (composer.question || "new-polst"),
+            optionA: composer.optionA,
+            optionB: composer.optionB,
+            splitA: 50,
+            votes: 0,
+          })}
+          tags={[]}
+          likes={0}
+          reposts={0}
+          votes={0}
+        />
+      </ReviewModal>
     </DashboardPage>
   );
 }

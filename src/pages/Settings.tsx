@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
-import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { CONTROL, Checkbox, Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
+import { CONTROL, Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
 import {
+  CheckboxList,
+  ConfirmModal,
   ConnectCard,
   DashboardCard,
   DashboardPage,
   DataTable,
+  IconTile,
+  ModalFooter,
   NotFoundCard,
   PollResults,
+  RevealSecretModal,
   SectionGrid,
+  SectionNav,
   SegmentedControl,
   StatTile,
   Switch,
@@ -104,9 +109,12 @@ function BrandProfileCard() {
                 className="h-11 w-11 rounded-md object-cover"
               />
             ) : (
-              <span className="grid h-11 w-11 place-items-center rounded-md bg-accent-default font-display text-sm font-semibold text-text-on-accent">
+              <IconTile
+                size={11}
+                className="bg-accent-default font-display text-sm font-semibold text-text-on-accent"
+              >
                 {WORKSPACE.initials}
-              </span>
+              </IconTile>
             )}
             <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
               Change avatar
@@ -187,7 +195,6 @@ function BrandProfileCard() {
  *  live in the workspace store like every other in-session creation, so
  *  an added row survives navigating away; "Joined" fills at first sign-in. */
 function TeamSection() {
-  const toast = useToast();
   const { members, addMember } = useWorkspace();
   const [addOpen, setAddOpen] = useState(false);
 
@@ -267,44 +274,20 @@ function TeamSection() {
       {/* The one place the initial password ever appears (staging's
           provisioning contract: no invite email, a generated first
           password handed to the teammate out of band). */}
-      <Modal
+      <RevealSecretModal
         open={provisioned !== null}
         onClose={() => setProvisioned(null)}
-        label="Account created"
         title="Account created"
-        footer={
-          <div className="flex justify-end p-4">
-            <Button onClick={() => setProvisioned(null)}>Done</Button>
-          </div>
+        intro={
+          <>
+            <span className="font-semibold text-text-primary">{provisioned?.email}</span> can
+            sign in now with this initial password. It is shown once — share it with your
+            teammate directly; they should change it at first sign-in.
+          </>
         }
-      >
-        {provisioned ? (
-          <div className="space-y-3 p-4">
-            <p className="text-sm leading-6 text-text-secondary">
-              <span className="font-semibold text-text-primary">{provisioned.email}</span> can
-              sign in now with this initial password. It is shown once — share it with your
-              teammate directly; they should change it at first sign-in.
-            </p>
-            <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-subtle p-3">
-              <code className="min-w-0 flex-1 break-all font-mono text-sm text-text-primary">
-                {provisioned.password}
-              </code>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  navigator.clipboard
-                    ?.writeText(provisioned.password)
-                    .then(() => toast("Password copied to clipboard"))
-                    .catch(() => toast("Copy failed — the browser blocked clipboard access"))
-                }
-              >
-                Copy
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+        secret={provisioned?.password ?? ""}
+        copyMessage="Password copied to clipboard"
+      />
     </>
   );
 }
@@ -346,7 +329,7 @@ function AddMemberModal({
       label="Add member"
       title="Add member"
       footer={
-        <div className="flex justify-end gap-2 p-4">
+        <ModalFooter>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -359,7 +342,7 @@ function AddMemberModal({
           >
             Create account
           </Button>
-        </div>
+        </ModalFooter>
       }
     >
       <div className="space-y-4 p-4">
@@ -807,77 +790,44 @@ function ApiKeysSection() {
       />
 
       {/* The one place the full secret ever appears. */}
-      <Modal
+      <RevealSecretModal
         open={minted !== null}
         onClose={() => setMinted(null)}
-        label="API key created"
         title="API key created"
-        footer={
-          <div className="flex justify-end p-4">
-            <Button onClick={() => setMinted(null)}>Done</Button>
-          </div>
+        intro={
+          <>
+            Copy the secret for <span className="font-semibold text-text-primary">{minted?.name}</span> now
+            — it is shown once and can't be recovered. A lost secret means revoking the key
+            and creating a new one.
+          </>
         }
-      >
-        {minted ? (
-          <div className="space-y-3 p-4">
-            <p className="text-sm leading-6 text-text-secondary">
-              Copy the secret for <span className="font-semibold text-text-primary">{minted.name}</span> now
-              — it is shown once and can't be recovered. A lost secret means revoking the key
-              and creating a new one.
-            </p>
-            <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-subtle p-3">
-              <code className="min-w-0 flex-1 break-all font-mono text-xs text-text-primary">
-                {minted.secret}
-              </code>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  navigator.clipboard
-                    ?.writeText(minted.secret)
-                    .then(() => toast("Secret copied to clipboard"))
-                    .catch(() => toast("Copy failed — the browser blocked clipboard access"))
-                }
-              >
-                Copy
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+        secret={minted?.secret ?? ""}
+        secretSize="xs"
+        copyMessage="Secret copied to clipboard"
+      />
 
-      <Modal
+      <ConfirmModal
         open={revokeTarget !== null}
         onClose={() => setRevokeTarget(null)}
         label="Revoke API key"
         title="Revoke this key?"
-        footer={
-          <div className="flex justify-end gap-2 p-4">
-            <Button variant="secondary" onClick={() => setRevokeTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (revokeTarget) {
-                  revokeApiKey(revokeTarget.id);
-                  toast(`${revokeTarget.name} revoked — its requests fail from now on`);
-                }
-                setRevokeTarget(null);
-              }}
-            >
-              Revoke key
-            </Button>
-          </div>
-        }
+        confirmLabel="Revoke key"
+        onConfirm={() => {
+          if (revokeTarget) {
+            revokeApiKey(revokeTarget.id);
+            toast(`${revokeTarget.name} revoked — its requests fail from now on`);
+          }
+          setRevokeTarget(null);
+        }}
       >
         {revokeTarget ? (
-          <p className="p-4 text-sm leading-6 text-text-secondary">
+          <>
             <span className="font-semibold text-text-primary">{revokeTarget.name}</span>{" "}
             ({revokeTarget.tokenPreview}) stops working immediately. Anything calling the API
             with it starts failing. This can't be undone.
-          </p>
+          </>
         ) : null}
-      </Modal>
+      </ConfirmModal>
     </>
   );
 }
@@ -915,7 +865,7 @@ function CreateApiKeyModal({
       label="Create API key"
       title="Create API key"
       footer={
-        <div className="flex justify-end gap-2 p-4">
+        <ModalFooter>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -928,7 +878,7 @@ function CreateApiKeyModal({
           >
             Create key
           </Button>
-        </div>
+        </ModalFooter>
       }
     >
       <div className="space-y-4 p-4">
@@ -945,20 +895,15 @@ function CreateApiKeyModal({
         </Field>
         <div>
           <p className={fieldLabelClass}>Scopes</p>
-          <ul className="mt-1.5 space-y-2">
-            {API_SCOPES.map((scope) => (
-              <li key={scope}>
-                <label className="flex cursor-pointer items-center gap-2.5 text-sm text-text-primary">
-                  <Checkbox
-                    checked={scopes.includes(scope)}
-                    onCheckedChange={() => toggleScope(scope)}
-                    label={scope}
-                  />
-                  {scope}
-                </label>
-              </li>
-            ))}
-          </ul>
+          <CheckboxList
+            className="mt-1.5"
+            items={API_SCOPES.map((scope) => ({
+              id: scope,
+              label: scope,
+              checked: scopes.includes(scope),
+            }))}
+            onToggle={(id) => toggleScope(id as ApiScope)}
+          />
         </div>
       </div>
     </Modal>
@@ -1081,7 +1026,7 @@ function AddWebhookModal({
       label="Add webhook endpoint"
       title="Add webhook endpoint"
       footer={
-        <div className="flex justify-end gap-2 p-4">
+        <ModalFooter>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
@@ -1094,7 +1039,7 @@ function AddWebhookModal({
           >
             Add endpoint
           </Button>
-        </div>
+        </ModalFooter>
       }
     >
       <div className="space-y-4 p-4">
@@ -1113,20 +1058,16 @@ function AddWebhookModal({
         </Field>
         <div>
           <p className={fieldLabelClass}>Events</p>
-          <ul className="mt-1.5 space-y-2">
-            {WEBHOOK_EVENTS.map((event) => (
-              <li key={event}>
-                <label className="flex cursor-pointer items-center gap-2.5 font-mono text-sm text-text-primary">
-                  <Checkbox
-                    checked={events.includes(event)}
-                    onCheckedChange={() => toggleEvent(event)}
-                    label={event}
-                  />
-                  {event}
-                </label>
-              </li>
-            ))}
-          </ul>
+          <CheckboxList
+            className="mt-1.5"
+            mono
+            items={WEBHOOK_EVENTS.map((event) => ({
+              id: event,
+              label: event,
+              checked: events.includes(event),
+            }))}
+            onToggle={(id) => toggleEvent(id as WebhookEvent)}
+          />
         </div>
       </div>
     </Modal>
@@ -1226,34 +1167,13 @@ export function SettingsPage() {
     <DashboardPage>
       <SectionGrid>
         {/* Local settings navigation — settings are a map, not one scroll. */}
-        <nav aria-label="Settings sections" className="self-start lg:sticky lg:top-16 lg:col-span-3">
-          <ul className="space-y-0.5">
-            {SETTINGS_SECTIONS.map((item) => (
-              <li key={item.key}>
-                <button
-                  type="button"
-                  onClick={() => setSection(item.key)}
-                  aria-current={section === item.key ? "page" : undefined}
-                  className={cn(
-                    "flex h-9 w-full items-center gap-3 rounded-md px-3 text-left transition-colors",
-                    section === item.key
-                      ? "bg-surface-raised shadow-sm ring-1 ring-border-default"
-                      : "hover:bg-surface-subtle",
-                  )}
-                >
-                  <Icon
-                    name={item.icon}
-                    size={20}
-                    className={section === item.key ? "text-icon-primary" : "text-icon-secondary"}
-                  />
-                  <span className="truncate font-display text-sm font-semibold text-text-primary">
-                    {item.key}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <SectionNav
+          label="Settings sections"
+          className="self-start lg:sticky lg:top-16 lg:col-span-3"
+          items={SETTINGS_SECTIONS.map((s) => ({ id: s.key, label: s.key, icon: s.icon }))}
+          active={section}
+          onSelect={(id) => setSection(id as SettingsSection)}
+        />
 
         <div className="space-y-4 lg:col-span-9">
           {section === "Workspace" ? <BrandProfileCard /> : null}

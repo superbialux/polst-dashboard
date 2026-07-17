@@ -10,6 +10,7 @@ import {
   type CalendarItem,
 } from "@/lib/workspace";
 import { DashboardCard, StatusBadge } from "./kit";
+import { IconButton, IconTile } from "./patterns";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEKDAYS_FULL = [
@@ -181,21 +182,13 @@ export function WorkspaceCalendar() {
         <div className="flex items-center gap-2">
           <h2 className="min-w-40 font-display text-lg font-semibold text-text-primary">{label}</h2>
           <div className="ml-1 flex items-center">
-            {/* Icon buttons ride the shared 32px rounded-md control recipe. */}
-            <button
-              onClick={() => shift(-1)}
-              className="grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle"
-              aria-label="Previous month"
-            >
+            {/* Month steppers are the shared 32px IconButton. */}
+            <IconButton onClick={() => shift(-1)} aria-label="Previous month">
               <Icon name="chevron_left" size={18} />
-            </button>
-            <button
-              onClick={() => shift(1)}
-              className="grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle"
-              aria-label="Next month"
-            >
+            </IconButton>
+            <IconButton onClick={() => shift(1)} aria-label="Next month">
               <Icon name="chevron_right" size={18} />
-            </button>
+            </IconButton>
           </div>
           <Button
             variant="secondary"
@@ -412,13 +405,9 @@ const DayPopover = forwardRef<
             {monthShort} {cell.day}
           </p>
         </div>
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="grid h-8 w-8 place-items-center rounded-md text-icon-secondary transition-colors hover:bg-surface-subtle"
-        >
+        <IconButton onClick={onClose} aria-label="Close">
           <Icon name="close" size={18} />
-        </button>
+        </IconButton>
       </div>
 
       <div className="max-h-64 space-y-1 overflow-y-auto p-2">
@@ -426,9 +415,9 @@ const DayPopover = forwardRef<
           items.map((item) => {
             const row = (
               <div className="flex items-center gap-2.5">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-secondary">
+                <IconTile>
                   <Icon name={KIND_ICON[item.kind]} size={18} />
-                </span>
+                </IconTile>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-text-primary">
                     {item.title}

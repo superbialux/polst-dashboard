@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Icon } from "./Icon";
+import { IconButton } from "@/components/ui/icon-button";
 
 type ModalProps = {
   open: boolean;
@@ -138,14 +139,16 @@ export function Modal({
                 {title}
               </h2>
             )}
-            <button
+            <IconButton
               ref={closeRef}
               onClick={onClose}
               aria-label="Close"
-              className="-mr-1.5 grid h-10 w-10 place-items-center rounded-pill text-icon-secondary transition-colors hover:bg-surface-subtle"
+              size="lg"
+              shape="pill"
+              className="-mr-1.5"
             >
               <Icon name="close" size={22} />
-            </button>
+            </IconButton>
           </div>
         ) : null}
 
