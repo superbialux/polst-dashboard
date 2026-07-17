@@ -146,7 +146,7 @@ export function SuggestionCard({
         </span>
         <span className="relative mt-3 block flex-1">
           <MediaFill
-            media={{ tone: suggestion.tone, icon: suggestion.icon, src: suggestion.image }}
+            media={{ tone: suggestion.tone, icon: suggestion.icon, src: suggestion.image, align: "right" }}
             className="h-full min-h-32 w-full"
           />
           {/* The house secondary button, rendered inert — the card link

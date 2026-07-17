@@ -128,7 +128,9 @@ export function HomePage() {
     }));
     return [...ready, ...attention, ...DISCOVERY]
       .filter((s) => !dismissed.has(s.id))
-      .slice(0, 4);
+      .slice(0, 4)
+      // One shared illustration for now; per-card art slots in via `image`.
+      .map((s) => ({ ...s, image: s.image ?? "/review-finished-campaign.png" }));
   }, [campaigns, polsts, sources, dismissed]);
 
   const dismissSuggestion = (id: string) =>

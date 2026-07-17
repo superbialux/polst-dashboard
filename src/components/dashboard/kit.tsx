@@ -842,17 +842,28 @@ export type CardMedia = {
   tone?: CardTone;
   icon?: string;
   placement?: "side" | "bottom";
+  /** Crop anchor for the image — "right" keeps a right-weighted
+   *  illustration in frame (and leaves room for an overlaid action). */
+  align?: "center" | "right";
 };
 
-/** Fills its box with the image, or a tone-wash placeholder if there's no src. */
+/** Fills its box with the image over the tone wash (transparent art shows
+ *  the wash through), or the wash + glyph placeholder without a src. */
 export function MediaFill({ media, className }: { media: CardMedia; className?: string }) {
   return (
     <div
       aria-hidden={!media.src}
-      className={cn("relative overflow-hidden", !media.src && CARD_TONES[media.tone ?? "neutral"], className)}
+      className={cn("relative overflow-hidden", CARD_TONES[media.tone ?? "neutral"], className)}
     >
       {media.src ? (
-        <img src={media.src} alt={media.alt ?? ""} className="absolute inset-0 h-full w-full object-cover" />
+        <img
+          src={media.src}
+          alt={media.alt ?? ""}
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover",
+            media.align === "right" && "object-right",
+          )}
+        />
       ) : (
         <div className="grid h-full w-full place-items-center">
           <Icon name={media.icon ?? "image"} size={40} filled />
