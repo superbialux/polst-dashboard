@@ -29,20 +29,20 @@ export type BannerInvite = {
   image?: string;
 };
 
-function InviteCell({
+/** One invitation as its own card: text on the suggestion cards' p-4
+ *  scale, the square art flush against the trailing edge. min-h-72 ≈
+ *  the suggestion cards' height, so the two Home card rows read as one
+ *  rhythm and the 1:1 art fills the height uncropped. */
+function InviteCard({
   invite,
   variant,
-  className,
 }: {
   invite: BannerInvite;
   variant: "primary" | "secondary";
-  className?: string;
 }) {
   return (
-    // min-h-72 ≈ the suggestion cards' height, so the two Home card rows
-    // read as one rhythm; the square art fills the cell's full height.
-    <div className={cn("flex min-h-72 items-stretch", className)}>
-      <div className="flex min-w-0 flex-1 flex-col items-start p-6">
+    <section className="flex min-h-72 items-stretch overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm">
+      <div className="flex min-w-0 flex-1 flex-col items-start p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
           {invite.eyebrow}
         </p>
@@ -62,37 +62,18 @@ function InviteCell({
           className="hidden h-72 w-72 shrink-0 self-center object-cover sm:block"
         />
       ) : null}
-    </div>
+    </section>
   );
 }
 
-/** The two ways in, side by side: a campaign on the left (primary), a
- *  single polst on the right (secondary) — one dismiss for the pair. */
-export function HeroBanner({
-  left,
-  right,
-  onDismiss,
-}: {
-  left: BannerInvite;
-  right: BannerInvite;
-  onDismiss: () => void;
-}) {
+/** The two ways in, one row of two cards: a campaign on the left
+ *  (primary), a single polst on the right (secondary). */
+export function HeroBanner({ left, right }: { left: BannerInvite; right: BannerInvite }) {
   return (
-    <section className="relative overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm">
-      <div className="grid divide-y divide-border-default sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <InviteCell invite={left} variant="primary" />
-        <InviteCell invite={right} variant="secondary" />
-      </div>
-      {/* The dismiss rides the right cell's art — a raised chip keeps it
-          readable over any image. */}
-      <IconButton
-        aria-label="Dismiss"
-        onClick={onDismiss}
-        className="absolute right-2 top-2 bg-surface-raised shadow-sm"
-      >
-        <Icon name="close" size={18} />
-      </IconButton>
-    </section>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <InviteCard invite={left} variant="primary" />
+      <InviteCard invite={right} variant="secondary" />
+    </div>
   );
 }
 
@@ -263,7 +244,7 @@ export function CampaignCard({
   );
 
   return (
-    <section className="flex flex-col rounded-card border border-border-default bg-surface-raised p-5 shadow-sm">
+    <section className="flex flex-col rounded-card border border-border-default bg-surface-raised p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Link

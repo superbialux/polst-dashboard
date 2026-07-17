@@ -696,7 +696,7 @@ export function AnalyticsOverviewPage() {
           emptyLabel="No campaigns collected votes in this view"
         />
         {campaignPerf.length ? (
-          <p className="border-t border-border-default px-5 py-3 text-xs text-text-secondary">
+          <p className="border-t border-border-default px-4 py-3 text-xs text-text-secondary">
             Started, Completed, and Finish rate are scoped to the selected window; status
             reflects the whole run. Each campaign's interpretation lives in its Insights tab.
           </p>
@@ -804,7 +804,7 @@ function CampaignInsightIndexRow({ row }: { row: InsightIndexRow }) {
   const { campaign, state, through, sourceCount } = row;
   const to = `/campaigns/${campaign.id}?tab=insights`;
   return (
-    <li className="px-5 py-4">
+    <li className="px-4 py-4">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -966,7 +966,7 @@ export function AnalyticsInsightsPage() {
           />
         )}
         {excluded > 0 && eligible.length > 0 ? (
-          <p className="border-t border-border-default px-5 py-3 text-xs leading-4 text-text-secondary">
+          <p className="border-t border-border-default px-4 py-3 text-xs leading-4 text-text-secondary">
             {excluded} {excluded === 1 ? "campaign doesn't" : "campaigns don't"} appear here —
             Scheduled and Draft runs have no responses to learn from yet.
           </p>

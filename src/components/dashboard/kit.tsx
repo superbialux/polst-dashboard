@@ -86,7 +86,7 @@ export function DashboardCard({
       )}
     >
       {hasHeader ? (
-        <div className="flex items-start justify-between gap-4 px-5 pb-0 pt-5">
+        <div className="flex items-start justify-between gap-4 px-4 pb-0 pt-4">
           <div className="min-w-0">
             {title ? (
               <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
@@ -102,7 +102,7 @@ export function DashboardCard({
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       ) : null}
-      <div className={cn(padded && (hasHeader ? "px-5 pb-5 pt-4" : "p-5"), bodyClassName)}>
+      <div className={cn(padded && (hasHeader ? "px-4 pb-4 pt-3" : "p-4"), bodyClassName)}>
         {children}
       </div>
     </section>
@@ -220,7 +220,7 @@ export function DecisionBrief({
   return (
     <section
       className={cn(
-        "rounded-card border border-border-default bg-surface-raised p-5 shadow-sm",
+        "rounded-card border border-border-default bg-surface-raised p-4 shadow-sm",
         className,
       )}
     >
@@ -458,7 +458,7 @@ export function SearchAndFilters({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-b border-border-default px-5 py-4 lg:flex-row lg:items-center lg:justify-between",
+        "flex flex-col gap-3 border-b border-border-default px-4 py-4 lg:flex-row lg:items-center lg:justify-between",
         className,
       )}
     >
@@ -557,7 +557,7 @@ export type DataColumn<T> = {
 
 /** The one list primitive (Navattic anatomy): quiet 12px gray header
  *  labels — never uppercase — over ~52px rows (py-4 around a 20px text
- *  line), full-row hover tint, px-5 outer gutters flush with the card's
+ *  line), full-row hover tint, px-4 outer gutters flush with the card's
  *  padding. Typed columns, hover rows, honest empty label. */
 export function DataTable<T extends { id: string }>({
   rows,
@@ -579,7 +579,7 @@ export function DataTable<T extends { id: string }>({
               <th
                 key={column.header}
                 className={cn(
-                  "whitespace-nowrap px-3 py-3 font-medium first:pl-5 last:pr-5",
+                  "whitespace-nowrap px-3 py-3 font-medium first:pl-4 last:pr-4",
                   column.align === "right" && "text-right",
                   column.className,
                 )}
@@ -611,7 +611,7 @@ export function DataTable<T extends { id: string }>({
                   <td
                     key={column.header}
                     className={cn(
-                      "px-3 py-4 align-middle text-text-primary first:pl-5 last:pr-5",
+                      "px-3 py-4 align-middle text-text-primary first:pl-4 last:pr-4",
                       column.align === "right" && "text-right",
                       column.className,
                     )}
@@ -626,7 +626,7 @@ export function DataTable<T extends { id: string }>({
               {/* Same ink and padding as EmptyState's title, so every
                   empty surface reads as one pattern. */}
               <td
-                className="px-5 py-8 text-center text-sm font-medium text-text-primary"
+                className="px-4 py-8 text-center text-sm font-medium text-text-primary"
                 colSpan={columns.length}
               >
                 {emptyLabel}
@@ -966,11 +966,11 @@ export function ActionCard({
     <section
       className={cn(
         "group relative flex rounded-card border border-border-default bg-surface-raised shadow-sm",
-        media ? (bottom ? "flex-col overflow-hidden" : "overflow-hidden") : "gap-4 p-5",
+        media ? (bottom ? "flex-col overflow-hidden" : "overflow-hidden") : "gap-4 p-4",
         className,
       )}
     >
-      <div className={cn("flex min-w-0 flex-1 flex-col", media && "p-5")}>
+      <div className={cn("flex min-w-0 flex-1 flex-col", media && "p-4")}>
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             {eyebrow ? (
@@ -1121,7 +1121,7 @@ export function NextStepsCard({
   const [openIdx, setOpenIdx] = useState(firstOpen);
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <section className="overflow-hidden rounded-card border border-border-default bg-surface-raised p-5 shadow-sm">
+    <section className="overflow-hidden rounded-card border border-border-default bg-surface-raised p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-text-secondary">

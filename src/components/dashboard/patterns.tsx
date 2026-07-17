@@ -739,7 +739,7 @@ export function ReadyDecisionRow({
   return (
     <li
       className={cn(
-        "flex flex-col items-start gap-3 px-5 py-3 sm:flex-row sm:items-center",
+        "flex flex-col items-start gap-3 px-4 py-3 sm:flex-row sm:items-center",
         className,
       )}
     >
@@ -1060,7 +1060,7 @@ export function Pager({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 border-t border-border-default px-5 py-3",
+        "flex items-center justify-between gap-3 border-t border-border-default px-4 py-3",
         className,
       )}
     >

@@ -152,7 +152,7 @@ export function AudiencePage() {
         >
           {/* Map first for the glance; the table below stays the exact,
               accessible view of the same rows. */}
-          <div className="px-5 pb-3 pt-4">
+          <div className="px-4 pb-3 pt-4">
             <GeoMap
               countries={countries.map((c) => ({
                 name: c.country,

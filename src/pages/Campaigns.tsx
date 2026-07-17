@@ -209,7 +209,7 @@ export function CampaignsPage() {
           }
         />
         {searching && rows.length > 0 ? (
-          <p className="border-b border-border-default px-5 py-2 text-xs text-text-secondary">
+          <p className="border-b border-border-default px-4 py-2 text-xs text-text-secondary">
             {rows.length} {rows.length === 1 ? "campaign matches" : "campaigns match"} “
             {query.trim()}”
           </p>
@@ -813,7 +813,7 @@ function CampaignOverview({
         <div className="space-y-4 lg:col-span-6">
           <DashboardCard title="Source performance" padded={false}>
             <DataTable rows={sources} columns={sourceColumns} emptyLabel="No sources assigned" />
-            <p className="border-t border-border-default px-5 py-3 text-xs text-text-secondary">
+            <p className="border-t border-border-default px-4 py-3 text-xs text-text-secondary">
               Campaign average completion: {pct(campaign.completed, campaign.voters)}
             </p>
           </DashboardCard>
@@ -876,7 +876,7 @@ function InsightPolstRow({
   const role = polstRole(campaign, index);
   const lost = prev !== null && prev > 0 ? prev - responses : null;
   return (
-    <li className="flex flex-wrap items-start gap-x-4 gap-y-2 px-5 py-4">
+    <li className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-4">
       <span className="mt-0.5 w-7 shrink-0 font-display text-sm font-semibold text-text-tertiary">
         Q{index + 1}
       </span>
@@ -1051,7 +1051,7 @@ function CampaignInsights({
       </DashboardCard>
 
       <DashboardCard title="Polsts in this campaign" padded={false}>
-        <p className="border-b border-border-default px-5 pb-3 text-xs leading-4 text-text-secondary">
+        <p className="border-b border-border-default px-4 pb-3 text-xs leading-4 text-text-secondary">
           How the ordered questions shaped the result — not a leaderboard. A question can only
           support or contradict the decision when it offers the same two options.
         </p>
@@ -1070,7 +1070,7 @@ function CampaignInsights({
       <SectionGrid className="items-start">
         <DashboardCard title="Source contribution" padded={false} className="lg:col-span-7">
           <DataTable rows={sources} columns={sourceColumns} emptyLabel="No sources assigned" />
-          <div className="space-y-1 border-t border-border-default px-5 py-3">
+          <div className="space-y-1 border-t border-border-default px-4 py-3">
             {outlier && outlierGap >= 5 ? (
               <p className="text-sm leading-5 text-text-secondary">
                 {outlier.name} completes at {Math.round(outlier.completionRate!)}%; the campaign

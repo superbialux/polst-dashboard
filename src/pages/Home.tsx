@@ -105,7 +105,6 @@ const campaignSources = (sources: Source[], id: string) =>
 export function HomePage() {
   const [range, setRange] = useState<StatRange>("30D");
   const [campaignView, setCampaignView] = useState<"Active" | "Queued">("Active");
-  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const { campaigns, polsts, sources } = useWorkspace();
 
@@ -198,27 +197,24 @@ export function HomePage() {
       </section>
 
       {/* 2 · The two ways in — a campaign, or one quick polst. */}
-      {!bannerDismissed ? (
-        <HeroBanner
-          left={{
-            eyebrow: "Campaigns",
-            title: "Create a new campaign",
-            description:
-              "Chain a few polsts into one run, point your sources at it, and the decision takes shape as votes come in.",
-            cta: { label: "Create campaign", to: "/campaigns/new" },
-            image: "/campaign.jpg",
-          }}
-          right={{
-            eyebrow: "Polsts",
-            title: "Start with a single polst",
-            description:
-              "One question, two options — live in a minute and ready to share anywhere.",
-            cta: { label: "Create a polst", to: "/polsts/new" },
-            image: "/polst.jpg",
-          }}
-          onDismiss={() => setBannerDismissed(true)}
-        />
-      ) : null}
+      <HeroBanner
+        left={{
+          eyebrow: "Campaigns",
+          title: "Create a new campaign",
+          description:
+            "Chain a few polsts into one run, point your sources at it, and the decision takes shape as votes come in.",
+          cta: { label: "Create campaign", to: "/campaigns/new" },
+          image: "/campaign.jpg",
+        }}
+        right={{
+          eyebrow: "Polsts",
+          title: "Start with a single polst",
+          description:
+            "One question, two options — live in a minute and ready to share anywhere.",
+          cta: { label: "Create a polst", to: "/polsts/new" },
+          image: "/polst.jpg",
+        }}
+      />
 
       {/* 3 · Suggested for you — decisions, fixes, then discovery. */}
       <SuggestionGrid
