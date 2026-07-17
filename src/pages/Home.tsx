@@ -9,7 +9,7 @@ import {
   DateRangeMenu,
   EmptyState,
   HeroBanner,
-  PageTabs,
+  HeaderTabs,
   SegmentedControl,
   StatsStrip,
   SuggestionBento,
@@ -270,10 +270,8 @@ export function HomePage() {
           <Link to="/polsts/new">Create polst</Link>
         </Button>
       }
+      tabs={<HeaderTabs tabs={HOME_TABS} active={tab} onChange={setTab} />}
     >
-      {/* The page's two faces: today's work, and the weeks around it. */}
-      <PageTabs tabs={HOME_TABS} active={tab} onChange={setTab} />
-
       {tab === "Calendar" ? (
         <>
           {/* Upcoming key dates as a bento — covered dates open their

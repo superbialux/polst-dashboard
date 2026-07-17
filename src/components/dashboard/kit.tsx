@@ -36,6 +36,9 @@ import {
 
 type PageProps = {
   actions?: ReactNode;
+  /** A HeaderTabs row — rendered as a full-width band flush under the
+   *  sticky header, before the centered content column. */
+  tabs?: ReactNode;
   children: ReactNode;
 };
 
@@ -44,12 +47,57 @@ type PageProps = {
  *  content does the explaining. `actions` teleport into the header's
  *  right side (the page-contextual slot). Every page shares the one
  *  `max-w-dashboard` container — no per-page widths. */
-export function DashboardPage({ actions, children }: PageProps) {
+export function DashboardPage({ actions, tabs, children }: PageProps) {
   return (
-    <div className="mx-auto max-w-dashboard space-y-8">
-      {actions ? <HeaderActions>{actions}</HeaderActions> : null}
-      {children}
-    </div>
+    <>
+      {tabs ? (
+        // Escapes main's padding so the band and its hairline run edge to
+        // edge — a second header row, not a floating control.
+        <div className="-mx-4 -mt-6 mb-6 border-b border-border-default bg-surface-raised px-4 sm:-mx-5 sm:px-5">
+          {tabs}
+        </div>
+      ) : null}
+      <div className="mx-auto max-w-dashboard space-y-8">
+        {actions ? <HeaderActions>{actions}</HeaderActions> : null}
+        {children}
+      </div>
+    </>
+  );
+}
+
+/** True header tabs (the GitHub/Stripe register): quiet labels on the
+ *  header band, the active one carrying the 2px accent underline — the
+ *  same indicator language as the stat hero's cells. For view switches
+ *  inside content, use SegmentedControl/PageTabs instead. */
+export function HeaderTabs<T extends string>({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: ReadonlyArray<T>;
+  active: T;
+  onChange: (tab: T) => void;
+}) {
+  return (
+    <nav aria-label="Page sections" className="flex gap-5">
+      {tabs.map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          aria-current={tab === active ? "page" : undefined}
+          onClick={() => onChange(tab)}
+          className={cn(
+            "relative flex h-11 items-center font-display text-sm font-medium transition-colors",
+            tab === active ? "text-text-primary" : "text-text-secondary hover:text-text-primary",
+          )}
+        >
+          {tab}
+          {tab === active ? (
+            <span aria-hidden className="absolute inset-x-0 bottom-0 border-b-2 border-accent-default" />
+          ) : null}
+        </button>
+      ))}
+    </nav>
   );
 }
 
