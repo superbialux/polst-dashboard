@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/Icon";
 import {
   StatsListCard,
   CampaignCard,
@@ -267,7 +268,10 @@ export function HomePage() {
     <DashboardPage
       actions={
         <Button size="sm" asChild>
-          <Link to="/polsts/new">Create polst</Link>
+          <Link to="/new">
+            <Icon name="add" size={16} />
+            Add new
+          </Link>
         </Button>
       }
       tabs={<HeaderTabs tabs={HOME_TABS} active={tab} onChange={setTab} />}

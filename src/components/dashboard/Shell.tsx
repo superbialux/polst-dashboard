@@ -429,6 +429,8 @@ function Breadcrumbs() {
     if (pathname === "/") return [{ label: "Home" }];
     const seg = pathname.split("/").filter(Boolean);
     switch (seg[0]) {
+      case "new":
+        return [{ label: "Add new" }];
       case "campaigns": {
         const list: Crumb[] = [{ label: "Campaigns", to: "/campaigns" }];
         if (seg[1] === "new") list.push({ label: "Create campaign" });

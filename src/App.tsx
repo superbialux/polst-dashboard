@@ -5,6 +5,7 @@ import { WorkspaceProvider } from "@/lib/store";
 import { AnalyticsProvider } from "@/lib/analytics-context";
 import { DashboardShell } from "@/components/dashboard";
 import { HomePage } from "@/pages/Home";
+import { CreateChoicePage } from "@/pages/CreateChoice";
 import {
   CampaignDetailPage,
   CampaignsPage,
@@ -35,6 +36,7 @@ export function App() {
           <DashboardShell>
             <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/new" element={<CreateChoicePage />} />
 
             <Route path="/campaigns" element={<CampaignsPage />} />
             <Route path="/campaigns/new" element={<CreateCampaignPage />} />
