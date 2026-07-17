@@ -24,15 +24,24 @@ build, browser) and commit+push after every pass — main only.
       MiniPoll's PollThumb kept — genuinely different variant (64px/24px).
       Note: kit's private SectionTitle-ish headers largely gone; Audience.tsx
       "Browsers" header still inline (audit ref had moved) — fold into 6d.
-- [ ] Pass 6c — Recharts chart kit (dataviz skill first) replacing inline SVG.
-- [ ] Pass 6d — Mobbin restyle: shell/sidebar (Vercel), analytics (Amplitude),
-      charts polish (Dub/Origin), overlays → shadcn Dialog/DropdownMenu/Sheet,
-      Toast → sonner, legibility sweep ("крупнее все").
-- [ ] Pass 6e — Insights/Trends layer (mock data first: lib/insights.ts
-      derivations), Hotjar/Fitness patterns, teaching layer.
-- [ ] Pass 6f — remaining feedback gaps: geography map, interactions split,
-      scheduled-Polst hero, PollThumb in Analytics tables, PollCard parity fix
-      (restore `absolute inset-0` on option img — the one divergence vs ~/polst).
+- [x] Pass 6c — Recharts: charts.tsx (TrendChart/Sparkline, same APIs),
+      validated chart palette (chart-2 #b98a00, chart-3 #128c78, chart-5
+      #47409f; amber never adjacent to orange-red), MixBars → Dub bar-rows.
+      Funnel/ProgressRing/ProgressBar/TimeHeatmap stay HTML (meters/lists).
+- [ ] Pass 6d — Mobbin restyle (spec: task/design-references.md §8):
+      6d1 Shell sidebar Vercel metrics; 6d2 Dub KPI hero (StatsStrip→fused
+      metric-cell tabs + chart, delta chips); 6d3 overlay internals → shadcn
+      (Modal→Dialog, Menu→DropdownMenu, Drawer→Sheet, Toast→sonner, same
+      external APIs); 6d4 DataTable/toolbar/empty-state registers +
+      legibility sweep ("крупнее все").
+- [x] Pass 6e (core) — lib/insights.ts (deriveTrends 7D-vs-30D coaching rows
+      w/ peak-window + biggest-drop derivations; deriveInsights question
+      cards: standout source / drop-off / standout Polst) + insight-cards.tsx
+      (TrendGrid/InsightCard) wired into Analytics Insights. All computed
+      from live store; rows drop when data can't support them.
+- [~] Pass 6f — done: scheduled-Polst hero (both cuts), interactionMix
+      (workspace+store+Polst detail tile), PollThumb/ThumbStrip in both
+      Analytics tables, PollCard parity fix. In flight: GeoMap (Audience).
 - [ ] Pass 6g — docs (DESIGN.md, feedback-coverage.md), final verify.
 
 ## DRY audit (from full read of all views, 2026-07-17)

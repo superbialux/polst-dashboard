@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Drawer } from "@/components/Drawer";
+import { HelpGuide } from "./HelpGuide";
 import { PolstWordmark } from "@/components/PolstLogo";
 import { Menu, MenuItem } from "@/components/Menu";
 import { useToast } from "@/components/Toast";
@@ -363,9 +364,10 @@ function Header({
       {/* Where you are — search moved entirely behind ⌘K */}
       <Breadcrumbs />
 
-      {/* Right — the current page's actions teleport in, then the bell */}
+      {/* Right — the current page's actions teleport in, then help + bell */}
       <div className="ml-auto flex items-center gap-2">
         <div ref={onActionsSlot} className="flex items-center gap-2" />
+        <HelpGuide />
         <NotificationsMenu />
       </div>
     </header>

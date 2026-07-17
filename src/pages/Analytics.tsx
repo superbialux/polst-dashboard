@@ -15,16 +15,22 @@ import {
   EmptyState,
   FilterBar,
   InfoHint,
+  InsightGrid,
   LockedCard,
   MixBars,
+  PolstListRow,
   RateCell,
   ReadyDecisionRow,
   ReportPreview,
   SectionGrid,
+  SectionTitle,
   StatsStrip,
   StatusBadge,
+  ThumbStrip,
+  TrendGrid,
   type DataColumn,
 } from "@/components/dashboard";
+import { deriveInsights, deriveTrends } from "@/lib/insights";
 import {
   METRIC_INFO,
   TODAY,
@@ -54,6 +60,7 @@ import {
   attentionItems,
   campaignSeries,
   clipToRun,
+  polstOptions,
   polstSeries,
   readyTitle,
   verdictLabel,
@@ -75,6 +82,7 @@ import {
   type SegmentRow,
   type CategoryRow,
 } from "@/lib/analytics";
+import { type PollOption } from "@/lib/poll";
 import { useAnalytics } from "@/lib/analytics-context";
 import { useModules } from "@/lib/modules";
 import { useWorkspace } from "@/lib/store";
@@ -235,6 +243,8 @@ type CampaignPerfRow = {
   id: string;
   name: string;
   status: Status;
+  /** The chain's Polst ids, for the same ThumbStrip the Campaigns list shows. */
+  chainIds: string[];
   voters: number;
   completed: number;
   verdict: string;
@@ -258,6 +268,7 @@ function buildCampaignPerf(rows: SegmentRow[], campaigns: Campaign[]): CampaignP
           id,
           name: campaign.name,
           status: campaign.status,
+          chainIds: campaign.chain.map((q) => q.id),
           voters: m.voters,
           completed: m.completed,
           verdict: verdictLabel(campaign),
@@ -271,12 +282,15 @@ const campaignPerfColumns: Array<DataColumn<CampaignPerfRow>> = [
   {
     header: "Campaign",
     cell: (row) => (
-      <Link
-        to={`/campaigns/${row.id}`}
-        className="font-display font-semibold text-text-primary hover:text-text-accent"
-      >
-        {row.name}
-      </Link>
+      <span className="flex min-w-0 items-center gap-3">
+        <ThumbStrip ids={row.chainIds} className="shrink-0" />
+        <Link
+          to={`/campaigns/${row.id}`}
+          className="min-w-0 truncate font-display font-semibold text-text-primary hover:text-text-accent"
+        >
+          {row.name}
+        </Link>
+      </span>
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
@@ -296,7 +310,14 @@ const campaignPerfColumns: Array<DataColumn<CampaignPerfRow>> = [
   },
 ];
 
-type PolstPerfRow = { id: string; question: string; views: number; votes: number };
+type PolstPerfRow = {
+  id: string;
+  question: string;
+  /** The real option pair (label · image), for the shared PolstListRow. */
+  options: [PollOption, PollOption];
+  views: number;
+  votes: number;
+};
 
 function buildPolstPerf(rows: SegmentRow[], polsts: SinglePolst[]): PolstPerfRow[] {
   const grouped = new Map<string, { views: number; votes: number }>();
@@ -311,7 +332,9 @@ function buildPolstPerf(rows: SegmentRow[], polsts: SinglePolst[]): PolstPerfRow
     .flatMap(([id, m]) => {
       const polst = polsts.find((p) => p.id === id) ?? SINGLE_POLSTS.find((p) => p.id === id);
       if (!polst) return [];
-      return [{ id, question: polst.question, views: m.views, votes: m.votes }];
+      return [
+        { id, question: polst.question, options: polstOptions(polst), views: m.views, votes: m.votes },
+      ];
     })
     .sort((a, b) => b.views - a.views);
 }
@@ -320,12 +343,7 @@ const polstPerfColumns: Array<DataColumn<PolstPerfRow>> = [
   {
     header: "Polst",
     cell: (row) => (
-      <Link
-        to={`/polsts/${row.id}`}
-        className="font-display font-semibold text-text-primary hover:text-text-accent"
-      >
-        {row.question}
-      </Link>
+      <PolstListRow options={row.options} question={row.question} to={`/polsts/${row.id}`} />
     ),
   },
   {
@@ -740,20 +758,36 @@ export function AnalyticsInsightsPage() {
   /* Milestones clip to each run's current end (clipToRun): an in-session
      schedule edit or ending retires entries the record now contradicts. */
   const changed = useMemo(() => clipToRun(WHAT_CHANGED, campaigns), [campaigns]);
+  /* The interpretation layer — every row/card is computed from the live
+     store with its numbers attached, so each claim can be checked against
+     the tables it summarizes. */
+  const trends = useMemo(() => deriveTrends(campaigns, polsts), [campaigns, polsts]);
+  const insights = useMemo(
+    () => deriveInsights(campaigns, polsts, sources),
+    [campaigns, polsts, sources],
+  );
 
   const summary = () =>
     [
       `${WORKSPACE.brand} — insights`,
+      ...trends.map((t) => `${t.metric}: ${t.coaching}`),
       ...ready.map(
         (c) =>
           `${readyTitle(c)}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
       ),
+      ...insights.map((i) => `${i.question} ${i.evidence}`),
       ...attention.map((item) => `Needs attention: ${item.title}`),
       ...changed.map((item) => `${fmtDate(item.at)} — ${item.text}`),
     ].join("\n");
 
   return (
     <DashboardPage actions={<ExportMenu summary={summary} />}>
+      {trends.length ? (
+        <section aria-label="Trends">
+          <SectionTitle className="mb-3">This week against your 30-day baseline</SectionTitle>
+          <TrendGrid trends={trends} />
+        </section>
+      ) : null}
       {ready.length ? (
         <SectionGrid>
           {ready.map((campaign) => (
@@ -770,6 +804,13 @@ export function AnalyticsInsightsPage() {
             />
           ))}
         </SectionGrid>
+      ) : null}
+
+      {insights.length ? (
+        <section aria-label="What the data says">
+          <SectionTitle className="mb-3">What the data says</SectionTitle>
+          <InsightGrid insights={insights} />
+        </section>
       ) : null}
 
       <SectionGrid>

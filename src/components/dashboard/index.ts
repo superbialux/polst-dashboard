@@ -1,7 +1,9 @@
 export * from "./kit";
 export * from "./patterns";
 export * from "./charts";
+export * from "./insight-cards";
 export * from "./Calendar";
+export * from "./GeoMap";
 export * from "./NotFound";
 export { ReportPreview } from "./ReportPreview";
 export * from "./Shell";

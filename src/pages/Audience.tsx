@@ -5,6 +5,7 @@ import {
   DashboardPage,
   DataTable,
   DateRangeMenu,
+  GeoMap,
   MixBars,
   SectionGrid,
   StatTile,
@@ -82,6 +83,7 @@ export function AudiencePage() {
   const [range, setRange] = useState<WindowRange>("30D");
   const w = workspaceWindow(range);
   const heat = answerHeat(range);
+  const countries = countryMix(range);
 
   const votesPerVoter = w.voters > 0 ? w.votes / w.voters : null;
   const prevVotesPerVoter =
@@ -148,7 +150,18 @@ export function AudiencePage() {
           padded={false}
           className="lg:col-span-8"
         >
-          <DataTable rows={countryMix(range)} columns={countryColumns} />
+          {/* Map first for the glance; the table below stays the exact,
+              accessible view of the same rows. */}
+          <div className="px-5 pb-3 pt-4">
+            <GeoMap
+              countries={countries.map((c) => ({
+                name: c.country,
+                share: c.share,
+                voters: c.voters,
+              }))}
+            />
+          </div>
+          <DataTable rows={countries} columns={countryColumns} />
         </DashboardCard>
         <DashboardCard title="Platforms" className="lg:col-span-4">
           <MixBars slices={platformMix(range)} />
