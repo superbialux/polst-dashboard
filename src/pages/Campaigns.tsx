@@ -72,6 +72,7 @@ import {
   shareUrl,
   verdictLabel,
   type Campaign,
+  type ChainQuestion,
   type Channel,
   type Source,
 } from "@/lib/workspace";
@@ -454,6 +455,7 @@ export function CampaignDetailPage() {
   const [qrOpen, setQrOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   if (!campaign) return <NotFoundCard kind="campaign" />;
 
@@ -465,6 +467,7 @@ export function CampaignDetailPage() {
 
   const publish = () => {
     const result = store.publishCampaign(campaign.id);
+    setReviewOpen(false);
     if (!result.ok) {
       // Every refusal reaches the user — a dead button explains nothing.
       toast(result.reason);
@@ -506,6 +509,9 @@ export function CampaignDetailPage() {
             </Menu>
           ) : null}
           {campaign.status === "Draft" ? (
+            // Publishing always passes through the review (the audit's
+            // required workflow): final ordered chain, schedule, and the
+            // exact lock rule, confirmed — never a one-click launch.
             <Button
               disabled={!canPublish}
               title={
@@ -517,9 +523,9 @@ export function CampaignDetailPage() {
                       ? "Set a start date first"
                       : "The end date is before the start — fix the schedule in Settings"
               }
-              onClick={publish}
+              onClick={() => setReviewOpen(true)}
             >
-              Publish
+              Review & publish
             </Button>
           ) : null}
           {/* Ready campaigns end through the DecisionBrief's "End campaign
@@ -568,6 +574,76 @@ export function CampaignDetailPage() {
         objectName={campaign.name}
         url={shareUrl("campaign", campaign.id)}
       />
+      {/* The pre-publish review: the final ordered journey, the schedule,
+          and the exact lock rule — confirmed, never skipped. */}
+      <Modal
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        label="Review and publish campaign"
+        title="Review before publishing"
+        className="lg:max-w-2xl"
+        footer={
+          <div className="flex justify-end gap-2 p-4">
+            <Button variant="secondary" onClick={() => setReviewOpen(false)}>
+              Back to editing
+            </Button>
+            <Button onClick={publish}>Confirm & publish</Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 p-4">
+          <DetailList
+            items={[
+              ["Campaign", campaign.name],
+              ["Public URL", shareUrl("campaign", campaign.id)],
+              ["Runs", fmtDateRange(campaign.startAt, campaign.endAt)],
+              ...(campaign.decision ? [["Decision", campaign.decision] as [string, ReactNode]] : []),
+              ...(campaign.target
+                ? [["Voter target", fmtInt(campaign.target)] as [string, ReactNode]]
+                : []),
+            ]}
+          />
+          <div>
+            <h4 className="font-display text-sm font-semibold text-text-secondary">
+              Voters answer in this order
+            </h4>
+            <ol className="mt-2 divide-y divide-border-default rounded-md border border-border-default">
+              {campaign.chain.map((q, index) => (
+                <li key={q.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <span className="w-5 shrink-0 text-center font-display text-sm font-semibold tabular-nums text-text-tertiary">
+                    {index + 1}
+                  </span>
+                  <PollThumb
+                    options={polstOptions({
+                      id: q.id,
+                      optionA: q.optionA,
+                      optionB: q.optionB,
+                      splitA: q.splitA,
+                      votes: 0,
+                    })}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-display text-sm font-semibold text-text-primary">
+                      {q.question}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-text-secondary">
+                      {q.optionA} vs {q.optionB}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <p className="flex items-start gap-1.5 rounded-md bg-surface-subtle p-3 text-sm leading-5 text-text-secondary">
+            <Icon name="lock" size={18} className="mt-0.5 shrink-0 text-icon-secondary" />
+            <span>
+              Once the first vote arrives, the Polst chain, its order, and the start date
+              lock, and the campaign can no longer be unpublished — only ended. Until then
+              you can still unpublish it back to a draft.
+            </span>
+          </p>
+        </div>
+      </Modal>
       <Modal
         open={endOpen}
         onClose={() => setEndOpen(false)}
@@ -932,6 +1008,9 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
   const toast = useToast();
   const [composerOpen, setComposerOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  // Removal always confirms first (staging removed instantly — the audit's
+  // one destructive-workflow defect; never copy it).
+  const [removeTarget, setRemoveTarget] = useState<ChainQuestion | null>(null);
   // The chain is evidence once voters exist — editable only before launch.
   const editable = campaign.status === "Draft" || campaign.status === "Scheduled";
 
@@ -1004,16 +1083,14 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
                           <Icon name="arrow_downward" size={18} />
                         </Button>
                         {/* A mistyped or double-added question can leave the
-                            chain while it's still editable — the store's
-                            voters-guard keeps live evidence untouchable. */}
+                            chain while it's still editable — behind a
+                            confirmation, and the store's voters-guard keeps
+                            live evidence untouchable. */}
                         <Button
                           variant="ghost"
                           size="icon"
                           aria-label={`Remove question ${index + 1} from the chain`}
-                          onClick={() => {
-                            removeChainQuestion(campaign.id, q.id);
-                            toast("Polst removed from the chain");
-                          }}
+                          onClick={() => setRemoveTarget(q)}
                         >
                           <Icon name="close" size={18} />
                         </Button>
@@ -1062,6 +1139,39 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
         onClose={() => setLibraryOpen(false)}
         campaign={campaign}
       />
+      <Modal
+        open={removeTarget !== null}
+        onClose={() => setRemoveTarget(null)}
+        label="Remove Polst from campaign"
+        title="Remove this Polst?"
+        footer={
+          <div className="flex justify-end gap-2 p-4">
+            <Button variant="secondary" onClick={() => setRemoveTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (removeTarget) {
+                  removeChainQuestion(campaign.id, removeTarget.id);
+                  toast("Polst removed from the chain");
+                }
+                setRemoveTarget(null);
+              }}
+            >
+              Remove Polst
+            </Button>
+          </div>
+        }
+      >
+        {removeTarget ? (
+          <p className="p-4 text-sm leading-6 text-text-secondary">
+            “{removeTarget.question}” leaves the voting sequence, and the questions after it
+            move up one position. No votes are lost — a chain can only be edited before
+            voters arrive.
+          </p>
+        ) : null}
+      </Modal>
     </>
   );
 }

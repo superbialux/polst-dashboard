@@ -970,6 +970,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
   );
   const [customEnd, setCustomEnd] = useState(draft?.endAt ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const endDate = durationEnd(duration, startDate, customEnd);
   // Only a Custom duration can invert the range — refuse it at the source
@@ -1013,6 +1014,7 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
 
   const publish = () => {
     if (submitting) return; // a double-click must not publish twice
+    setReviewOpen(false);
     const data = input();
     let id: string;
     if (draft) {
@@ -1103,12 +1105,15 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
             >
               Save draft
             </Button>
+            {/* Publishing always passes through the review (the audit's
+                required workflow): the exact card voters will see plus the
+                lock warning, confirmed — never a one-click publish. */}
             <Button
               disabled={!canPublish || submitting}
               title={endBeforeStart ? "The end date is before the start." : undefined}
-              onClick={publish}
+              onClick={() => setReviewOpen(true)}
             >
-              Publish Polst
+              Review & publish
             </Button>
           </div>
         </div>
@@ -1133,6 +1138,70 @@ function ComposePolst({ draft }: { draft?: SinglePolst }) {
           </DashboardCard>
         </div>
       </SectionGrid>
+
+      {/* The pre-publish review: the exact card voters will see, the
+          schedule it runs on, and the lock warning — confirmed. */}
+      <Modal
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        label="Review and publish Polst"
+        title="Review before publishing"
+        className="lg:max-w-xl"
+        footer={
+          <div className="flex justify-end gap-2 p-4">
+            <Button variant="secondary" onClick={() => setReviewOpen(false)}>
+              Back to editing
+            </Button>
+            <Button disabled={submitting} onClick={publish}>
+              Confirm & publish
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 p-4">
+          <PollCard
+            preview
+            author={WORKSPACE.brand}
+            authorBadge={WORKSPACE.initials}
+            authorColor="var(--color-purple-tint)"
+            isFollowing
+            categories={composer.category ? [composer.category] : []}
+            question={composer.question}
+            options={polstOptions({
+              id: draft?.id ?? (composer.question || "new-polst"),
+              optionA: composer.optionA,
+              optionB: composer.optionB,
+              splitA: 50,
+              votes: 0,
+            })}
+            tags={[]}
+            likes={0}
+            reposts={0}
+            votes={0}
+          />
+          <DetailList
+            items={[
+              ["Category", composer.category ?? "—"],
+              ["Runs", fmtDateRange(startDate || undefined, endDate)],
+              [
+                "Goes live",
+                !startDate || startDate <= TODAY
+                  ? endDate && endDate < TODAY
+                    ? "Dates are already past — it will land as Ended"
+                    : "Immediately after you confirm"
+                  : `${fmtDate(startDate)} (${relativeToToday(startDate)})`,
+              ],
+            ]}
+          />
+          <p className="flex items-start gap-1.5 rounded-md bg-surface-subtle p-3 text-sm leading-5 text-text-secondary">
+            <Icon name="lock" size={18} className="mt-0.5 shrink-0 text-icon-secondary" />
+            <span>
+              The question, both options, and their images lock when you publish. You can end
+              the run early, but you can't edit it.
+            </span>
+          </p>
+        </div>
+      </Modal>
     </DashboardPage>
   );
 }
