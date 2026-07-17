@@ -396,9 +396,9 @@ function Breadcrumbs() {
         return list;
       }
       case "polsts": {
-        const list: Crumb[] = [{ label: "polsts", to: "/polsts" }];
+        const list: Crumb[] = [{ label: "Polsts", to: "/polsts" }];
         if (seg[1] === "new") list.push({ label: "Create polst" });
-        else if (seg[1]) list.push({ label: polstById(seg[1])?.question ?? "polst" });
+        else if (seg[1]) list.push({ label: polstById(seg[1])?.question ?? "Polst" });
         return list;
       }
       case "distribution":
@@ -443,7 +443,7 @@ function Breadcrumbs() {
             ) : (
               <span
                 aria-current={last ? "page" : undefined}
-                className="truncate text-sm font-medium text-text-primary"
+                className="truncate font-display text-sm font-semibold text-text-primary"
               >
                 {crumb.label}
               </span>

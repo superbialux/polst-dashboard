@@ -51,9 +51,10 @@ export function DashboardPage({ actions, tabs, children }: PageProps) {
   return (
     <>
       {tabs ? (
-        // Escapes main's padding so the band and its hairline run edge to
-        // edge — a second header row, not a floating control.
-        <div className="-mx-4 -mt-6 mb-6 border-b border-border-default bg-surface-raised px-4 sm:-mx-5 sm:px-5">
+        // Escapes main's padding to run edge to edge, and rises one extra
+        // pixel so its surface covers the header's hairline — header and
+        // band read as one block, ruled only underneath the tabs.
+        <div className="-mx-4 -mt-[25px] mb-5 border-b border-border-default bg-surface-raised px-4 sm:-mx-5 sm:px-5">
           {tabs}
         </div>
       ) : null}
@@ -87,7 +88,7 @@ export function HeaderTabs<T extends string>({
           aria-current={tab === active ? "page" : undefined}
           onClick={() => onChange(tab)}
           className={cn(
-            "relative flex h-11 items-center font-display text-sm font-medium transition-colors",
+            "relative flex h-9 items-center font-display text-sm font-medium transition-colors",
             tab === active ? "text-text-primary" : "text-text-secondary hover:text-text-primary",
           )}
         >
