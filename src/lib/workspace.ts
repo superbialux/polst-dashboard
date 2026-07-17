@@ -76,6 +76,19 @@ export type ChainQuestion = {
   splitA: number;
 };
 
+/** The decision question's result, carried with its own evidence: both
+ *  percentages and the response count travel with the winning option so
+ *  every surface can lead with "56% vs 44%" instead of a bare margin
+ *  (the audit's language contract). marginPts stays derived for the
+ *  signal/confidence thresholds — it is never the headline. */
+export type CampaignWinner = {
+  option: string;
+  marginPts: number; // |2·splitA − 100| — threshold input, not display
+  pctFor: number; // % of decision-question responses for the winner
+  pctAgainst: number; // % for the other option
+  responses: number; // votes on the decision question
+};
+
 export type Campaign = {
   id: string;
   name: string;
@@ -106,7 +119,7 @@ export type Campaign = {
   votesByQuestion: number[]; // chainVotes(voters, completed, chain.length)
   votes: number; // Σ votesByQuestion
   views: number; // round(votes * viewsFactor)
-  winner: { option: string; marginPts: number } | null;
+  winner: CampaignWinner | null;
   signal: DecisionSignal;
   confidence: Confidence;
   completionRate: number | null; // completed/voters*100, 1dp
@@ -235,11 +248,11 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "fl-price", question: "Which launch price feels right?", optionA: "$3.99", optionB: "$4.49", splitA: 58 },
     ],
     summary:
-      "Citrus Mint won the lead question by 12 points and held it through all four questions. The run passed its 1,000-voter target with 79% completion.",
+      "Citrus Mint received 56% of responses on the lead question; Berry Basil received 44%. The run passed its 1,000-participant target with 79% completion.",
     nextStep: "Export the report and share it with the retail team.",
     findings: [
-      "Citrus Mint led the shelf question by 12 points and never lost it.",
-      "$3.99 wins the price question by 16 points with no drop in completion.",
+      "Citrus Mint received 56% of responses on the shelf question; Berry Basil received 44%.",
+      "$3.99 received 58% of responses on the price question; $4.49 received 42%.",
       "Share Link — Newsletter delivered 41% of voters, the largest single source.",
     ],
     caveats: ["Launch-week traffic skewed toward existing subscribers."],
@@ -266,14 +279,14 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "pd-premium", question: "Which pack feels more premium?", optionA: "Bold label", optionB: "Minimal label", splitA: 42 },
     ],
     summary:
-      "Minimal label leads the premium question by 16 points and the campaign has passed its 1,200-voter target. Two days remain in the run.",
+      "Minimal label received 58% of responses on the premium question; Bold label received 42%. The campaign has passed its 1,200-participant target, with two days remaining.",
     nextStep: "Review the recommendation and lock the direction when the run ends Jun 17.",
     findings: [
-      "Minimal label wins premium feel by 16 points; Bold label still reads faster on shelf by 18.",
-      "Instagram voters narrow the premium lead to about +6 — watch the mix.",
+      "Minimal label received 58% on premium feel, while Bold label received 59% on shelf readability.",
+      "Among Instagram participants, the premium question is closer: 53% select Minimal label and 47% select Bold label.",
       "Website Embed — Packaging drives 42% of voters at 76% completion; QR — Shelf Talker completes highest at 78%.",
     ],
-    caveats: ["Creator traffic completes at 60% — 11 points below the 71% campaign average."],
+    caveats: ["Creator traffic completes at 60%; the campaign completes at 71%."],
     sampleNote: "1,486 voters across 4 sources — past the 1,200 target.",
   },
   {
@@ -299,16 +312,16 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "sf-size", question: "Which box size should we sell?", optionA: "6-pack", optionB: "10-pack", splitA: 55 },
     ],
     summary:
-      "Citrus Mint leads the headline slot by 6 points at 2,103 of the 2,500-voter target. The middle slots are still inside the noise band.",
+      "Citrus Mint received 53% of responses for the headline slot; Peach Punch received 47%. The campaign has reached 2,103 of its 2,500-participant target, while the middle slots remain inconclusive.",
     nextStep: "Keep collecting through Jun 30 before calling the middle slots.",
     findings: [
       "Email delivers 45% of voters — the largest channel in the mix.",
-      "The third slot is a coin flip: Cocoa Sea Salt edges Mango Lime by 2 points.",
-      "The 6-pack leads the size question by 10 points.",
+      "The third slot remains inconclusive: Cocoa Sea Salt received 51% and Mango Lime received 49%.",
+      "The 6-pack received 55% of responses on the size question; the 10-pack received 45%.",
     ],
     caveats: [
-      "Slots two and three sit within 4 points — don't call them yet.",
-      "QR — Conference Booth completes 17 points below the campaign average.",
+      "Slots two and three remain close enough that no recommendation should be made yet.",
+      "QR — Conference Booth completes at 41%; the campaign completes at 58%.",
     ],
     sampleNote: "2,103 of 2,500 target voters; email carries 45% of the sample.",
   },
@@ -333,7 +346,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "rs-find", question: "Which shelf helps you find flavors?", optionA: "Layout A", optionB: "Layout B", splitA: 51 },
     ],
     summary:
-      "Layout A leads by just 2 points at 640 of 1,200 voters — too close to call. Completion sits at 47%.",
+      "Layout A received 51% and Layout B received 49% across 640 of the 1,200 target participants. The result is inconclusive, and completion is 47%.",
     nextStep: "Keep running and add a second source beyond the website embed.",
     findings: [
       "Both questions sit at 51 / 49 — no separation yet.",
@@ -364,15 +377,208 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "hg-card", question: "Include a recipe card?", optionA: "Yes", optionB: "No", splitA: 71 },
     ],
     summary:
-      "Trio Box leads the gift guide question by 10 points with 64% completion. Email drives 55% of voters.",
+      "Trio Box received 55% of responses on the gift-guide question; Pantry Sampler received 45%. Campaign completion is 64%, and email drives 55% of participants.",
     nextStep: "Review the recommendation before the gift-guide print deadline.",
     findings: [
       "The recipe card is a landslide: 71% say include it.",
-      "Printed sleeve edges Kraft ribbon by 4 points on the wrap question.",
+      "Printed sleeve received 52% on the wrap question; Kraft ribbon received 48%.",
       "Email delivers 55% of voters — one channel dominates the read.",
     ],
     caveats: ["Email dominance means the read reflects subscribers more than new shoppers."],
     sampleNote: "892 of 1,200 target voters; email carries 55% of the sample.",
+  },
+  {
+    id: "spring-email-creative",
+    name: "Spring Email Creative",
+    decision: "Which email direction should lead the spring promotion?",
+    status: "Ended",
+    createdAt: "2026-04-12",
+    startAt: "2026-04-19",
+    endAt: "2026-04-29",
+    target: 1400,
+    category: "Lifestyle",
+    viewsFactor: 2.1,
+    voters: 1637,
+    completed: 1328,
+    shares: 83,
+    avgTimeSeconds: 34,
+    decisionIndex: 0,
+    chain: [
+      { id: "se-subject", question: "Which subject line earns the open?", optionA: "A brighter pantry starts here", optionB: "Spring favorites are back", splitA: 57 },
+      { id: "se-hero", question: "Which email hero feels more seasonal?", optionA: "Styled pantry shelf", optionB: "Outdoor picnic", splitA: 44 },
+      { id: "se-cta", question: "Which call to action feels clearer?", optionA: "Shop the spring edit", optionB: "See what's new", splitA: 63 },
+    ],
+    summary:
+      "A brighter pantry starts here received 57% of responses on the decision question; Spring favorites are back received 43%. The campaign completed at 81%.",
+    nextStep: "Use the winning subject line with the outdoor-picnic hero in the spring send.",
+    findings: [
+      "A brighter pantry starts here received 57% of responses on the subject-line question.",
+      "The outdoor-picnic hero received 56% of responses, so the preferred visual differs from the preferred subject direction.",
+      "Shop the spring edit received 63% of responses on the call-to-action question.",
+    ],
+    caveats: ["Most participants arrived through the existing email list, so the result reflects current subscribers."],
+    sampleNote: "1,637 participants across email and website sources; 81% completed all three questions.",
+  },
+  {
+    id: "subscription-box-positioning",
+    name: "Subscription Box Positioning",
+    decision: "Which promise should position the monthly box?",
+    status: "Ended",
+    createdAt: "2026-04-18",
+    startAt: "2026-04-25",
+    endAt: "2026-05-07",
+    target: 1600,
+    category: "Food & drink",
+    viewsFactor: 2.2,
+    voters: 1872,
+    completed: 1460,
+    shares: 119,
+    avgTimeSeconds: 49,
+    decisionIndex: 0,
+    chain: [
+      { id: "sb-promise", question: "Which promise makes the box worth joining?", optionA: "Discover something new", optionB: "Never run out of favorites", splitA: 39 },
+      { id: "sb-frequency", question: "Which delivery rhythm feels right?", optionA: "Every month", optionB: "Every other month", splitA: 58 },
+      { id: "sb-savings", question: "Which value message is clearer?", optionA: "Save 15% every box", optionB: "Member-only pricing", splitA: 66 },
+      { id: "sb-skip", question: "Which flexibility promise matters more?", optionA: "Skip anytime", optionB: "Swap any item", splitA: 54 },
+    ],
+    summary:
+      "Never run out of favorites received 61% of responses on the positioning question. The campaign passed its target and completed at 78%.",
+    nextStep: "Lead the subscription page with reliable replenishment and support it with explicit savings.",
+    findings: [
+      "Never run out of favorites received 61% of responses; Discover something new received 39%.",
+      "Save 15% every box received 66% on the value-message question.",
+      "Monthly delivery received 58%, while every-other-month delivery received 42%.",
+    ],
+    caveats: ["Email participants were already familiar with the products, which may favor replenishment language."],
+    sampleNote: "1,872 participants across three sources; 1,460 completed all four questions.",
+  },
+  {
+    id: "mothers-day-gift-guide",
+    name: "Mother's Day Gift Guide",
+    decision: "Which gift story should lead the guide?",
+    status: "Ended",
+    createdAt: "2026-04-25",
+    startAt: "2026-05-01",
+    endAt: "2026-05-12",
+    target: 1200,
+    category: "Shopping & deals",
+    viewsFactor: 2.2,
+    voters: 1409,
+    completed: 1014,
+    shares: 104,
+    avgTimeSeconds: 52,
+    decisionIndex: 0,
+    chain: [
+      { id: "md-story", question: "Which gift story feels more meaningful?", optionA: "A slow Sunday together", optionB: "A pantry full of favorites", splitA: 62 },
+      { id: "md-bundle", question: "Which bundle feels more giftable?", optionA: "Brunch box", optionB: "Baking box", splitA: 55 },
+      { id: "md-card", question: "Which card treatment feels more personal?", optionA: "Handwritten note", optionB: "Printed recipe", splitA: 68 },
+      { id: "md-delivery", question: "Which delivery promise matters more?", optionA: "Arrives by Friday", optionB: "Free scheduled delivery", splitA: 47 },
+    ],
+    summary:
+      "A slow Sunday together received 62% of responses on the gift-story question. Completion was 72%, with the largest participation decline before the delivery question.",
+    nextStep: "Build the guide around the slow-Sunday story and simplify the final delivery question in the next campaign.",
+    findings: [
+      "A slow Sunday together received 62% of responses; A pantry full of favorites received 38%.",
+      "A handwritten note received 68% on the card-treatment question.",
+      "The final delivery question had the campaign's largest loss of participants.",
+    ],
+    caveats: ["The campaign ended close to the shipping cutoff, so late participants had fewer viable delivery options."],
+    sampleNote: "1,409 participants across email, Instagram, and QR; 1,014 completed the campaign.",
+  },
+  {
+    id: "homepage-message-hierarchy",
+    name: "Homepage Message Hierarchy",
+    decision: "Which value proposition should open the homepage?",
+    status: "Ended",
+    createdAt: "2026-05-02",
+    startAt: "2026-05-09",
+    endAt: "2026-05-18",
+    target: 900,
+    category: "Lifestyle",
+    viewsFactor: 2.3,
+    voters: 948,
+    completed: 681,
+    shares: 39,
+    avgTimeSeconds: 37,
+    decisionIndex: 0,
+    chain: [
+      { id: "hm-value", question: "Which value proposition should appear first?", optionA: "Small-batch flavor", optionB: "Everyday pantry ease", splitA: 52 },
+      { id: "hm-proof", question: "Which proof point builds more trust?", optionA: "Made in small batches", optionB: "Loved by 20,000 households", splitA: 46 },
+      { id: "hm-action", question: "Which first action feels more natural?", optionA: "Explore products", optionB: "Take the flavor quiz", splitA: 43 },
+    ],
+    summary:
+      "The homepage value proposition remains inconclusive: Small-batch flavor received 52% and Everyday pantry ease received 48%. Social proof and the flavor quiz produced clearer preferences.",
+    nextStep: "Do not declare a homepage-message winner; run a focused follow-up using the stronger proof and action choices.",
+    findings: [
+      "The decision question is inconclusive at 52% versus 48%.",
+      "Loved by 20,000 households received 54% on the proof-point question.",
+      "Take the flavor quiz received 57% on the first-action question.",
+    ],
+    caveats: ["Website visitors made up most of the sample, so the campaign says little about first-time paid traffic."],
+    sampleNote: "948 participants across website and Instagram; 681 completed all three questions.",
+  },
+  {
+    id: "creator-brief-direction",
+    name: "Creator Brief Direction",
+    decision: "Which creator brief should guide the next partnership?",
+    status: "Ended",
+    createdAt: "2026-05-08",
+    startAt: "2026-05-15",
+    endAt: "2026-05-24",
+    target: 700,
+    category: "Lifestyle",
+    viewsFactor: 2.4,
+    voters: 775,
+    completed: 502,
+    shares: 91,
+    avgTimeSeconds: 44,
+    decisionIndex: 0,
+    chain: [
+      { id: "cb-story", question: "Which creator story feels more authentic?", optionA: "Weeknight routine", optionB: "Weekend hosting", splitA: 64 },
+      { id: "cb-format", question: "Which format keeps your attention?", optionA: "Recipe walkthrough", optionB: "Pantry tour", splitA: 45 },
+      { id: "cb-offer", question: "Which offer fits the story?", optionA: "Starter bundle", optionB: "Build your own box", splitA: 41 },
+    ],
+    summary:
+      "Weeknight routine received 64% of responses on the brief direction. Completion was 65%, and tracked creator traffic completed less often than Instagram traffic.",
+    nextStep: "Use the weeknight-routine story, but shorten the brief and test the build-your-own offer separately.",
+    findings: [
+      "Weeknight routine received 64% of responses; Weekend hosting received 36%.",
+      "Pantry tour received 55% on the format question.",
+      "Build your own box received 59% on the offer question.",
+    ],
+    caveats: ["The two source groups were recruited differently, so source completion should not be treated as causal."],
+    sampleNote: "775 participants across creator and Instagram sources; 502 completed the campaign.",
+  },
+  {
+    id: "farmers-market-sampling",
+    name: "Farmers Market Sampling",
+    decision: "Which sample should anchor the market booth?",
+    status: "Ended",
+    createdAt: "2026-05-12",
+    startAt: "2026-05-19",
+    endAt: "2026-05-27",
+    target: 500,
+    category: "Food & drink",
+    viewsFactor: 2.1,
+    voters: 526,
+    completed: 401,
+    shares: 31,
+    avgTimeSeconds: 21,
+    decisionIndex: 0,
+    chain: [
+      { id: "fm-sample", question: "Which sample should lead the tasting table?", optionA: "Citrus Mint cracker", optionB: "Berry Basil toast", splitA: 59 },
+      { id: "fm-followup", question: "What should visitors receive after tasting?", optionA: "Recipe card", optionB: "Discount card", splitA: 35 },
+    ],
+    summary:
+      "Citrus Mint cracker received 59% of responses on the sampling question. Completion was 76%, and most participants preferred a discount card as the follow-up.",
+    nextStep: "Lead with Citrus Mint samples and hand out the preferred discount card at the next market.",
+    findings: [
+      "Citrus Mint cracker received 59% of responses; Berry Basil toast received 41%.",
+      "Discount card received 65% on the follow-up question.",
+      "QR participants completed more often than participants arriving through the recap email.",
+    ],
+    caveats: ["The sample reflects one market and should not be generalized to retail shoppers without a follow-up."],
+    sampleNote: "526 participants across market QR and recap email; 401 completed both questions.",
   },
   {
     id: "game-day-creative",
@@ -524,6 +730,26 @@ const SOURCE_SEEDS: SourceSeed[] = shiftSeed([
   { id: "qr-packaging", name: "QR — Packaging", kind: "QR code", channel: "QR", placement: "On-pack sticker", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-26", voterShare: 0.26, completionDelta: 4 },
   { id: "link-newsletter", name: "Share Link — Newsletter", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-27", voterShare: 0.41, completionDelta: 2 },
   { id: "embed-site-flavor", name: "Website Embed — Flavor", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-26", voterShare: 0.33, completionDelta: -3 },
+  // Spring Email Creative
+  { id: "email-spring-creative", name: "Share Link — Spring Email", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "spring-email-creative" }, createdAt: "2026-04-18", voterShare: 0.68, completionDelta: 3 },
+  { id: "embed-spring-creative", name: "Website Embed — Spring Edit", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "spring-email-creative" }, createdAt: "2026-04-18", voterShare: 0.32, completionDelta: -6 },
+  // Subscription Box Positioning
+  { id: "email-subscription-box", name: "Share Link — Subscriber List", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "subscription-box-positioning" }, createdAt: "2026-04-24", voterShare: 0.47, completionDelta: 4 },
+  { id: "embed-subscription-box", name: "Website Embed — Subscription", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "subscription-box-positioning" }, createdAt: "2026-04-24", voterShare: 0.34, completionDelta: 1 },
+  { id: "creator-subscription-box", name: "Creator — @pantryweek", kind: "Tracked link", channel: "Influencer", placement: "@pantryweek", linked: { type: "campaign", id: "subscription-box-positioning" }, createdAt: "2026-04-26", voterShare: 0.19, completionDelta: -8 },
+  // Mother's Day Gift Guide
+  { id: "email-mothers-day", name: "Share Link — Mother's Day Email", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "mothers-day-gift-guide" }, createdAt: "2026-04-30", voterShare: 0.52, completionDelta: 6 },
+  { id: "story-mothers-day", name: "Instagram Story — Gift Guide", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "mothers-day-gift-guide" }, createdAt: "2026-05-01", voterShare: 0.30, completionDelta: -2 },
+  { id: "qr-mothers-day", name: "QR — Gift Display", kind: "QR code", channel: "QR", placement: "Gift display", linked: { type: "campaign", id: "mothers-day-gift-guide" }, createdAt: "2026-05-02", voterShare: 0.18, completionDelta: -9 },
+  // Homepage Message Hierarchy
+  { id: "embed-homepage-message", name: "Website Embed — Homepage", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "homepage-message-hierarchy" }, createdAt: "2026-05-08", voterShare: 0.74, completionDelta: 2 },
+  { id: "story-homepage-message", name: "Instagram Story — Homepage", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "homepage-message-hierarchy" }, createdAt: "2026-05-09", voterShare: 0.26, completionDelta: -5 },
+  // Creator Brief Direction
+  { id: "creator-brief-link", name: "Creator — @weeknighttable", kind: "Tracked link", channel: "Influencer", placement: "@weeknighttable", linked: { type: "campaign", id: "creator-brief-direction" }, createdAt: "2026-05-14", voterShare: 0.58, completionDelta: -7 },
+  { id: "story-creator-brief", name: "Instagram Story — Creator Brief", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "creator-brief-direction" }, createdAt: "2026-05-15", voterShare: 0.42, completionDelta: 5 },
+  // Farmers Market Sampling
+  { id: "qr-farmers-market", name: "QR — Market Booth", kind: "QR code", channel: "QR", placement: "Tasting table", linked: { type: "campaign", id: "farmers-market-sampling" }, createdAt: "2026-05-18", voterShare: 0.72, completionDelta: 5 },
+  { id: "email-farmers-market", name: "Share Link — Market Recap", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "farmers-market-sampling" }, createdAt: "2026-05-20", voterShare: 0.28, completionDelta: -7 },
   // Packaging Direction Test
   { id: "embed-website-pd", name: "Website Embed — Packaging", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "packaging-direction" }, createdAt: "2026-05-31", voterShare: 0.42, completionDelta: 7 },
   { id: "story-instagram-pd", name: "Instagram Story Link", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "packaging-direction" }, createdAt: "2026-06-02", voterShare: 0.33, completionDelta: -6 },
@@ -566,11 +792,14 @@ const deriveCampaign = (seed: CampaignSeed): Campaign => {
   const votes = votesByQuestion.reduce((a, b) => a + b, 0);
   const views = Math.round(votes * seed.viewsFactor);
   const decisionQ = seed.chain[seed.decisionIndex];
-  const winner =
+  const winner: CampaignWinner | null =
     seed.voters > 0 && decisionQ
       ? {
           option: decisionQ.splitA >= 50 ? decisionQ.optionA : decisionQ.optionB,
           marginPts: Math.abs(2 * decisionQ.splitA - 100),
+          pctFor: Math.max(decisionQ.splitA, 100 - decisionQ.splitA),
+          pctAgainst: Math.min(decisionQ.splitA, 100 - decisionQ.splitA),
+          responses: votesByQuestion[seed.decisionIndex] ?? 0,
         }
       : null;
   return {
@@ -1233,7 +1462,7 @@ export const WORKSPACE_NOTIFICATIONS: WorkspaceNotification[] = byMostRecent(shi
   { id: "nt-conference", title: "QR — Conference Booth completion fell to 41%", body: "Scans keep coming, but most voters stop before the last question.", at: "2026-06-14", to: "/distribution", read: false },
   { id: "nt-flavor-report", title: "Flavor Launch Recap report is ready", body: "The decision report for the ended run is ready to preview.", at: "2026-06-11", to: "/analytics/reports", read: true },
   { id: "nt-summer-2k", title: "Summer Flavor Lineup passed 2,000 voters", body: "2,103 voters so far, against a 2,500 target.", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup", read: false },
-  { id: "nt-holiday-leading", title: "Holiday Gifting Bundles moved to Leading", body: "Trio Box leads by 10 points with 74% of the voter target reached.", at: "2026-06-15", to: "/campaigns/holiday-gifting-bundles", read: false },
+  { id: "nt-holiday-leading", title: "Holiday Gifting Bundles moved to Leading", body: "Trio Box has 55% of responses and Pantry Sampler has 45%, with 74% of the participant target reached.", at: "2026-06-15", to: "/campaigns/holiday-gifting-bundles", read: false },
 ]));
 
 /* ── Reports ─────────────────────────────────────────────────────── */
@@ -1420,13 +1649,27 @@ export const embedScript = (id: string) => `<div id="polst-campaign"></div>
 <script async src="https://polst.app/embed.js"
   data-campaign="${id}"></script>`;
 
-/** "Minimal label · 16-point lead" | "—" — the one string form of a winner.
- *  The margin is percentage points on the decision question ("Points?" was
- *  real feedback): spelled out once here so no surface prints a bare unit. */
-export const winnerLabel = (c: { winner: { option: string; marginPts: number } | null }) =>
-  c.winner
-    ? `${c.winner.option} · ${c.winner.marginPts} percentage-point lead`
-    : "—";
+/** "Minimal label · 58% vs 42%" | "—" — the one string form of a winner.
+ *  The audit's language contract: lead with both percentages, never a bare
+ *  margin ("Points?" was real feedback; "never display bare pts" is the
+ *  follow-up). The percentages are the decision question's split; surfaces
+ *  with room add the response count via `winnerEvidence`. */
+export const winnerLabel = (c: { winner: CampaignWinner | null }) =>
+  c.winner ? `${c.winner.option} · ${c.winner.pctFor}% vs ${c.winner.pctAgainst}%` : "—";
+
+/** The full-evidence sentence form — "58% selected Minimal label; 42%
+ *  selected Bold label (1,055 responses on the decision question)". Reports
+ *  and insight readouts speak this; chips speak `winnerLabel`. */
+export const winnerEvidence = (c: {
+  winner: CampaignWinner | null;
+  chain: ChainQuestion[];
+  decisionIndex: number;
+}) => {
+  if (!c.winner) return "—";
+  const q = c.chain[c.decisionIndex];
+  const loser = c.winner.option === q.optionA ? q.optionB : q.optionA;
+  return `${c.winner.pctFor}% selected ${c.winner.option}; ${c.winner.pctAgainst}% selected ${loser} (${fmtInt(c.winner.responses)} responses on the decision question)`;
+};
 
 /** The plain-language verdict campaign-facing surfaces speak — "Result so
  *  far" columns, brief eyebrows, ready strips. The internal `DecisionSignal`
@@ -1436,7 +1679,7 @@ export const winnerLabel = (c: { winner: { option: string; marginPts: number } |
 export const verdictLabel = (c: {
   status: Status;
   signal: DecisionSignal;
-  winner: { option: string; marginPts: number } | null;
+  winner: CampaignWinner | null;
 }): string => {
   switch (c.signal) {
     case "Decisive":
@@ -1459,15 +1702,15 @@ export const verdictLabel = (c: {
 };
 
 /** The one headline framing of the call — the DecisionBrief and the decision
- *  report speak the same words ("Decided: Trio Box · 10 percentage-point
- *  lead"), so the report
- *  never prints the raw lead label twice (eyebrow verdict + headline call).
+ *  report speak the same words ("Decided: Trio Box · 55% vs 45%"), so the
+ *  report never prints the raw result label twice (eyebrow verdict +
+ *  headline call).
  *  Live voice ("Early read") is reserved for runs still collecting; a
  *  finished run's read is final, just not necessarily decisive. */
 export const headlineLabel = (c: {
   status: Status;
   signal: DecisionSignal;
-  winner: { option: string; marginPts: number } | null;
+  winner: CampaignWinner | null;
 }): string => {
   switch (c.signal) {
     case "Decisive":
@@ -1514,7 +1757,7 @@ export const decisionEyebrow = (c: {
   status: Status;
   signal: DecisionSignal;
   confidence: Confidence;
-  winner: { option: string; marginPts: number } | null;
+  winner: CampaignWinner | null;
   voters: number;
   target?: number;
   endAt?: string;
@@ -1554,6 +1797,46 @@ export const TEAM: TeamMember[] = shiftSeed([
   { id: "analyst", name: "Devon Park", email: "devon@northstarpantry.co", role: "Manager", joined: "2026-04-18" },
   // Provisioned three days before the anchor for the agency; hasn't signed in yet.
   { id: "agency", name: "Sam Ellery", email: "sam@brightside.agency", role: "Manager" },
+]);
+
+/* ── Campaign reviews (the marketer's resolution record) ─────────────
+   The audit's Insights spec: every campaign insight carries "the decision
+   taken, owner, date, and optional follow-up". A review is a human record,
+   never computed — its absence is itself a state ("New": nobody has
+   reviewed the findings yet), which is why "New" is not a stored value. */
+
+export type CampaignReviewState = "Monitoring" | "Acted on" | "Dismissed" | "Resolved";
+
+export type CampaignReview = {
+  campaignId: string;
+  state: CampaignReviewState;
+  owner: string; // team member name
+  at: string; // ISO date the resolution was recorded
+  note?: string; // what was decided / why it was set aside
+};
+
+export const CAMPAIGN_REVIEWS: CampaignReview[] = shiftSeed([
+  {
+    campaignId: "flavor-launch-recap",
+    state: "Acted on",
+    owner: "Elena Morris",
+    at: "2026-06-12",
+    note: "Citrus Mint locked for the retail sell-in; report shared with the retail team.",
+  },
+  {
+    campaignId: "spring-email-creative",
+    state: "Resolved",
+    owner: "Devon Park",
+    at: "2026-05-02",
+    note: "Winning subject line shipped in the spring send with the outdoor-picnic hero.",
+  },
+  {
+    campaignId: "homepage-message-hierarchy",
+    state: "Dismissed",
+    owner: "Elena Morris",
+    at: "2026-05-21",
+    note: "No homepage winner declared — running a focused follow-up with the stronger proof and action choices instead.",
+  },
 ]);
 
 /* ── Developer platform (Settings) ───────────────────────────────────

@@ -17,6 +17,7 @@ import {
 import { TODAY, fmtDate, fmtInt, signalFor, type Status } from "@/lib/canon";
 import {
   API_KEYS,
+  CAMPAIGN_REVIEWS,
   CAMPAIGNS,
   SINGLE_POLSTS,
   SOURCES,
@@ -28,6 +29,8 @@ import {
   type ApiKey,
   type ApiScope,
   type Campaign,
+  type CampaignReview,
+  type CampaignReviewState,
   type ChainQuestion,
   type Channel,
   type SinglePolst,
@@ -238,6 +241,14 @@ type WorkspaceStore = {
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   unreadCount: number;
+
+  /** Marketer review records — one per campaign, human-authored. A
+   *  campaign with no record hasn't been reviewed (that IS the state). */
+  reviews: CampaignReview[];
+  reviewFor: (campaignId?: string) => CampaignReview | undefined;
+  /** Records (or replaces) the resolution for a campaign's findings.
+   *  Owner is the signed-in member; the date is today. */
+  recordReview: (campaignId: string, state: CampaignReviewState, note?: string) => void;
 };
 
 const StoreContext = createContext<WorkspaceStore | null>(null);
@@ -254,6 +265,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<WorkspaceNotification[]>(
     WORKSPACE_NOTIFICATIONS,
   );
+  const [reviews, setReviews] = useState<CampaignReview[]>(CAMPAIGN_REVIEWS);
 
   const patchCampaign = useCallback(
     (id: string, fn: (c: Campaign) => Campaign) =>
@@ -648,8 +660,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       markAllNotificationsRead: () =>
         setNotifications((all) => all.map((n) => ({ ...n, read: true }))),
       unreadCount: visibleNotifications.filter((n) => !n.read).length,
+
+      reviews,
+      reviewFor: (campaignId) => reviews.find((r) => r.campaignId === campaignId),
+      recordReview: (campaignId, state, note) =>
+        setReviews((all) => [
+          ...all.filter((r) => r.campaignId !== campaignId),
+          {
+            campaignId,
+            state,
+            owner: members.find((m) => m.role === "Owner")?.name ?? members[0].name,
+            at: TODAY,
+            ...(note?.trim() ? { note: note.trim() } : {}),
+          },
+        ]),
     }),
-    [campaigns, polsts, sources, members, apiKeys, webhooks, visibleNotifications, createCampaign, createPolst, patchCampaign, patchPolst],
+    [campaigns, polsts, sources, members, apiKeys, webhooks, visibleNotifications, reviews, createCampaign, createPolst, patchCampaign, patchPolst],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

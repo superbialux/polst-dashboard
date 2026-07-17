@@ -487,6 +487,9 @@ export function PolstDetailPage() {
     const winner = {
       option: polst.splitA >= 50 ? polst.optionA : polst.optionB,
       marginPts,
+      pctFor: Math.max(polst.splitA, 100 - polst.splitA),
+      pctAgainst: Math.min(polst.splitA, 100 - polst.splitA),
+      responses: polst.votes,
     };
     const signal = signalFor({ status: polst.status, voters: polst.votes, marginPts });
     return `${verdictLabel({ status: polst.status, signal, winner })} · ${fmtInt(polst.votes)} votes`;

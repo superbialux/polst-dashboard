@@ -5,8 +5,6 @@ import { Menu, MenuItem } from "@/components/Menu";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard, useToast } from "@/components/Toast";
 import {
-  ActionCard,
-  AttentionList,
   Chip,
   ConnectCard,
   DashboardCard,
@@ -18,10 +16,12 @@ import {
   InsightGrid,
   LockedCard,
   MixBars,
+  Pager,
   PolstListRow,
   RateCell,
   ReadyDecisionRow,
   ReportPreview,
+  SearchAndFilters,
   SectionGrid,
   SectionTitle,
   StatsStrip,
@@ -30,16 +30,25 @@ import {
   TrendGrid,
   type DataColumn,
 } from "@/components/dashboard";
-import { deriveInsights, deriveTrends } from "@/lib/insights";
+import {
+  INSIGHT_STATE_TONE,
+  campaignReadout,
+  dataThrough,
+  deriveInsights,
+  deriveTrends,
+  insightStateFor,
+  qualifiesForInsights,
+  type InsightState,
+} from "@/lib/insights";
 import {
   METRIC_INFO,
   TODAY,
   fmtDate,
+  fmtDateRange,
   fmtInt,
   fmtPct,
   isReadyToDecide,
   pct,
-  relativeToToday,
   type Status,
 } from "@/lib/canon";
 import {
@@ -55,15 +64,11 @@ import {
   REPORTS,
   SINGLE_POLSTS,
   STAT_XTICKS,
-  WHAT_CHANGED,
   WORKSPACE,
-  attentionItems,
   campaignSeries,
-  clipToRun,
   polstOptions,
   polstSeries,
   readyTitle,
-  verdictLabel,
   winnerLabel,
   type Campaign,
   type SeriesMetric,
@@ -247,7 +252,6 @@ type CampaignPerfRow = {
   chainIds: string[];
   voters: number;
   completed: number;
-  verdict: string;
 };
 
 function buildCampaignPerf(rows: SegmentRow[], campaigns: Campaign[]): CampaignPerfRow[] {
@@ -271,7 +275,6 @@ function buildCampaignPerf(rows: SegmentRow[], campaigns: Campaign[]): CampaignP
           chainIds: campaign.chain.map((q) => q.id),
           voters: m.voters,
           completed: m.completed,
-          verdict: verdictLabel(campaign),
         },
       ];
     })
@@ -294,19 +297,25 @@ const campaignPerfColumns: Array<DataColumn<CampaignPerfRow>> = [
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
+  /* Funnel facts only — the same Started/Completed/Finish-rate contract
+     as the Campaigns index. Interpretation lives in campaign Insights. */
   {
-    header: "Voters",
+    header: "Started",
+    info: METRIC_INFO.started,
     align: "right",
     cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
   },
   {
-    header: "Completion",
+    header: "Completed",
+    info: METRIC_INFO.completed,
     align: "right",
-    cell: (row) => <span className="tabular-nums">{pct(row.completed, row.voters)}</span>,
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.completed)}</span>,
   },
   {
-    header: "Result so far",
-    cell: (row) => <span className="text-text-secondary">{row.verdict}</span>,
+    header: "Finish rate",
+    info: METRIC_INFO.finishRate,
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{pct(row.completed, row.voters)}</span>,
   },
 ];
 
@@ -426,7 +435,17 @@ function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
 
 export function AnalyticsOverviewPage() {
   const { filters, rows } = useAnalytics();
-  const { campaigns, polsts } = useWorkspace();
+  const { campaigns, polsts, sources } = useWorkspace();
+
+  /* The interpretation layer lives on Overview — workspace-wide trends
+     and cross-object findings are comparison work (the audit's division:
+     Insights is campaign-by-campaign only). Both state their own window
+     (7D vs 30D), independent of the filter bar. */
+  const trends = useMemo(() => deriveTrends(campaigns, polsts), [campaigns, polsts]);
+  const insights = useMemo(
+    () => deriveInsights(campaigns, polsts, sources),
+    [campaigns, polsts, sources],
+  );
 
   const views = segmentTotal(rows, "views");
   const votes = segmentTotal(rows, "votes");
@@ -550,6 +569,8 @@ export function AnalyticsOverviewPage() {
         (c) =>
           `${readyTitle(c)}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters run to date)`,
       ),
+      ...trends.map((t) => `${t.metric}: ${t.coaching}`),
+      ...insights.map((i) => `${i.question} ${i.evidence}`),
     ].join("\n");
 
   /* The CSV carries exactly what the page shows for the visible scope —
@@ -568,13 +589,13 @@ export function AnalyticsOverviewPage() {
       ["Engagement rate", pct(votes, views, 1)],
       ["Completion rate", pct(completed, voters, 1)],
       [],
-      ["Campaign", "Status", "Voters", "Completion", "Result so far"],
+      ["Campaign", "Status", "Started", "Completed", "Finish rate"],
       ...campaignPerf.map((row) => [
         row.name,
         row.status,
         row.voters,
+        row.completed,
         pct(row.completed, row.voters),
-        row.verdict,
       ]),
       [],
       ["Standalone Polst", "Views", "Votes"],
@@ -642,6 +663,20 @@ export function AnalyticsOverviewPage() {
         </DashboardCard>
       </SectionGrid>
 
+      {trends.length ? (
+        <section aria-label="Trends">
+          <SectionTitle className="mb-3">This week against your 30-day baseline</SectionTitle>
+          <TrendGrid trends={trends} />
+        </section>
+      ) : null}
+
+      {insights.length ? (
+        <section aria-label="What the data says">
+          <SectionTitle className="mb-3">What the data says</SectionTitle>
+          <InsightGrid insights={insights} />
+        </section>
+      ) : null}
+
       {/* The brand-wide "voter journey" is retired: a two-step funnel over
           unrelated runs answered nothing (real feedback: "бесполезный
           фанел"). Step drop-off lives on each campaign's overview, where
@@ -662,8 +697,8 @@ export function AnalyticsOverviewPage() {
         />
         {campaignPerf.length ? (
           <p className="border-t border-border-default px-5 py-3 text-xs text-text-secondary">
-            Voters and completion are scoped to the selected window; status and the result
-            reflect the whole run.
+            Started, Completed, and Finish rate are scoped to the selected window; status
+            reflects the whole run. Each campaign's interpretation lives in its Insights tab.
           </p>
         ) : null}
       </DashboardCard>
@@ -740,112 +775,203 @@ export function AnalyticsRetentionPage() {
   );
 }
 
-/* ── Insights ────────────────────────────────────────────────────────
-   Everything here references a real entity with its real numbers — the
-   same derived queues Home reads (ready-to-decide, attention, changes).
-   No date filter: these are current workspace facts, each row carries
-   its own stamp. */
+/* ── Insights — the campaign insights index ──────────────────────────
+   The audit's contract: every insight belongs to one campaign. This
+   page helps a marketer find campaigns with meaningful findings, then
+   opens the evidence in that campaign's own Insights tab. It does not
+   analyze standalone Polsts, repeat Home's task queue, or restate the
+   workspace totals (Overview owns those). Eight rows per page so each
+   row can carry a real readout. */
+
+const INSIGHT_PAGE_SIZE = 8;
+const INSIGHT_STATE_FILTERS = [
+  "All",
+  "Needs review",
+  "Decision ready",
+  "Monitoring",
+  "Reviewed",
+] as const;
+
+type InsightIndexRow = {
+  id: string;
+  campaign: Campaign;
+  state: InsightState;
+  through: string;
+  sourceCount: number;
+};
+
+function CampaignInsightIndexRow({ row }: { row: InsightIndexRow }) {
+  const { campaign, state, through, sourceCount } = row;
+  const to = `/campaigns/${campaign.id}?tab=insights`;
+  return (
+    <li className="px-5 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to={to}
+              className="font-display font-semibold text-text-primary hover:text-text-accent"
+            >
+              {campaign.name}
+            </Link>
+            <StatusBadge status={campaign.status} />
+            <Chip tone={INSIGHT_STATE_TONE[state]}>{state}</Chip>
+          </div>
+          <p className="text-xs leading-4 text-text-secondary">
+            {campaign.category} · {fmtDateRange(campaign.startAt, campaign.endAt)}
+          </p>
+          <p className="max-w-3xl text-sm leading-6 text-text-secondary">
+            {campaignReadout(campaign)}
+          </p>
+          <p className="text-xs leading-4 text-text-tertiary">
+            {fmtInt(campaign.voters)} participants · {pct(campaign.completed, campaign.voters)}{" "}
+            finish rate · {campaign.chain.length}{" "}
+            {campaign.chain.length === 1 ? "Polst" : "Polsts"} · {sourceCount}{" "}
+            {sourceCount === 1 ? "source" : "sources"} · data through {fmtDate(through)}
+          </p>
+        </div>
+        <Button variant="secondary" asChild className="shrink-0">
+          <Link to={to}>View campaign insights</Link>
+        </Button>
+      </div>
+    </li>
+  );
+}
 
 export function AnalyticsInsightsPage() {
-  const { campaigns, polsts, sources } = useWorkspace();
-  const ready = campaigns.filter(isReadyToDecide);
-  /* Derived from the LIVE store, like Home and the sidebar nag — fixing an
-     item (assigning a source, finishing a draft) clears it here too. */
-  const attention = useMemo(
-    () => attentionItems(campaigns, polsts, sources),
-    [campaigns, polsts, sources],
+  const { campaigns, sources, reviewFor } = useWorkspace();
+  const [query, setQuery] = useState("");
+  const [stateFilter, setStateFilter] = useState<string>("All");
+  const [page, setPage] = useState(0);
+
+  /* Only Active and Ended campaigns with responses qualify — Scheduled
+     and Draft runs have no findings yet, and the footer says so instead
+     of leaving their absence to guesswork. */
+  const eligible = useMemo(() => campaigns.filter(qualifiesForInsights), [campaigns]);
+  const excluded = campaigns.length - eligible.length;
+
+  const rows = useMemo<InsightIndexRow[]>(() => {
+    const q = query.trim().toLowerCase();
+    return eligible
+      .map((campaign) => ({
+        id: campaign.id,
+        campaign,
+        state: insightStateFor(campaign, reviewFor(campaign.id)),
+        through: dataThrough(campaign),
+        sourceCount: sources.filter(
+          (s) => s.linked?.type === "campaign" && s.linked.id === campaign.id,
+        ).length,
+      }))
+      .filter((r) => stateFilter === "All" || r.state === stateFilter)
+      .filter(
+        (r) =>
+          !q ||
+          [r.campaign.name, r.campaign.decision, r.campaign.category].some((v) =>
+            v.toLowerCase().includes(q),
+          ),
+      )
+      .sort((a, b) => {
+        /* Latest meaningful activity first: live runs (data through
+           today) ahead of ended ones, sooner-ending live runs first. */
+        if (a.through !== b.through) return a.through < b.through ? 1 : -1;
+        const aEnd = a.campaign.endAt ?? "9999";
+        const bEnd = b.campaign.endAt ?? "9999";
+        return aEnd === bEnd ? b.campaign.voters - a.campaign.voters : aEnd < bEnd ? -1 : 1;
+      });
+  }, [eligible, sources, reviewFor, stateFilter, query]);
+
+  /* Filter and search changes land the user on page one; Pager clamps
+     when the result set shrinks under the current page. */
+  const changeFilter = (next: string) => {
+    setStateFilter(next);
+    setPage(0);
+  };
+  const changeQuery = (next: string) => {
+    setQuery(next);
+    setPage(0);
+  };
+
+  const safePage = Math.min(page, Math.max(0, Math.ceil(rows.length / INSIGHT_PAGE_SIZE) - 1));
+  const visible = rows.slice(
+    safePage * INSIGHT_PAGE_SIZE,
+    safePage * INSIGHT_PAGE_SIZE + INSIGHT_PAGE_SIZE,
   );
-  /* Milestones clip to each run's current end (clipToRun): an in-session
-     schedule edit or ending retires entries the record now contradicts. */
-  const changed = useMemo(() => clipToRun(WHAT_CHANGED, campaigns), [campaigns]);
-  /* The interpretation layer — every row/card is computed from the live
-     store with its numbers attached, so each claim can be checked against
-     the tables it summarizes. */
-  const trends = useMemo(() => deriveTrends(campaigns, polsts), [campaigns, polsts]);
-  const insights = useMemo(
-    () => deriveInsights(campaigns, polsts, sources),
-    [campaigns, polsts, sources],
-  );
+
+  const searching = query.trim().length > 0;
+  const filtered = stateFilter !== "All";
 
   const summary = () =>
     [
-      `${WORKSPACE.brand} — insights`,
-      ...trends.map((t) => `${t.metric}: ${t.coaching}`),
-      ...ready.map(
-        (c) =>
-          `${readyTitle(c)}: ${c.name} — ${winnerLabel(c)} (${fmtInt(c.voters)} voters, ${c.confidence} confidence)`,
+      `${WORKSPACE.brand} — campaign insights`,
+      ...rows.map(
+        (r) =>
+          `${r.campaign.name} (${r.state}, data through ${fmtDate(r.through)}): ${campaignReadout(r.campaign)}`,
       ),
-      ...insights.map((i) => `${i.question} ${i.evidence}`),
-      ...attention.map((item) => `Needs attention: ${item.title}`),
-      ...changed.map((item) => `${fmtDate(item.at)} — ${item.text}`),
     ].join("\n");
 
   return (
     <DashboardPage actions={<ExportMenu summary={summary} />}>
-      {trends.length ? (
-        <section aria-label="Trends">
-          <SectionTitle className="mb-3">This week against your 30-day baseline</SectionTitle>
-          <TrendGrid trends={trends} />
-        </section>
-      ) : null}
-      {ready.length ? (
-        <SectionGrid>
-          {ready.map((campaign) => (
-            <ActionCard
-              key={campaign.id}
-              className="h-full lg:col-span-4"
-              eyebrow={readyTitle(campaign)}
-              title={campaign.name}
-              reason={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters · ${campaign.confidence} confidence`}
-              primary={{
-                label: campaign.status === "Ended" ? "Open report" : "Review decision",
-                to: `/campaigns/${campaign.id}`,
-              }}
+      <p className="max-w-3xl text-sm leading-6 text-text-secondary">
+        What each campaign learned, which Polsts shaped that learning, and what to do next.
+        Standalone Polsts keep their factual detail pages — they never appear here.
+      </p>
+      <DashboardCard padded={false}>
+        <SearchAndFilters
+          tabs={INSIGHT_STATE_FILTERS}
+          active={stateFilter}
+          onChange={changeFilter}
+          placeholder="Search campaigns"
+          query={query}
+          onQueryChange={changeQuery}
+        />
+        {visible.length > 0 ? (
+          <>
+            <ul className="divide-y divide-border-default">
+              {visible.map((row) => (
+                <CampaignInsightIndexRow key={row.id} row={row} />
+              ))}
+            </ul>
+            <Pager
+              page={safePage}
+              pageSize={INSIGHT_PAGE_SIZE}
+              total={rows.length}
+              onPage={setPage}
+              noun="campaigns"
             />
-          ))}
-        </SectionGrid>
-      ) : null}
-
-      {insights.length ? (
-        <section aria-label="What the data says">
-          <SectionTitle className="mb-3">What the data says</SectionTitle>
-          <InsightGrid insights={insights} />
-        </section>
-      ) : null}
-
-      <SectionGrid>
-        <DashboardCard title="Needs attention" className="lg:col-span-7" bodyClassName="pt-2">
-          {attention.length ? (
-            <AttentionList
-              variant="spacious"
-              items={attention.map((item) => ({
-                id: item.id,
-                tone: item.tone,
-                title: item.title,
-                reason: item.reason,
-                action: { label: item.action, to: item.to },
-              }))}
-            />
-          ) : (
-            <EmptyState icon="verified" title="Nothing needs attention right now" />
-          )}
-        </DashboardCard>
-        <DashboardCard title="What changed" className="lg:col-span-5" bodyClassName="pt-2">
-          <ul className="divide-y divide-border-default">
-            {changed.map((item) => (
-              <li key={item.id} className="py-3 first:pt-1 last:pb-1">
-                <Link
-                  to={item.to}
-                  className="block text-sm leading-5 text-text-primary hover:text-text-accent"
-                >
-                  {item.text}
-                </Link>
-                <p className="mt-0.5 text-xs text-text-tertiary">{relativeToToday(item.at)}</p>
-              </li>
-            ))}
-          </ul>
-        </DashboardCard>
-      </SectionGrid>
+          </>
+        ) : searching || filtered ? (
+          <EmptyState
+            icon="search"
+            register="no-results"
+            title={
+              searching
+                ? `No campaigns with findings match “${query.trim()}”`
+                : `No campaigns are ${stateFilter.toLowerCase()} right now`
+            }
+            hint="Only Active and Ended campaigns with responses appear here."
+            action={{
+              label: "Clear filters",
+              onClick: () => {
+                changeQuery("");
+                changeFilter("All");
+              },
+            }}
+          />
+        ) : (
+          <EmptyState
+            icon="query_stats"
+            title="No campaigns have findings yet"
+            hint="Insights appear once a campaign is Active or Ended with responses. Publish a campaign and give its sources time to collect."
+            action={{ label: "View campaigns", to: "/campaigns" }}
+          />
+        )}
+        {excluded > 0 && eligible.length > 0 ? (
+          <p className="border-t border-border-default px-5 py-3 text-xs leading-4 text-text-secondary">
+            {excluded} {excluded === 1 ? "campaign doesn't" : "campaigns don't"} appear here —
+            Scheduled and Draft runs have no responses to learn from yet.
+          </p>
+        ) : null}
+      </DashboardCard>
     </DashboardPage>
   );
 }

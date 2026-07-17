@@ -1,4 +1,5 @@
 import { sumWindow, windowBounds } from "@/lib/engine";
+import { TODAY, fmtInt, isReadyToDecide } from "@/lib/canon";
 import {
   answerHeat,
   campaignSeries,
@@ -7,6 +8,8 @@ import {
   HEATMAP_DAYS,
   formatNumber,
   type Campaign,
+  type CampaignReview,
+  type ChainQuestion,
   type SinglePolst,
   type Source,
 } from "@/lib/workspace";
@@ -202,12 +205,15 @@ export function deriveInsights(
   const standout = sources
     .filter((s) => s.linked && s.voters >= 50 && (s.completionDelta ?? 0) > 0)
     .sort((a, b) => (b.completionDelta ?? 0) - (a.completionDelta ?? 0))[0];
-  if (standout && standout.completionRate !== null) {
+  const standoutHome = standout?.linked?.type === "campaign"
+    ? campaigns.find((c) => c.id === standout.linked!.id)
+    : undefined;
+  if (standout && standout.completionRate !== null && standoutHome?.completionRate != null) {
     cards.push({
       id: "standout-source",
       question: "Which source is quietly winning?",
       status: { label: "outperforming", tone: "success" },
-      evidence: `${standout.name} · ${Math.round(standout.completionRate)}% completion, ${standout.completionDelta} pts above its ${standout.linked!.type}`,
+      evidence: `${standout.name} completes at ${Math.round(standout.completionRate)}%; ${standoutHome.name} completes at ${Math.round(standoutHome.completionRate)}%`,
       interpretation: `Voters arriving through this ${standout.kind.toLowerCase()} finish more often than the run's average — the intent is higher here. It has earned a bigger share of the next push.`,
       action: { label: "View sources", to: "/distribution" },
     });
@@ -239,7 +245,7 @@ export function deriveInsights(
         id: "standout-polst",
         question: "Which question format earns the vote?",
         status: { label: "standout", tone: "accent" },
-        evidence: `"${top.question}" · ${top.engagementRate}% of views vote, ${gap} pts above your median Polst`,
+        evidence: `"${top.question}" · ${top.engagementRate}% of views vote; your median Polst converts ${median}%`,
         interpretation: `This framing turns lookers into voters more than anything else you're running. Reuse its shape — the concrete either/or with visible stakes — in the next brief.`,
         action: { label: "Open the Polst", to: `/polsts/${top.id}` },
       });
@@ -247,4 +253,106 @@ export function deriveInsights(
   }
 
   return cards;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CAMPAIGN INSIGHTS — the audit's campaign-by-campaign layer.
+   Every insight belongs to one campaign; standalone Polsts never
+   generate one. Everything below is computed from the campaign's own
+   record — the only human input is the marketer's review (a
+   CampaignReview in the store), and its absence is itself a state.
+   ══════════════════════════════════════════════════════════════════ */
+
+/** Where a campaign sits in the review workflow. Derived, never stored:
+ *  the store holds only the human review record. */
+export type InsightState = "Needs review" | "Monitoring" | "Decision ready" | "Reviewed";
+
+export const INSIGHT_STATE_TONE: Record<
+  InsightState,
+  "success" | "warning" | "accent" | "neutral"
+> = {
+  "Needs review": "warning", // findings are final and nobody has looked
+  Monitoring: "neutral", // still collecting, nothing to act on yet
+  "Decision ready": "success", // the evidence supports a call right now
+  Reviewed: "accent", // a human recorded the resolution
+};
+
+/** Active/Ended with at least one response — the audit's bar for the
+ *  Insights index. Scheduled and Draft runs have no findings yet. */
+export const qualifiesForInsights = (c: Campaign) =>
+  (c.status === "Active" || c.status === "Ended") && c.voters > 0;
+
+export function insightStateFor(c: Campaign, review?: CampaignReview): InsightState {
+  if (review) return "Reviewed";
+  if (c.status === "Ended") return "Needs review";
+  return isReadyToDecide(c) ? "Decision ready" : "Monitoring";
+}
+
+/** The date the campaign's numbers run through: an ended run's record
+ *  stops at its end; a live run's record is current as of today. */
+export const dataThrough = (c: Campaign): string =>
+  c.status === "Ended" || c.status === "Archived" ? (c.endAt ?? c.createdAt) : TODAY;
+
+/** Do two questions offer the same pair of options? Only then can one
+ *  honestly support or contradict the other — otherwise it adds context. */
+const samePair = (a: ChainQuestion, b: ChainQuestion) => {
+  const pa = [a.optionA, a.optionB].sort().join(" ");
+  const pb = [b.optionA, b.optionB].sort().join(" ");
+  return pa === pb;
+};
+
+const qMargin = (q: ChainQuestion) => Math.abs(2 * q.splitA - 100);
+const qLeader = (q: ChainQuestion) => (q.splitA >= 50 ? q.optionA : q.optionB);
+
+export type PolstRole = {
+  label: "Decision question" | "Supports the decision" | "Contradicts the decision" | "Inconclusive" | "Adds context";
+  tone: "accent" | "success" | "warning" | "neutral";
+};
+
+/** Each chain question's plain-language role in the campaign's result.
+ *  Support/contradiction is only claimed when the question offers the
+ *  decision question's exact option pair — cross-question agreement is
+ *  not computable otherwise, so everything else "adds context". Margins
+ *  under 4 points are inconclusive (canon's Too-close threshold). */
+export function polstRole(c: Campaign, index: number): PolstRole {
+  if (index === c.decisionIndex) return { label: "Decision question", tone: "accent" };
+  const q = c.chain[index];
+  const decisionQ = c.chain[c.decisionIndex];
+  if (c.voters === 0 || qMargin(q) < 4) return { label: "Inconclusive", tone: "neutral" };
+  if (decisionQ && samePair(q, decisionQ)) {
+    return qLeader(q) === qLeader(decisionQ)
+      ? { label: "Supports the decision", tone: "success" }
+      : { label: "Contradicts the decision", tone: "warning" };
+  }
+  return { label: "Adds context", tone: "neutral" };
+}
+
+/** The index row's plain-language readout — what the campaign has
+ *  learned so far, percentages attached (the language contract bans a
+ *  naked verdict). One sentence; contradictions get named because they
+ *  change what the marketer should do next. */
+export function campaignReadout(c: Campaign): string {
+  const q = c.chain[c.decisionIndex];
+  if (!q || c.voters === 0) return "No responses yet.";
+  const lead = `${qLeader(q)} leads the decision question, ${Math.max(q.splitA, 100 - q.splitA)}% to ${Math.min(q.splitA, 100 - q.splitA)}%`;
+  const contradiction = c.chain.find(
+    (other, i) => i !== c.decisionIndex && polstRole(c, i).label === "Contradicts the decision",
+  );
+  switch (c.signal) {
+    case "Decisive":
+    case "Leading":
+      return contradiction
+        ? `${lead}, but "${contradiction.question}" favors ${qLeader(contradiction)}.`
+        : `${lead}.`;
+    case "Directional":
+      return `${lead} — short of a decisive read.`;
+    case "Too close":
+      return `The decision question is too close to call at ${q.splitA}% / ${100 - q.splitA}%.`;
+    case "Collecting":
+      return `Still collecting — ${fmtInt(c.voters)}${c.target ? ` of ${fmtInt(c.target)}` : ""} participants so far; the decision question sits at ${q.splitA}% / ${100 - q.splitA}%.`;
+    case "Inconclusive":
+      return `Ended without a clear winner: ${q.splitA}% / ${100 - q.splitA}% on the decision question.`;
+    default:
+      return "No responses yet.";
+  }
 }

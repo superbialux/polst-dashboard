@@ -113,9 +113,11 @@ export const METRIC_INFO = {
   views: "Times a Polst was shown, across every campaign, standalone Polst, and source in this workspace.",
   votes: "Option taps. A voter answering a three-question campaign counts as three votes.",
   voters: "Unique people who cast at least one vote in scope.",
-  started: "Voters who answered the first question of a campaign.",
-  completed: "Voters who answered every question in the campaign.",
+  started: "Unique participants who answered the first question of the campaign. A view alone does not count.",
+  completed: "Unique participants who answered every question in the campaign.",
   completionRate: "Voters who completed the full sequence ÷ voters who started it.",
+  finishRate:
+    "Completed ÷ Started — how many participants who began the campaign finished it. A participant-funnel metric; it says nothing about how much campaign time has elapsed.",
   engagementRate: "Total votes ÷ total views for the period.",
   votesPerView: "Votes ÷ views for one piece of content. Multi-question campaigns can exceed 100%.",
   interactions: "Likes, shares, and reposts of the Polst.",
@@ -127,6 +129,8 @@ export const METRIC_INFO = {
     "Average votes per hour over the trailing window, from this Polst's daily votes.",
   confidence:
     "Evidence volume, not statistics. High: voter target reached with 2+ sources. Medium: 70% of target, or 2+ sources. Low: below both. No significance test is run.",
+  participantGoal:
+    "An optional planning target set by the workspace. It never caps collection — the campaign keeps collecting until its scheduled or manual end, and may exceed the goal.",
 } as const;
 
 /* ── Formatters (the only number/date renderers) ──────────────────── */

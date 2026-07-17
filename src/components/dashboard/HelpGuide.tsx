@@ -45,9 +45,9 @@ export function HelpGuide() {
         <GuideSection title="How a decision is made">
           <p>
             Every campaign names one decision question. Its leading option is the campaign's
-            result, spoken as a percentage-point lead — "Citrus Mint · 12 percentage-point
-            lead" means 56 / 44. The other questions add context; they never overrule the
-            decision question.
+            result, spoken with both percentages — "Citrus Mint · 56% vs 44%" means 56% of
+            decision-question responses chose Citrus Mint. The other questions add context;
+            they never overrule the decision question.
           </p>
         </GuideSection>
         <GuideSection title="What confidence means">
@@ -76,9 +76,9 @@ export function HelpGuide() {
         </GuideSection>
         <GuideSection title="A worked example">
           <p>
-            Flavor Launch Recap ran its four questions to 1,184 voters, passed its 1,000-voter
-            target, and Citrus Mint held a 12 percentage-point lead on the decision question —
-            so its report recommends Citrus Mint at high confidence.{" "}
+            Flavor Launch Recap ran its four questions to 1,184 voters and passed its
+            1,000-voter target; 56% of decision-question responses chose Citrus Mint against
+            Berry Basil's 44% — so its report recommends Citrus Mint at high confidence.{" "}
             <Link
               to="/campaigns/flavor-launch-recap"
               onClick={() => setOpen(false)}

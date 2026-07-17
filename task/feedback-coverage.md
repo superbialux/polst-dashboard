@@ -1,7 +1,8 @@
 # Feedback coverage — dev-team-feedback.txt · marketing-team-feedback.txt · transcript.txt
 
-Status as of 2026-07-17, after unslop passes 5a–5g (`fd3ddc2`…`dd4bcd5`) and
-redesign passes 6a–6f (`08de916`…`dd6c35a` — see task/redesign-plan.md).
+Status as of 2026-07-17, after unslop passes 5a–5g (`fd3ddc2`…`dd4bcd5`),
+redesign passes 6a–6g (`08de916`…`1a42869`), and pass 7 (the audit's new
+Insights & Campaigns spec — see task/redesign-plan.md).
 Verdicts: **✅ covered** · **🟡 partial** · **⏸ deliberately deferred** (matches the
 audit's sequencing but deviates from a feedback line — flag if you disagree).
 
@@ -9,7 +10,7 @@ audit's sequencing but deviates from a feedback line — flag if you disagree).
 
 | Feedback | Source | Resolution |
 |---|---|---|
-| "What's points? votes? %?" | dev, transcript | `winnerLabel` spells out "N percentage-point lead" everywhere; no bare unit survives (`workspace.ts`). |
+| "What's points? votes? %?" | dev, transcript | `winnerLabel` now leads with both percentages ("Minimal label · 58% vs 42%"); `winnerEvidence` adds the response count in reports. No bare unit or bare margin survives (`workspace.ts`, pass 7). |
 | "Ready to decide" reads wrong on live runs | dev | Ended → "Results ready"; live → "Target reached / Strong lead · … — collecting until {date}" (`readyTitle` / `decisionEyebrow`). |
 | Confidence with no method | dev (implied), audit | Every stated confidence carries `METRIC_INFO.confidence` on hover — volume + source diversity, explicitly not a significance test. |
 | Polst displays too big / waste of real estate | marketing, transcript | Compact detail; the full social card sits behind a "Preview as voter" toggle. |
@@ -59,6 +60,45 @@ audit's sequencing but deviates from a feedback line — flag if you disagree).
 6. **"Крупнее все" (make everything bigger)** — 52px table rows, 24px hero
    KPI values, uniform 36px toolbar controls, roomier empty states. Residual
    headroom is taste, not a tracked gap.
+
+## ✅ Closed by pass 7 — the audit's Insights & Campaigns spec
+
+1. **Campaign index is funnel-factual** — columns are Campaign, Status,
+   Polsts, **Started**, **Completed**, **Finish rate** (each with its ⓘ
+   definition from `METRIC_INFO`); run dates plus "ends in 2 days"-style
+   relative schedule sit under the name; **"Result so far" is gone** and
+   the `1,486 / 1,200` shorthand no longer renders anywhere in a list.
+   The participant goal is spoken only on detail/report as
+   "1,486 — goal of 1,200 reached" (audit workflow 14, acceptance 44).
+2. **Insights is a campaign insights index** — only Active/Ended campaigns
+   with responses qualify (11 of the 16 seeded); each row carries name,
+   category, run dates, lifecycle badge, insight state (**Needs review /
+   Monitoring / Decision ready / Reviewed**), participants + finish rate,
+   a computed plain-language readout, Polst/source counts, a data-through
+   stamp, and one "View campaign insights" action. Eight rows per page
+   with an explicit `1–8 of 11 campaigns` pager; filters/search reset to
+   page one; a footer explains why Scheduled/Draft runs are excluded
+   (acceptance 41).
+3. **Campaign insight detail is a campaign tab** — readout (decision being
+   tested, lifecycle + collection facts, computed one-liner), authored
+   findings with a provenance hover (computed vs authored), next action,
+   sample & limitations, ordered Polsts with both percentages + response
+   count + participation change + a derived role (supports/contradicts —
+   only when a question offers the decision question's option pair —
+   else context/inconclusive), source contribution spoken with **both
+   rates** and an explicit no-causal-claim note, and a recordable
+   **marketer review** (Monitoring/Acted on/Dismissed/Resolved, owner +
+   date, seeded for three ended campaigns) (acceptance 42).
+4. **Standalone Polsts never generate a workspace insight** — the index
+   reads campaigns only; Polst detail stays factual (acceptance 43).
+5. **Language contract** — `winnerLabel` now leads with both percentages
+   ("Minimal label · 58% vs 42%"); `winnerEvidence` gives reports the
+   full sentence form with the response count; HelpGuide teaches the new
+   form; no surface prints bare `pts`/`+N` any more (audit P0-3 follow-up).
+6. **Division of responsibility** — the workspace-wide Trends rows and
+   "What the data says" cards moved to Analytics **Overview** (comparison
+   work); Insights no longer repeats Home's attention queue or the
+   what-changed history.
 
 ## ⏸ Deliberately deferred (flag if you disagree)
 

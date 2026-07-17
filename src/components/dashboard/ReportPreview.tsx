@@ -17,6 +17,7 @@ import {
   headlineLabel,
   polstOptions,
   verdictLabel,
+  winnerEvidence,
   type Campaign,
   type SinglePolst,
   type Source,
@@ -87,6 +88,11 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
         {campaign.decision ? (
           <p className="mt-1 text-sm text-text-secondary">{campaign.decision}</p>
         ) : null}
+        {/* The full-evidence sentence — both percentages with the response
+            count, the language contract's preferred form for a report. */}
+        {!zeroVoters && campaign.winner ? (
+          <p className="mt-1 text-sm text-text-secondary">{winnerEvidence(campaign)}</p>
+        ) : null}
         {campaign.summary ? (
           <p className="mt-2 text-sm leading-6 text-text-secondary">{campaign.summary}</p>
         ) : null}
@@ -94,9 +100,11 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
       <DetailList
         items={[
           [
-            "Voters",
+            "Participants",
             campaign.target
-              ? `${fmtInt(campaign.voters)} of ${fmtInt(campaign.target)} target`
+              ? campaign.voters >= campaign.target
+                ? `${fmtInt(campaign.voters)} — goal of ${fmtInt(campaign.target)} reached`
+                : `${fmtInt(campaign.voters)} toward the ${fmtInt(campaign.target)} goal`
               : fmtInt(campaign.voters),
           ],
           ["Completion", pct(campaign.completed, campaign.voters)],

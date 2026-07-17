@@ -76,11 +76,19 @@ import {
   headlineLabel,
   polstOptions,
   shareUrl,
-  verdictLabel,
   type Campaign,
+  type CampaignReviewState,
   type ChainQuestion,
   type Source,
 } from "@/lib/workspace";
+import {
+  INSIGHT_STATE_TONE,
+  campaignReadout,
+  dataThrough,
+  insightStateFor,
+  polstRole,
+  qualifiesForInsights,
+} from "@/lib/insights";
 import { useWorkspace } from "@/lib/store";
 
 /* ── Shared vocabulary ───────────────────────────────────────────── */
@@ -102,6 +110,14 @@ const campaignSources = (sources: Source[], id: string) =>
 
 /* ── Campaigns list ──────────────────────────────────────────────── */
 
+/** Time is spoken under the name, never mixed into the funnel columns —
+ *  "Finish rate never communicates time remaining" (audit workflow 14). */
+const scheduleNote = (row: Campaign): string | null => {
+  if (row.status === "Active" && row.endAt) return `ends ${relativeToToday(row.endAt)}`;
+  if (row.status === "Scheduled" && row.startAt) return `starts ${relativeToToday(row.startAt)}`;
+  return null;
+};
+
 const listColumns: Array<DataColumn<Campaign>> = [
   {
     header: "Campaign",
@@ -114,26 +130,34 @@ const listColumns: Array<DataColumn<Campaign>> = [
         </p>
         <p className="mt-0.5 truncate text-xs text-text-secondary">
           {fmtDateRange(row.startAt, row.endAt)}
+          {scheduleNote(row) ? ` · ${scheduleNote(row)}` : ""}
         </p>
       </Link>
     ),
   },
   { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
   { header: "Polsts", cell: (row) => <ThumbStrip ids={row.chain.map((q) => q.id)} /> },
+  /* Funnel columns only — the audit's contract for the index. Started,
+     Completed, and Finish rate are participant facts; interpretation
+     ("Result so far") moved to campaign Insights, and the participant
+     goal lives on the detail, never as a "1,486 / 1,200" shorthand. */
   {
-    header: "Voters",
+    header: "Started",
+    info: METRIC_INFO.started,
     align: "right",
-    cell: (row) => (
-      <span className="tabular-nums">
-        {fmtInt(row.voters)}
-        {row.target ? <span className="text-text-tertiary"> / {fmtInt(row.target)}</span> : null}
-      </span>
-    ),
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
   },
-  { header: "Completion", align: "right", cell: (row) => pct(row.completed, row.voters) },
   {
-    header: "Result so far",
-    cell: (row) => <span className="text-text-secondary">{verdictLabel(row)}</span>,
+    header: "Completed",
+    info: METRIC_INFO.completed,
+    align: "right",
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.completed)}</span>,
+  },
+  {
+    header: "Finish rate",
+    info: METRIC_INFO.finishRate,
+    align: "right",
+    cell: (row) => pct(row.completed, row.voters),
   },
 ];
 
@@ -431,7 +455,7 @@ export function CreateCampaignPage() {
 
 /* ── Campaign detail ─────────────────────────────────────────────── */
 
-const DETAIL_TABS = ["Overview", "Polsts", "Sources", "Settings"] as const;
+const DETAIL_TABS = ["Overview", "Insights", "Polsts", "Sources", "Settings"] as const;
 type DetailTab = (typeof DETAIL_TABS)[number];
 
 /** Tab state lives in `?tab=` so other pages can deep-link (e.g. Home's
@@ -560,6 +584,9 @@ export function CampaignDetailPage() {
           onEnd={() => setEndOpen(true)}
           onReport={() => setReportOpen(true)}
         />
+      ) : null}
+      {tab === "Insights" ? (
+        <CampaignInsights campaign={campaign} sources={sources} onGoTo={setTab} />
       ) : null}
       {tab === "Polsts" ? <CampaignPolsts campaign={campaign} /> : null}
       {tab === "Sources" ? (
@@ -731,12 +758,17 @@ function CampaignOverview({
         summary={campaign.summary}
         caveat={campaign.caveats[0]}
         evidence={[
+          /* The audit's participant-goal contract: the goal is a planning
+             target spoken as a sentence on the detail ("goal of 1,200
+             reached"), never the list's ambiguous "1,486 / 1,200". */
           {
-            label: campaign.target ? "Voters vs target" : "Voters",
+            label: "Participants",
             value: campaign.target
-              ? `${fmtInt(campaign.voters)} of ${fmtInt(campaign.target)}`
+              ? campaign.voters >= campaign.target
+                ? `${fmtInt(campaign.voters)} — goal of ${fmtInt(campaign.target)} reached`
+                : `${fmtInt(campaign.voters)} toward the ${fmtInt(campaign.target)} goal`
               : fmtInt(campaign.voters),
-            info: METRIC_INFO.voters,
+            info: campaign.target ? METRIC_INFO.participantGoal : METRIC_INFO.voters,
           },
           {
             label: "Completion",
@@ -800,6 +832,315 @@ function CampaignOverview({
             </DashboardCard>
           ) : null}
         </div>
+      </SectionGrid>
+    </>
+  );
+}
+
+/* ── Insights tab ────────────────────────────────────────────────────
+   The audit's campaign insight detail: what this campaign learned,
+   which Polsts shaped that learning, what each source contributed, and
+   the marketer's resolution. Everything except the review is computed
+   from the campaign's own record; the review is human-authored and
+   says so. The Insights index (/analytics/insights) deep-links here. */
+
+const REVIEW_STATE_OPTIONS: Array<{ value: CampaignReviewState; label: string }> = [
+  { value: "Monitoring", label: "Monitoring — keep collecting, check back" },
+  { value: "Acted on", label: "Acted on — a decision was made from this" },
+  { value: "Dismissed", label: "Dismissed — findings set aside, with a reason" },
+  { value: "Resolved", label: "Resolved — the follow-up is complete" },
+];
+
+const REVIEW_STATE_TONE: Record<CampaignReviewState, "success" | "accent" | "neutral"> = {
+  Monitoring: "neutral",
+  "Acted on": "success",
+  Dismissed: "neutral",
+  Resolved: "accent",
+};
+
+/** One ordered chain question: both percentages with the response count,
+ *  the participation change from the question before it, and its
+ *  plain-language role in the campaign's result. */
+function InsightPolstRow({
+  campaign,
+  index,
+  onInspect,
+}: {
+  campaign: Campaign;
+  index: number;
+  onInspect: () => void;
+}) {
+  const q = campaign.chain[index];
+  const responses = campaign.votesByQuestion[index] ?? 0;
+  const prev = index > 0 ? (campaign.votesByQuestion[index - 1] ?? 0) : null;
+  const role = polstRole(campaign, index);
+  const lost = prev !== null && prev > 0 ? prev - responses : null;
+  return (
+    <li className="flex flex-wrap items-start gap-x-4 gap-y-2 px-5 py-4">
+      <span className="mt-0.5 w-7 shrink-0 font-display text-sm font-semibold text-text-tertiary">
+        Q{index + 1}
+      </span>
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-display text-sm font-semibold leading-5 text-text-primary">
+          {q.question}
+        </p>
+        <p className="text-sm leading-5 text-text-secondary">
+          {q.splitA}% {q.optionA} · {100 - q.splitA}% {q.optionB} —{" "}
+          <span className="tabular-nums">{fmtInt(responses)}</span> responses
+        </p>
+        {lost !== null ? (
+          <p className="text-xs leading-4 text-text-tertiary">
+            {lost > 0
+              ? `−${fmtInt(lost)} participants after Q${index} (−${Math.round((lost / prev!) * 100)}%)`
+              : `Held every participant from Q${index}`}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <Chip tone={role.tone}>{role.label}</Chip>
+        <button
+          type="button"
+          onClick={onInspect}
+          className="text-sm font-semibold text-text-accent hover:underline"
+        >
+          Inspect
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function CampaignInsights({
+  campaign,
+  sources,
+  onGoTo,
+}: {
+  campaign: Campaign;
+  sources: Source[];
+  onGoTo: (tab: DetailTab) => void;
+}) {
+  const store = useWorkspace();
+  const toast = useToast();
+  const review = store.reviewFor(campaign.id);
+  const state = insightStateFor(campaign, review);
+  const [reviewState, setReviewState] = useState<CampaignReviewState | "">(review?.state ?? "");
+  const [note, setNote] = useState(review?.note ?? "");
+
+  if (!qualifiesForInsights(campaign)) {
+    return (
+      <DashboardCard padded={false}>
+        <EmptyState
+          icon="query_stats"
+          register="no-results"
+          title="No findings yet"
+          hint={
+            campaign.status === "Scheduled" && campaign.startAt
+              ? `Insights appear once a campaign collects responses. This one starts ${relativeToToday(campaign.startAt)}.`
+              : campaign.status === "Draft"
+                ? "Insights appear once a campaign collects responses. Finish composing this draft, then publish it."
+                : "Insights appear once a campaign collects responses. This run ended without any."
+          }
+          action={
+            campaign.status === "Draft"
+              ? { label: "Open the launch checklist", onClick: () => onGoTo("Overview") }
+              : undefined
+          }
+        />
+      </DashboardCard>
+    );
+  }
+
+  const finishRate = pct(campaign.completed, campaign.voters);
+  const campaignRate = campaign.completionRate;
+  /* The most instructive completion gap, spoken with BOTH rates — a
+     description, never a cause (the audit's source-contribution rule). */
+  const outlier = sources
+    .filter((s) => s.voters >= 30 && s.completionRate !== null && campaignRate !== null)
+    .sort(
+      (a, b) =>
+        Math.abs((b.completionRate ?? 0) - (campaignRate ?? 0)) -
+        Math.abs((a.completionRate ?? 0) - (campaignRate ?? 0)),
+    )[0];
+  const outlierGap =
+    outlier && campaignRate !== null
+      ? Math.abs((outlier.completionRate ?? 0) - campaignRate)
+      : 0;
+
+  const collectionFacts = [
+    campaign.status === "Ended"
+      ? `Ended ${fmtDate(campaign.endAt!)}`
+      : `Collecting until ${campaign.endAt ? fmtDate(campaign.endAt) : "ended manually"}`,
+    `${fmtInt(campaign.voters)} participants${
+      campaign.target
+        ? campaign.voters >= campaign.target
+          ? ` — goal of ${fmtInt(campaign.target)} reached`
+          : ` toward the ${fmtInt(campaign.target)} goal`
+        : ""
+    }`,
+    `${finishRate} finish rate`,
+  ];
+
+  const sourceColumns: Array<DataColumn<Source>> = [
+    {
+      header: "Source",
+      cell: (s) => <span className="font-semibold text-text-primary">{s.name}</span>,
+    },
+    { header: "Channel", cell: (s) => s.channel },
+    { header: "Participants", align: "right", cell: (s) => fmtInt(s.voters) },
+    { header: "Completion", align: "right", cell: (s) => RateCell(s.completionRate) },
+  ];
+
+  return (
+    <>
+      <DashboardCard>
+        <div className="flex flex-wrap items-center gap-3">
+          <Chip tone={INSIGHT_STATE_TONE[state]}>{state}</Chip>
+          <span className="text-xs text-text-tertiary">
+            Data through {fmtDate(dataThrough(campaign))}
+          </span>
+        </div>
+        <p className="mt-4 text-xs font-medium uppercase tracking-wide text-text-tertiary">
+          Decision being tested
+        </p>
+        <h2 className="mt-1 font-display text-lg font-semibold leading-6 text-text-primary">
+          {campaign.decision || campaign.name}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">{campaignReadout(campaign)}</p>
+        <p className="mt-2 text-sm leading-5 text-text-secondary">
+          {collectionFacts.join(" · ")}
+        </p>
+        {campaign.findings.length > 0 ? (
+          <div className="mt-5 border-t border-border-default pt-4">
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-display text-sm font-semibold text-text-primary">
+                What the run showed
+              </h3>
+              <InfoHint
+                label="Provenance"
+                text="The readout above is computed from the live record. These findings are authored by your team; every number in them is checked against the run's data."
+              />
+            </div>
+            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-6 text-text-secondary">
+              {campaign.findings.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {campaign.nextStep ? (
+          <div className="mt-4">
+            <h3 className="font-display text-sm font-semibold text-text-primary">Next action</h3>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">{campaign.nextStep}</p>
+          </div>
+        ) : null}
+        {campaign.caveats.length > 0 || campaign.sampleNote ? (
+          <div className="mt-4 rounded-md bg-surface-subtle p-4">
+            <h3 className="font-display text-sm font-semibold text-text-primary">
+              Sample & limitations
+            </h3>
+            {campaign.sampleNote ? (
+              <p className="mt-1 text-sm leading-5 text-text-secondary">{campaign.sampleNote}</p>
+            ) : null}
+            <ul className="mt-1 space-y-1 text-sm leading-5 text-text-secondary">
+              {campaign.caveats.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </DashboardCard>
+
+      <DashboardCard title="Polsts in this campaign" padded={false}>
+        <p className="border-b border-border-default px-5 pb-3 text-xs leading-4 text-text-secondary">
+          How the ordered questions shaped the result — not a leaderboard. A question can only
+          support or contradict the decision when it offers the same two options.
+        </p>
+        <ol className="divide-y divide-border-default">
+          {campaign.chain.map((q, i) => (
+            <InsightPolstRow
+              key={q.id}
+              campaign={campaign}
+              index={i}
+              onInspect={() => onGoTo("Polsts")}
+            />
+          ))}
+        </ol>
+      </DashboardCard>
+
+      <SectionGrid className="items-start">
+        <DashboardCard title="Source contribution" padded={false} className="lg:col-span-7">
+          <DataTable rows={sources} columns={sourceColumns} emptyLabel="No sources assigned" />
+          <div className="space-y-1 border-t border-border-default px-5 py-3">
+            {outlier && outlierGap >= 5 ? (
+              <p className="text-sm leading-5 text-text-secondary">
+                {outlier.name} completes at {Math.round(outlier.completionRate!)}%; the campaign
+                completes at {Math.round(campaignRate!)}%.
+              </p>
+            ) : null}
+            <p className="text-xs leading-4 text-text-tertiary">
+              Sources recruit different audiences — a completion gap describes the traffic, it
+              does not prove the source caused it.
+            </p>
+          </div>
+        </DashboardCard>
+
+        <DashboardCard title="Marketer review" className="lg:col-span-5">
+          {review ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Chip tone={REVIEW_STATE_TONE[review.state]}>{review.state}</Chip>
+                <span className="text-xs text-text-tertiary">
+                  {review.owner} · {fmtDate(review.at)}
+                </span>
+              </div>
+              {review.note ? (
+                <p className="text-sm leading-6 text-text-secondary">{review.note}</p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm leading-6 text-text-secondary">
+              Nobody has recorded a resolution for this campaign yet. Reviewing it moves it out
+              of “{state}” in the Insights index.
+            </p>
+          )}
+          <div className={cn("space-y-4", review ? "mt-5 border-t border-border-default pt-4" : "mt-4")}>
+            <Field label={review ? "Update the resolution" : "Resolution"}>
+              {(id) => (
+                <SelectMenu
+                  id={id}
+                  label="Resolution"
+                  options={REVIEW_STATE_OPTIONS}
+                  value={reviewState}
+                  onValueChange={(v) => setReviewState(v as CampaignReviewState)}
+                  placeholder="What did the team decide?"
+                />
+              )}
+            </Field>
+            <Field label="Note" helper={<FieldHelper tone="neutral">Recorded with your name and today's date.</FieldHelper>}>
+              {(id) => (
+                <textarea
+                  id={id}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder="What was decided, or why it was set aside"
+                  className={cn(CONTROL, "h-auto px-3 py-2")}
+                />
+              )}
+            </Field>
+            <Button
+              disabled={!reviewState}
+              title={reviewState ? undefined : "Pick a resolution first"}
+              onClick={() => {
+                if (!reviewState) return;
+                store.recordReview(campaign.id, reviewState, note);
+                toast("Review recorded");
+              }}
+            >
+              {review ? "Update review" : "Record review"}
+            </Button>
+          </div>
+        </DashboardCard>
       </SectionGrid>
     </>
   );

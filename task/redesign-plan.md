@@ -46,6 +46,38 @@ build, browser) and commit+push after every pass — main only.
 - [x] Pass 6g — DESIGN.md rewritten for 6a–6f ("quiet chrome, violet data"),
       feedback-coverage.md gaps closed, final verify (tsc, verify:model,
       build, browser sweep over all views — zero console errors).
+- [x] Pass 7 — the audit's new Insights & Campaigns spec (unslopification-
+      audit.md §Campaigns recommendation, §Analytics — Insights, acceptance
+      41–44, language contract):
+      · Data layer: `CampaignWinner` extended with pctFor/pctAgainst/
+        responses; `winnerLabel` re-voiced to "Minimal label · 58% vs 42%"
+        (+ `winnerEvidence` sentence form for reports); `CampaignReview`
+        seeds (3 ended runs) + store `reviews`/`reviewFor`/`recordReview`
+        (owner = signed-in member, date = TODAY); lib/insights.ts gains
+        `InsightState` + `insightStateFor` (Reviewed ← record, Needs review
+        ← Ended, Decision ready ← isReadyToDecide, else Monitoring),
+        `qualifiesForInsights` (Active/Ended + voters>0), `dataThrough`,
+        `campaignReadout` (computed one-liner, names contradictions),
+        `polstRole` (supports/contradicts only on a matching option pair —
+        canon's <4-margin = inconclusive); METRIC_INFO gains finishRate +
+        participantGoal; deriveInsights' two "pts" strings → both-rates form.
+      · Campaigns index: Started/Completed/Finish-rate columns (ⓘ defs via
+        new DataColumn.info), run dates + relative "ends in N days" under
+        the name, Result-so-far and "/target" shorthand removed; detail +
+        report speak "1,486 — goal of 1,200 reached".
+      · Campaign detail: new Insights tab (readout card w/ provenance
+        hover, ordered Polst rows w/ splits+responses+participation delta+
+        role chips, source contribution w/ both-rates outlier sentence +
+        no-causal-claim note, marketer-review form) + insufficient-data
+        register for Draft/Scheduled.
+      · Analytics: Insights page → paginated campaign insights index
+        (8/page Pager "1–8 of 11 campaigns", state filters + search reset
+        to page 1, excluded-runs footer, activity-sorted); TrendGrid +
+        InsightGrid moved to Overview; Campaign-performance table + CSV →
+        Started/Completed/Finish rate (verdict column dropped).
+      · Verified: tsc, verify:model, build, Playwright sweep (index pages
+        1+2, insights tab, review flow flips state to Reviewed live,
+        campaigns table, Overview, Home) — zero console errors.
 
 ## DRY audit (from full read of all views, 2026-07-17)
 

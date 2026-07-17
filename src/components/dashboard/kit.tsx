@@ -546,6 +546,10 @@ export function filterByCreated<T extends { createdAt: string }>(
 
 export type DataColumn<T> = {
   header: string;
+  /** Optional metric definition, rendered as an ⓘ hover beside the
+   *  header — funnel columns (Started, Finish rate) must be readable
+   *  without leaving the table. */
+  info?: string;
   cell: (row: T) => ReactNode;
   className?: string;
   /** Right-align a column (numbers, row actions). */
@@ -581,7 +585,14 @@ export function DataTable<T extends { id: string }>({
                   column.className,
                 )}
               >
-                {column.header}
+                {column.info ? (
+                  <span className="inline-flex items-center gap-1">
+                    {column.header}
+                    <InfoHint text={column.info} label={column.header} />
+                  </span>
+                ) : (
+                  column.header
+                )}
               </th>
             ))}
           </tr>
