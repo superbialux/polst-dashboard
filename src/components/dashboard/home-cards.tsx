@@ -105,7 +105,7 @@ export function SuggestionCard({
     <div className={cn("group relative", className)}>
       <Link
         to={suggestion.to}
-        className="flex h-full flex-col overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm transition-colors hover:border-border-strong"
+        className="flex h-full min-h-72 flex-col overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm transition-colors hover:border-border-strong"
       >
         <span className="block p-4 pb-0">
           <span className="line-clamp-2 font-display text-sm font-semibold leading-5 text-text-primary">
