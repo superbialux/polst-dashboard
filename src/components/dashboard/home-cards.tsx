@@ -289,15 +289,18 @@ export function CampaignCardGrid({ children }: { children: ReactNode }) {
   return <div className="grid items-start gap-3">{children}</div>;
 }
 
-/* ── All-campaigns overview rail ─────────────────────────────────── */
+/* ── Overview rail cards ─────────────────────────────────────────── */
 
-/** The account's campaign totals in the Shopify accounts-card anatomy:
- *  a card title over DetailList's bordered label → value rows. The
- *  title says whose numbers these are — every campaign, not one. */
-export function CampaignStatsCard({
+/** An account-overview panel in the Shopify accounts-card anatomy: a
+ *  card title over DetailList's bordered label → value rows. The title
+ *  names the scope ("All campaigns", "All polsts") so no number floats
+ *  without its universe. */
+export function StatsListCard({
+  title,
   rows,
   className,
 }: {
+  title: string;
   rows: Array<[string, ReactNode]>;
   className?: string;
 }) {
@@ -308,9 +311,7 @@ export function CampaignStatsCard({
         className,
       )}
     >
-      <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
-        All campaigns
-      </h2>
+      <h2 className="font-display text-base font-semibold leading-6 text-text-primary">{title}</h2>
       <div className="mt-3">
         <DetailList items={rows} />
       </div>

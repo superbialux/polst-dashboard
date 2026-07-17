@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
-  CampaignStatsCard,
+  StatsListCard,
   CampaignCard,
   CampaignCardGrid,
   DashboardPage,
@@ -14,7 +14,7 @@ import {
   SuggestionGrid,
   type Suggestion,
 } from "@/components/dashboard";
-import { fmtInt, isReadyToDecide, pct } from "@/lib/canon";
+import { fmtInt, isReadyToDecide } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import {
   STAT_XTICKS,
@@ -168,23 +168,29 @@ export function HomePage() {
   const dismissSuggestion = (id: string) =>
     setDismissed((prev) => new Set(prev).add(id));
 
-  /* The rail: totals across every campaign, in the audit's vocabulary —
-     Started (people who began a chain), Completed (answered every
-     question), Finish rate (completed ÷ started). */
+  /* The rail: two parallel overview panels — the same row shape over
+     campaigns and over standalone polsts, so every number carries its
+     universe. Votes are all-time (the objects' full runs). */
   const campaignStats = useMemo<Array<[string, string]>>(() => {
     const count = (status: string) => campaigns.filter((c) => c.status === status).length;
-    const started = campaigns.reduce((a, c) => a + c.voters, 0);
-    const completed = campaigns.reduce((a, c) => a + c.completed, 0);
     return [
       ["Active", fmtInt(count("Active"))],
       ["Scheduled", fmtInt(count("Scheduled"))],
       ["Ended", fmtInt(count("Ended"))],
       ["Drafts", fmtInt(count("Draft"))],
-      ["Started", fmtInt(started)],
-      ["Completed", fmtInt(completed)],
-      ["Finish rate", pct(completed, started)],
+      ["Votes", fmtInt(campaigns.reduce((a, c) => a + c.votes, 0))],
     ];
   }, [campaigns]);
+  const polstStats = useMemo<Array<[string, string]>>(() => {
+    const count = (status: string) => polsts.filter((p) => p.status === status).length;
+    return [
+      ["Active", fmtInt(count("Active"))],
+      ["Scheduled", fmtInt(count("Scheduled"))],
+      ["Ended", fmtInt(count("Ended"))],
+      ["Drafts", fmtInt(count("Draft"))],
+      ["Votes", fmtInt(polsts.reduce((a, p) => a + p.votes, 0))],
+    ];
+  }, [polsts]);
 
   const activeCampaigns = campaigns.filter((c) => c.status === "Active");
   const queuedCampaigns = useMemo(
@@ -284,7 +290,10 @@ export function HomePage() {
               </div>
             )}
           </div>
-          <CampaignStatsCard rows={campaignStats} />
+          <div className="space-y-3">
+            <StatsListCard title="All campaigns" rows={campaignStats} />
+            <StatsListCard title="All polsts" rows={polstStats} />
+          </div>
         </div>
       </section>
     </DashboardPage>
