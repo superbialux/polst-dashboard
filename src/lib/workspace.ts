@@ -1330,45 +1330,6 @@ export const STAT_XTICKS: Record<StatRange, string[]> = Object.fromEntries(
   }),
 ) as Record<StatRange, string[]>;
 
-/* ── Recommendations (Home's rail) ───────────────────────────────── */
-
-export type Recommendation = {
-  id: string;
-  /** The action with its evidence — "Go with Modern Holiday — 61%
-   *  preference across 6,842 responses". */
-  title: string;
-  /** The run and the strength of the read — "Holiday Creative · won by
-   *  22 points" / "· high confidence". */
-  meta: string;
-  to: string;
-};
-
-/** Result-backed recommendations: every run whose decision question has
- *  a winner speaks one action line with its numbers. Live runs that
- *  reached their target lead (decidable now); decided runs follow,
- *  newest first. Pure over the passed array. */
-export function workspaceRecommendations(campaigns: Campaign[], limit = 6): Recommendation[] {
-  return campaigns
-    .filter((c) => !!c.winner && c.winner.responses > 0 && (c.status === "Ended" || isReadyToDecide(c)))
-    .sort(
-      (a, b) =>
-        Number(a.status === "Ended") - Number(b.status === "Ended") ||
-        (b.endAt ?? "").localeCompare(a.endAt ?? ""),
-    )
-    .slice(0, limit)
-    .map((c) => ({
-      id: `rec-${c.id}`,
-      title: `Go with ${c.winner!.option} — ${c.winner!.pctFor}% preference across ${fmtInt(c.winner!.responses)} responses`,
-      meta:
-        c.status === "Ended"
-          ? `${c.name} · won by ${c.winner!.marginPts} points`
-          : c.confidence !== "—"
-            ? `${c.name} · ${c.confidence.toLowerCase()} confidence`
-            : `${c.name} · still collecting`,
-      to: `/campaigns/${c.id}`,
-    }));
-}
-
 /* ── Ready to decide & attention (Home) ──────────────────────────── */
 
 export const READY_TO_DECIDE: Campaign[] = CAMPAIGNS.filter(isReadyToDecide);

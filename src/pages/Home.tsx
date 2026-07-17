@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
-  RecommendationRail,
+  CampaignStatsCard,
   CampaignCard,
   CampaignCardGrid,
   DashboardPage,
@@ -14,12 +14,12 @@ import {
   SuggestionGrid,
   type Suggestion,
 } from "@/components/dashboard";
-import { isReadyToDecide } from "@/lib/canon";
+import { fmtInt, isReadyToDecide, pct } from "@/lib/canon";
 import { useWorkspace } from "@/lib/store";
 import {
   STAT_XTICKS,
   attentionItems,
-  workspaceRecommendations,
+
   dashboardStats,
   readyTitle,
   winnerLabel,
@@ -168,8 +168,21 @@ export function HomePage() {
   const dismissSuggestion = (id: string) =>
     setDismissed((prev) => new Set(prev).add(id));
 
-  /* The rail: decisions the data already supports, with their evidence. */
-  const recommendations = useMemo(() => workspaceRecommendations(campaigns), [campaigns]);
+  /* The rail: campaign totals at a glance (the Shopify accounts-card
+     anatomy — label rows over one shared value column). */
+  const campaignStats = useMemo<Array<[string, string]>>(() => {
+    const count = (status: string) => campaigns.filter((c) => c.status === status).length;
+    const voters = campaigns.reduce((a, c) => a + c.voters, 0);
+    const completed = campaigns.reduce((a, c) => a + c.completed, 0);
+    return [
+      ["Active", fmtInt(count("Active"))],
+      ["Scheduled", fmtInt(count("Scheduled"))],
+      ["Ended", fmtInt(count("Ended"))],
+      ["Drafts", fmtInt(count("Draft"))],
+      ["Total voters", fmtInt(voters)],
+      ["Completion", pct(completed, voters)],
+    ];
+  }, [campaigns]);
 
   const activeCampaigns = campaigns.filter((c) => c.status === "Active");
   const queuedCampaigns = useMemo(
@@ -228,25 +241,27 @@ export function HomePage() {
         onDismiss={dismissSuggestion}
       />
 
-      {/* 4 · One campaign, one row — the recommendation rail rides the
-             last quarter and states the decisions the data supports. */}
+      {/* 4 · One campaign, one row — the stats rail rides the last
+             quarter with the workspace's campaign totals. */}
       <section>
-        <h2 className="mb-3 font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
-          Campaigns
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+            Campaigns
+          </h2>
+          <div className="flex items-center gap-2">
+            <SegmentedControl
+              tabs={["Active", "Queued"]}
+              active={campaignView}
+              onChange={setCampaignView}
+              size="compact"
+            />
+            <Button variant="secondary" size="sm" asChild>
+              <Link to="/campaigns">View all</Link>
+            </Button>
+          </div>
+        </div>
         <div className="grid items-start gap-3 lg:grid-cols-4">
-          <div className="space-y-3 lg:col-span-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <SegmentedControl
-                tabs={["Active", "Queued"]}
-                active={campaignView}
-                onChange={setCampaignView}
-                size="compact"
-              />
-              <Button variant="secondary" size="sm" asChild>
-                <Link to="/campaigns">View all</Link>
-              </Button>
-            </div>
+          <div className="lg:col-span-3">
             {shownCampaigns.length ? (
               <CampaignCardGrid>
                 {shownCampaigns.map((c: Campaign) => (
@@ -267,7 +282,7 @@ export function HomePage() {
               </div>
             )}
           </div>
-          <RecommendationRail items={recommendations} />
+          <CampaignStatsCard rows={campaignStats} />
         </div>
       </section>
     </DashboardPage>

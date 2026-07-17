@@ -5,8 +5,8 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { fmtDateRange, fmtInt, pct, relativeToToday } from "@/lib/canon";
-import { polstImage, type Campaign, type Recommendation } from "@/lib/workspace";
-import { CtaButton, MediaFill, StatusBadge, type CardTone } from "./kit";
+import { polstImage, type Campaign } from "@/lib/workspace";
+import { CtaButton, DetailList, MediaFill, StatusBadge, type CardTone } from "./kit";
 
 /* ══════════════════════════════════════════════════════════════════
    HOME CARDS — the Hotjar-home register, in house tokens.
@@ -289,16 +289,15 @@ export function CampaignCardGrid({ children }: { children: ReactNode }) {
   return <div className="grid items-start gap-3">{children}</div>;
 }
 
-/* ── Recommendations ─────────────────────────────────────────────── */
+/* ── Campaign stats rail ─────────────────────────────────────────── */
 
-/** The decisions the data already supports, one action line each: the
- *  winning option with its numbers, then the run and the strength of
- *  the read. Same heading register as the campaign cards beside it. */
-export function RecommendationRail({
-  items,
+/** Overall campaign totals in the Shopify accounts-card anatomy: a
+ *  card title over DetailList's bordered label → value rows. */
+export function CampaignStatsCard({
+  rows,
   className,
 }: {
-  items: Recommendation[];
+  rows: Array<[string, ReactNode]>;
   className?: string;
 }) {
   return (
@@ -309,36 +308,11 @@ export function RecommendationRail({
       )}
     >
       <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
-        Recommendations
+        Campaign stats
       </h2>
-      {items.length ? (
-        <ul className="mt-1 divide-y divide-border-default">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Link to={item.to} className="group flex items-start gap-2.5 py-3">
-                <span
-                  aria-hidden
-                  className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-accent-soft text-accent-default"
-                >
-                  <Icon name="lightbulb" size={14} weight={300} filled />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium leading-5 text-text-primary group-hover:underline">
-                    {item.title}
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-4 text-text-secondary">
-                    {item.meta}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-2 text-sm text-text-tertiary">
-          No run has a readable result yet — recommendations appear as winners emerge.
-        </p>
-      )}
+      <div className="mt-3">
+        <DetailList items={rows} />
+      </div>
     </section>
   );
 }
