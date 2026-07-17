@@ -1026,11 +1026,24 @@ export type Stat = {
   previous?: number[];
   /** The metric's definition — formula and denominator, in plain words. */
   info?: string;
-  insights?: Array<{
-    text: string;
-    to: string;
-    tone: "success" | "warning" | "danger" | "accent";
-  }>;
+  /** Chart-anchored movements — each marker explains a rise or drop. */
+  annotations?: StatAnnotation[];
+};
+
+/** A point on the stat hero's chart: a material bucket-over-bucket movement,
+ *  attributed to the campaign/Polst lifecycle event that explains it. */
+export type StatAnnotation = {
+  /** Index into the stat's spark — the bucket the marker sits on. */
+  bucket: number;
+  /** The bucket's real date span, e.g. "Jun 10 – Jun 14". */
+  dateLabel: string;
+  direction: "rise" | "drop";
+  /** The movement with its number — "Views rose 43%". */
+  headline: string;
+  /** One sentence tying the movement to its event, or saying none was found. */
+  detail: string;
+  tone: "success" | "danger" | "neutral";
+  link?: { label: string; to: string };
 };
 
 export type StatRange = WindowRange;
@@ -1093,62 +1106,117 @@ const laggingSources = (campaigns: Campaign[], polsts: SinglePolst[], sources: S
     return rate !== null && s.completionRate <= rate - 15;
   });
 
-/** Scheduled campaigns starting ≤14 days out with nothing collecting voters. */
-const uncoveredScheduledFor = (campaigns: Campaign[], sources: Source[]) =>
-  campaigns.find(
-    (c) =>
-      c.status === "Scheduled" &&
-      !!c.startAt &&
-      daysBetween(TODAY, c.startAt) <= 14 &&
-      sourcesLinkedTo(sources, "campaign", c.id).length === 0,
-  );
+/* ── Chart annotations (the stat hero's insight markers) ─────────── */
 
-const trendLine = (subject: string, stat: Stat, range: StatRange) => {
-  if (range === "All") return `${subject} reached ${stat.value} since launch.`;
-  // A suppressed delta ("—", windowDelta's honesty floor) is not "held
-  // steady" — there is nothing to compare against, and the line says so.
-  if (stat.delta === "—")
-    return `${subject} reached ${stat.value} — no comparable previous period yet.`;
-  const movement = stat.trend === "down" ? "fell" : stat.trend === "up" ? "rose" : "held steady";
-  const change = stat.trend === "flat" ? "" : ` ${stat.delta}`;
-  return `${subject} ${movement}${change} versus the previous period.`;
+/** Bucket i's [firstDayIdx, lastDayIdx] — mirrors downsampleCounts' slices
+ *  so a marker's date span is exactly the days its spark bucket sums. */
+const bucketDayBounds = (len: number, points = SPARK_POINTS): Array<[number, number]> =>
+  len <= points
+    ? Array.from({ length: len }, (_, i) => [i, i] as [number, number])
+    : Array.from({ length: points }, (_, i) => [
+        Math.floor((i * len) / points),
+        Math.floor(((i + 1) * len) / points) - 1,
+      ] as [number, number]);
+
+/* A count doubling is routine campaign traffic; a ratio moving 15% of
+   itself is a real mix shift — so rates flag at a lower relative floor. */
+const MOVEMENT_FLOOR_PCT = 25;
+const MOVEMENT_FLOOR_PCT_RATE = 15;
+const MOVEMENT_SCALE_FLOOR = 0.2; // of the series peak — de-noises the quiet tail
+const MAX_ANNOTATIONS = 3; // markers stay legible; the chart is not a ruler
+
+/** The spark's material movements, largest first. */
+const detectMovements = (spark: number[], floorPct: number): Array<{ bucket: number; pct: number }> => {
+  const peak = Math.max(...spark, 0);
+  if (peak <= 0) return [];
+  const moves: Array<{ bucket: number; pct: number }> = [];
+  for (let i = 1; i < spark.length; i++) {
+    const prev = spark[i - 1];
+    const curr = spark[i];
+    if (prev <= 0 || Math.max(prev, curr) < peak * MOVEMENT_SCALE_FLOOR) continue;
+    const pct = Math.round(((curr - prev) / prev) * 100);
+    if (Math.abs(pct) < floorPct) continue;
+    // The final bucket is still collecting (the chart draws it dashed) — a
+    // "drop" into partial data is an artifact, not a story.
+    if (pct < 0 && i === spark.length - 1) continue;
+    moves.push({ bucket: i, pct });
+  }
+  return moves.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct)).slice(0, MAX_ANNOTATIONS);
 };
 
-/** The trend insight's tone: neutral (accent) when there is no comparison,
- *  danger on a real fall, success otherwise. */
-const trendTone = (stat: Stat, range: StatRange): "success" | "danger" | "accent" =>
-  range !== "All" && stat.delta === "—"
-    ? "accent"
-    : stat.trend === "down"
-      ? "danger"
-      : "success";
+type LifecycleEvent = {
+  kind: "launch" | "end";
+  date: string;
+  name: string;
+  views: number; // tie-break: the biggest object most plausibly moved the total
+  to: string;
+};
+
+/** Every dated start/end across campaigns and Polsts — the only things that
+ *  can move the workspace totals, since each object's series lives inside
+ *  its own [startAt, endAt]. */
+const lifecycleEvents = (campaigns: Campaign[], polsts: SinglePolst[]): LifecycleEvent[] => [
+  ...campaigns.flatMap((c): LifecycleEvent[] => [
+    ...(c.startAt ? [{ kind: "launch" as const, date: c.startAt, name: c.name, views: c.views, to: `/campaigns/${c.id}` }] : []),
+    ...(c.endAt ? [{ kind: "end" as const, date: c.endAt, name: c.name, views: c.views, to: `/campaigns/${c.id}` }] : []),
+  ]),
+  ...polsts.flatMap((p): LifecycleEvent[] => [
+    ...(p.startAt ? [{ kind: "launch" as const, date: p.startAt, name: p.question, views: p.views, to: `/polsts/${p.id}` }] : []),
+    ...(p.endAt ? [{ kind: "end" as const, date: p.endAt, name: p.question, views: p.views, to: `/polsts/${p.id}` }] : []),
+  ]),
+];
+
+/** A rise is only ever explained by a launch, a drop by an end — an event of
+ *  the wrong kind nearby is a coincidence, and the card says "no linked
+ *  event" instead of reaching. */
+const annotateStat = (
+  subject: string,
+  spark: number[] | undefined,
+  dates: string[],
+  events: LifecycleEvent[],
+  isRate = false,
+): StatAnnotation[] => {
+  if (!spark?.length || !dates.length) return [];
+  const bounds = bucketDayBounds(dates.length);
+  const floorPct = isRate ? MOVEMENT_FLOOR_PCT_RATE : MOVEMENT_FLOOR_PCT;
+  return detectMovements(spark, floorPct).map(({ bucket, pct }) => {
+    const [from, to] = bounds[bucket] ?? [0, 0];
+    // A launch a day or two before the bucket still explains its first
+    // full bucket of traffic — pad the span's start, never its end.
+    const spanStart = addDays(dates[from], -2);
+    const rise = pct > 0;
+    const cause = events
+      .filter((e) => e.kind === (rise ? "launch" : "end") && e.date >= spanStart && e.date <= dates[to])
+      .sort((a, b) => b.views - a.views)[0];
+    return {
+      bucket,
+      dateLabel:
+        from === to ? fmtDate(dates[from]) : `${fmtDate(dates[from])} – ${fmtDate(dates[to])}`,
+      direction: rise ? "rise" : "drop",
+      // "rose 1870%" is unreadable — past tripling, state the multiple.
+      headline:
+        pct >= 200
+          ? `${subject} rose ${round1((pct + 100) / 100)}×`
+          : `${subject} ${rise ? "rose" : "fell"} ${Math.abs(pct)}%`,
+      detail: cause
+        ? cause.kind === "launch"
+          ? `${cause.name} launched ${fmtDate(cause.date)} and began collecting here.`
+          : `${cause.name} ended ${fmtDate(cause.date)} and stopped collecting.`
+        : "No campaign or Polst launched or ended near this stretch.",
+      tone: cause ? (rise ? ("success" as const) : ("danger" as const)) : ("neutral" as const),
+      ...(cause
+        ? { link: { label: cause.to.startsWith("/campaigns") ? "Open campaign" : "Open Polst", to: cause.to } }
+        : {}),
+    };
+  });
+};
 
 const buildStats = (
   range: StatRange,
   campaigns: Campaign[],
   polsts: SinglePolst[],
-  sources: Source[],
 ): Stat[] => {
   const w = workspaceWindow(range);
-  // Insight facts — recomputed from the passed (live) arrays each call.
-  const channelVoters = (() => {
-    const byChannel = new Map<Channel, number>();
-    for (const s of sources) byChannel.set(s.channel, (byChannel.get(s.channel) ?? 0) + s.voters);
-    const total = [...byChannel.values()].reduce((a, b) => a + b, 0);
-    const [topChannel, topVoters] = [...byChannel.entries()].sort((a, b) => b[1] - a[1])[0];
-    return { topChannel, topShare: total > 0 ? Math.round((topVoters / total) * 100) : 0 };
-  })();
-  const uncoveredScheduled = uncoveredScheduledFor(campaigns, sources);
-  const biggestShortfall = campaigns
-    .filter((c) => c.status === "Active" && (c.target ?? 0) > c.voters)
-    .sort((a, b) => (b.target! - b.voters) - (a.target! - a.voters))[0];
-  const bestEngagementCampaign = campaigns
-    .filter((c) => c.status === "Active" && c.views > 0)
-    .sort((a, b) => b.votes / b.views - a.votes / a.views)[0];
-  const lowestCompletionActive = campaigns
-    .filter((c) => c.status === "Active" && c.completionRate !== null)
-    .sort((a, b) => a.completionRate! - b.completionRate!)[0];
-  const lagging = laggingSources(campaigns, polsts, sources);
   const [prevStart, prevEnd] = windowBounds(range, 1);
   const hasPrev = range !== "All";
   const cur = {
@@ -1201,36 +1269,14 @@ const buildStats = (
     ...(comparable ? { previous: downsampleRate(prev!.completed, prev!.voters) } : {}),
   };
 
-  views.insights = [
-    { text: trendLine("Views", views, range), to: "/analytics", tone: trendTone(views, range) },
-    { text: `${channelVoters.topChannel} delivers ${channelVoters.topShare}% of all voters.`, to: "/distribution", tone: "success" },
-    ...(uncoveredScheduled
-      ? [{ text: `${uncoveredScheduled.name} starts ${relativeToToday(uncoveredScheduled.startAt!)} with no sources.`, to: `/campaigns/${uncoveredScheduled.id}`, tone: "danger" as const }]
-      : []),
-  ];
-  votes.insights = [
-    { text: trendLine("Votes", votes, range), to: "/analytics", tone: trendTone(votes, range) },
-    ...(biggestShortfall
-      ? [{ text: `${biggestShortfall.name} is ${fmtInt(biggestShortfall.target! - biggestShortfall.voters)} voters short of its ${fmtInt(biggestShortfall.target!)} target.`, to: `/campaigns/${biggestShortfall.id}`, tone: "warning" as const }]
-      : []),
-  ];
-  engagement.insights = [
-    { text: trendLine("Engagement", engagement, range), to: "/analytics", tone: trendTone(engagement, range) },
-    ...(bestEngagementCampaign
-      ? [{ text: `${bestEngagementCampaign.name} converts ${fmtPct((bestEngagementCampaign.votes / bestEngagementCampaign.views) * 100, 0)} of views into votes — the strongest live campaign.`, to: `/campaigns/${bestEngagementCampaign.id}`, tone: "success" as const }]
-      : []),
-  ];
-  completion.insights = [
-    { text: trendLine("Completion", completion, range), to: "/analytics", tone: trendTone(completion, range) },
-    ...(lowestCompletionActive
-      ? [{ text: `${lowestCompletionActive.name} completes at ${fmtPct(lowestCompletionActive.completionRate!, 0)} — the lowest of any active campaign.`, to: `/campaigns/${lowestCompletionActive.id}`, tone: "warning" as const }]
-      : []),
-    ...lagging.slice(0, 1).map((s) => ({
-      text: `${s.name} completes at ${fmtPct(s.completionRate!, 0)} — its campaign averages ${fmtPct(linkedRate(s.linked!, campaigns, polsts) ?? 0, 0)}.`,
-      to: "/distribution",
-      tone: "danger" as const,
-    })),
-  ];
+  // Marker attribution reads the passed (live) arrays, so a campaign created
+  // in-session with dates inside the window explains movements immediately.
+  const events = lifecycleEvents(campaigns, polsts);
+  const dates = w.series.views.dates;
+  views.annotations = annotateStat("Views", views.spark, dates, events);
+  votes.annotations = annotateStat("Votes", votes.spark, dates, events);
+  engagement.annotations = annotateStat("Engagement", engagement.spark, dates, events, true);
+  completion.annotations = annotateStat("Completion", completion.spark, dates, events, true);
 
   const stats = [views, votes, engagement, completion];
   return stats.map((stat) => ({ ...stat, info: STAT_INFO[stat.label] }));
@@ -1244,9 +1290,9 @@ const STAT_INFO: Record<string, string> = {
   "Completion rate": METRIC_INFO.completionRate,
 };
 
-/** The live stat strip — Home passes the store's entity arrays so insight
- *  lines clear the moment a mutation fixes them. Window totals still derive
- *  from the seed series (store-created objects carry zero traffic). */
+/** The live stat strip — Home passes the store's entity arrays so marker
+ *  attribution sees in-session campaigns and Polsts. Window totals still
+ *  derive from the seed series (store-created objects carry zero traffic). */
 export const dashboardStats = buildStats;
 
 /** Axis labels for the expanded chart — first / middle / last window day. */

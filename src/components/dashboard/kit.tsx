@@ -702,13 +702,6 @@ export function ProgressBar({
  *  real previous-period series — so no number here is synthesized. */
 export type { Stat } from "@/lib/workspace";
 
-const INSIGHT_TONES = {
-  success: { border: "border-status-success", dot: "bg-status-success" },
-  warning: { border: "border-status-warning", dot: "bg-status-warning" },
-  danger: { border: "border-status-danger", dot: "bg-status-danger" },
-  accent: { border: "border-accent-default", dot: "bg-accent-default" },
-} as const;
-
 /** Period-over-period change as a tinted pill, polarity at a glance:
  *  success when the metric rose, danger when it fell, quiet when there is
  *  no honest comparison (deltaParts' "—" rides the same neutral chip). The
@@ -815,31 +808,11 @@ export function StatsStrip({
         <TrendChart
           series={chartStat?.spark ?? []}
           previous={chartStat?.previous}
+          annotations={chartStat?.annotations}
           xTicks={xTicks}
           format={format}
           className="px-2 pb-3"
         />
-        {active.insights?.length ? (
-          <ul className="flex flex-wrap gap-2 border-t border-border-default px-4 py-3">
-            {active.insights.map((insight) => (
-              <li key={insight.text} className="min-w-0">
-                <Link
-                  to={insight.to}
-                  className={cn(
-                    "flex h-9 items-center gap-2 rounded-sm border bg-surface-raised py-2 pl-3 pr-2.5 text-sm leading-5 text-text-primary transition-colors hover:bg-surface-subtle",
-                    INSIGHT_TONES[insight.tone].border,
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn("h-2 w-2 shrink-0 rounded-pill", INSIGHT_TONES[insight.tone].dot)}
-                  />
-                  <span className="truncate">{insight.text}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : null}
       </div>
     </section>
   );

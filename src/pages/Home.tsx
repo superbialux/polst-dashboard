@@ -168,8 +168,8 @@ export function HomePage() {
   /* Stats and the attention queue derive from the LIVE store — fixing an
      item (assigning a source, finishing a draft) clears it immediately. */
   const stats = useMemo(
-    () => dashboardStats(range, campaigns, polsts, sources),
-    [range, campaigns, polsts, sources],
+    () => dashboardStats(range, campaigns, polsts),
+    [range, campaigns, polsts],
   );
   /* Ranked by severity in the model (blocked launches → eroding sources →
      waiting drafts); the same rows drive the sidebar count. The store's
