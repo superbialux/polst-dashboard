@@ -165,6 +165,13 @@ const listColumns: Array<DataColumn<Campaign>> = [
     sort: (row) => (row.voters > 0 ? row.completed / row.voters : -1),
     cell: (row) => pct(row.completed, row.voters),
   },
+  {
+    header: "Created",
+    sort: (row) => row.createdAt,
+    cell: (row) => (
+      <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.createdAt)}</span>
+    ),
+  },
 ];
 
 const PAGE_SIZE = 10;

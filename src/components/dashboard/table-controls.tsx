@@ -132,11 +132,21 @@ export function StatusSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger aria-label="Status" className={cn(TOOLBAR_CONTROL, "w-36", className)}>
-        <span className="flex min-w-0 items-center gap-2">
-          <Icon name="filter_list" size={16} className="shrink-0 text-icon-secondary" />
-          <SelectValue />
-        </span>
+      {/* Icon and value sit as direct flex children of the (items-center)
+          trigger — same px-2.5 edge and gap-2 rhythm as the range picker,
+          and no wrapper span for the trigger's line-clamp to un-flex. */}
+      <SelectTrigger
+        aria-label="Status"
+        className={cn(
+          TOOLBAR_CONTROL,
+          // Only the VALUE span stretches (the glyph wrapper is a span
+          // too); the chevron is an svg, so last-of-type is safe.
+          "w-36 [&>span:last-of-type]:min-w-0 [&>span:last-of-type]:flex-1 [&>span:last-of-type]:text-left",
+          className,
+        )}
+      >
+        <Icon name="filter_list" size={16} className="shrink-0 text-icon-secondary" />
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
