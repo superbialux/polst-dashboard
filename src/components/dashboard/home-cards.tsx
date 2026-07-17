@@ -87,11 +87,12 @@ export type Suggestion = {
   image?: string;
 };
 
-/** One suggestion (the Shopify card anatomy): title and description on
- *  top — two lines each, then clamped — and the illustration filling
- *  the bottom, with the action pill floating over it bottom-left on the
- *  same padding line as the text. The whole card is the link; dismiss
- *  never triggers the navigation. */
+/** One suggestion (the Shopify card anatomy) at a FIXED 288px: title
+ *  and description on top — two lines each, then clamped — and one
+ *  fixed-size 8:5 illustration (224×140, identical on every card, wide
+ *  or narrow) attached to the bottom-right corner. The action pill
+ *  floats bottom-left on the text's padding line. The whole card is
+ *  the link; dismiss never triggers the navigation. */
 export function SuggestionCard({
   suggestion,
   onDismiss,
@@ -105,7 +106,7 @@ export function SuggestionCard({
     <div className={cn("group relative", className)}>
       <Link
         to={suggestion.to}
-        className="flex h-full min-h-72 flex-col overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm transition-colors hover:border-border-strong"
+        className="relative block h-72 overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm transition-colors hover:border-border-strong"
       >
         <span className="block p-4 pb-0">
           <span className="line-clamp-2 font-display text-sm font-semibold leading-5 text-text-primary">
@@ -115,24 +116,22 @@ export function SuggestionCard({
             {suggestion.description}
           </span>
         </span>
-        {/* Fixed media box on the art's own 1280×800 ratio, pinned to the
-            card's bottom — the full image shows uncropped at one size. */}
-        <span className="relative mt-auto block pt-3">
-          <MediaFill
-            media={{ tone: suggestion.tone, icon: suggestion.icon, src: suggestion.image }}
-            className="aspect-[8/5] w-full"
-          />
-          {/* The house secondary button, rendered inert — the card link
-              carries the click. Pinned to the content's padding line. */}
-          <Button
-            variant="secondary"
-            size="sm"
-            asChild
-            className="pointer-events-none absolute bottom-4 left-4"
-          >
-            <span>{suggestion.action}</span>
-          </Button>
-        </span>
+        {/* One art size everywhere: 224×140 keeps the 1280×800 ratio
+            uncropped and fits the narrowest cell. */}
+        <MediaFill
+          media={{ tone: suggestion.tone, icon: suggestion.icon, src: suggestion.image }}
+          className="absolute bottom-0 right-0 h-[140px] w-56"
+        />
+        {/* The house secondary button, rendered inert — the card link
+            carries the click. Pinned to the content's padding line. */}
+        <Button
+          variant="secondary"
+          size="sm"
+          asChild
+          className="pointer-events-none absolute bottom-4 left-4"
+        >
+          <span>{suggestion.action}</span>
+        </Button>
       </Link>
       <IconButton
         aria-label={`Dismiss "${suggestion.title}"`}
