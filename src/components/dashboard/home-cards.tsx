@@ -91,17 +91,23 @@ export function HeroBanner({
 
 export type Suggestion = {
   id: string;
-  /** Glyph for the illustration slot. */
+  /** Glyph for the illustration placeholder until real art lands. */
   icon: string;
   tone: CardTone;
   title: string;
   description: string;
+  /** The pill's verb — "Review decision", "Assign sources". */
+  action: string;
   to: string;
+  /** Real illustration, once authored; the tone wash stands in until then. */
+  image?: string;
 };
 
-/** One suggestion: illustration on top, title + one line under it, the
- *  whole card is the link (Hotjar's card anatomy). Dismiss floats over
- *  the media and never triggers the navigation. */
+/** One suggestion (the Shopify card anatomy): title and description on
+ *  top — two lines each, then clamped — and the illustration filling
+ *  the bottom, with the action pill floating over it bottom-left on the
+ *  same padding line as the text. The whole card is the link; dismiss
+ *  never triggers the navigation. */
 export function SuggestionCard({
   suggestion,
   onDismiss,
@@ -115,16 +121,21 @@ export function SuggestionCard({
         to={suggestion.to}
         className="flex h-full flex-col overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm transition-colors hover:border-border-strong"
       >
-        <MediaFill
-          media={{ tone: suggestion.tone, icon: suggestion.icon }}
-          className="aspect-[2/1] w-full"
-        />
-        <span className="flex flex-1 flex-col p-4">
-          <span className="font-display text-sm font-semibold leading-5 text-text-primary">
+        <span className="block p-4 pb-0">
+          <span className="line-clamp-2 font-display text-sm font-semibold leading-5 text-text-primary">
             {suggestion.title}
           </span>
-          <span className="mt-1 text-sm leading-5 text-text-secondary">
+          <span className="mt-1 line-clamp-2 text-sm leading-5 text-text-secondary">
             {suggestion.description}
+          </span>
+        </span>
+        <span className="relative mt-3 block flex-1">
+          <MediaFill
+            media={{ tone: suggestion.tone, icon: suggestion.icon, src: suggestion.image }}
+            className="h-full min-h-32 w-full"
+          />
+          <span className="absolute bottom-4 left-4 inline-flex h-8 items-center rounded-pill border border-border-default bg-surface-raised px-3 font-display text-sm font-semibold text-text-primary shadow-sm transition-colors group-hover:border-border-strong">
+            {suggestion.action}
           </span>
         </span>
       </Link>
@@ -132,7 +143,7 @@ export function SuggestionCard({
         aria-label={`Dismiss "${suggestion.title}"`}
         size="sm"
         onClick={() => onDismiss(suggestion.id)}
-        className="absolute right-1.5 top-1.5 bg-surface-raised/80 opacity-0 shadow-sm backdrop-blur transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 bg-surface-raised opacity-0 shadow-sm transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
       >
         <Icon name="close" size={16} />
       </IconButton>

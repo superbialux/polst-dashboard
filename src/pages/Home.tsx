@@ -49,6 +49,7 @@ const DISCOVERY: Suggestion[] = [
     tone: "accent",
     title: "Create a QR source",
     description: "Put a Polst on packaging or a booth and collect votes offline.",
+    action: "Create source",
     to: "/distribution",
   },
   {
@@ -57,6 +58,7 @@ const DISCOVERY: Suggestion[] = [
     tone: "accent",
     title: "Explore analytics",
     description: "Views, votes, and completion for every campaign and source.",
+    action: "Open analytics",
     to: "/analytics",
   },
   {
@@ -65,6 +67,7 @@ const DISCOVERY: Suggestion[] = [
     tone: "accent",
     title: "Meet your audience",
     description: "Where voters come from and when they show up.",
+    action: "Open audience",
     to: "/audience",
   },
   {
@@ -73,6 +76,7 @@ const DISCOVERY: Suggestion[] = [
     tone: "neutral",
     title: "Brand your Polsts",
     description: "Logo, colors, and domain — make every vote look like you.",
+    action: "Open settings",
     to: "/settings",
   },
 ];
@@ -110,6 +114,7 @@ export function HomePage() {
       tone: "green",
       title: `Review ${c.name}`,
       description: `${readyTitle(c)} — the lead is ${winnerLabel(c)}.`,
+      action: "Review decision",
       to: `/campaigns/${c.id}`,
     }));
     const attention: Suggestion[] = attentionItems(campaigns, polsts, sources).map((item) => ({
@@ -118,6 +123,7 @@ export function HomePage() {
       tone: ATTENTION_TONES[item.tone],
       title: item.title,
       description: item.reason,
+      action: item.action,
       to: item.to,
     }));
     return [...ready, ...attention, ...DISCOVERY]

@@ -118,7 +118,7 @@ function AnnotationDot({
             size={12}
             weight={300}
             filled
-            className="text-white"
+            className="text-text-inverse"
           />
         </span>
       </foreignObject>
