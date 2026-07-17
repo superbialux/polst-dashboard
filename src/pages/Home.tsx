@@ -81,7 +81,7 @@ const DISCOVERY: Suggestion[] = [
     description: "Where voters come from and when they show up.",
     action: "Open audience",
     to: "/audience",
-    image: "/review-finished-campaign-1.png",
+    image: "/review-finished-campaign.png",
   },
   {
     id: "discover-settings",
@@ -143,11 +143,25 @@ export function HomePage() {
       to: item.to,
       image: ACTION_ART[item.action],
     }));
+    // Each card keeps its semantic art unless a neighbour already wears
+    // it — then it takes the next unused piece, so the visible row always
+    // shows all four illustrations.
+    const artPool = [
+      "/review-finished-campaign.png",
+      "/review-active-campaign.png",
+      "/add-polls-to-campaign.png",
+      "/edit-campaign.png",
+    ];
+    const used = new Set<string>();
     return [...ready, ...attention, ...DISCOVERY]
       .filter((s) => !dismissed.has(s.id))
       .slice(0, 4)
-      // One shared illustration for now; per-card art slots in via `image`.
-      .map((s) => ({ ...s, image: s.image ?? "/review-finished-campaign.png" }));
+      .map((s) => {
+        const image =
+          s.image && !used.has(s.image) ? s.image : (artPool.find((a) => !used.has(a)) ?? s.image);
+        if (image) used.add(image);
+        return { ...s, image };
+      });
   }, [campaigns, polsts, sources, dismissed]);
 
   const dismissSuggestion = (id: string) =>
