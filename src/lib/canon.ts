@@ -35,18 +35,20 @@ export const shiftSeedDate = (iso: string) =>
  *  Staging's vocabulary: a run that finished is "Ended" (neutral — a fact,
  *  not an achievement). "Scheduled" is the planning layer's derived state:
  *  dates confirmed, start still ahead. */
-export type Status = "Draft" | "Scheduled" | "Active" | "Ended" | "Archived";
+export type Status = "Draft" | "Scheduled" | "Active" | "Paused" | "Ended" | "Archived";
 
-export const STATUSES: Status[] = ["Draft", "Scheduled", "Active", "Ended", "Archived"];
+export const STATUSES: Status[] = ["Draft", "Scheduled", "Active", "Paused", "Ended", "Archived"];
 
 export type StatusTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
 /** The single status → tone mapping. Ended is neutral by design: finishing
- *  a run is a fact, not a verdict — verdictLabel carries the verdict. */
+ *  a run is a fact, not a verdict — verdictLabel carries the verdict.
+ *  Paused is warning ink: collection is on hold by choice, not done. */
 export const STATUS_TONE: Record<Status, StatusTone> = {
   Draft: "neutral",
   Scheduled: "accent",
   Active: "success",
+  Paused: "warning",
   Ended: "neutral",
   Archived: "neutral",
 };

@@ -103,7 +103,7 @@ function PolstRowMenu({
   onShare: () => void;
   onQr: () => void;
 }) {
-  const { publishPolst, archivePolst, restorePolst } = useWorkspace();
+  const { publishPolst, archivePolst, restorePolst, unpublishPolst, deletePolst } = useWorkspace();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -149,6 +149,14 @@ function PolstRowMenu({
           <MenuItem icon="publish" label="Publish" onClick={publish} />
           <MenuSeparator />
           <MenuItem icon="archive" label="Move to archive" onClick={archive} />
+          <MenuItem
+            icon="delete"
+            label="Delete"
+            onClick={() => {
+              const result = deletePolst(polst.id);
+              toast(result.ok ? "Polst deleted" : result.reason);
+            }}
+          />
         </>
       ) : polst.status === "Archived" ? (
         <>
@@ -178,6 +186,16 @@ function PolstRowMenu({
           <MenuItem icon="visibility" label="View" onClick={() => navigate(`/polsts/${polst.id}`)} />
           <MenuItem icon="send" label="Distribute" onClick={onShare} />
           <MenuItem icon="qr_code_2" label="QR code" onClick={onQr} />
+          <MenuSeparator />
+          {/* Refused once votes exist — the store states why. */}
+          <MenuItem
+            icon="undo"
+            label="Unpublish"
+            onClick={() => {
+              const result = unpublishPolst(polst.id);
+              toast(result.ok ? "Polst unpublished — back to drafts" : result.reason);
+            }}
+          />
         </>
       )}
     </Menu>
@@ -208,9 +226,7 @@ const columns = (
   {
     header: "Created",
     sort: (row) => row.createdAt,
-    cell: (row) => (
-      <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.createdAt)}</span>
-    ),
+    cell: (row) => <span className="whitespace-nowrap">{fmtDate(row.createdAt)}</span>,
   },
   {
     header: "",
@@ -279,7 +295,7 @@ function PolstGridCard({ polst }: { polst: SinglePolst }) {
 
 /* ── List page ───────────────────────────────────────────────────── */
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 25;
 
 export function PolstsPage() {
   const { polsts } = useWorkspace();
@@ -385,38 +401,34 @@ export function PolstsPage() {
           <Link to="/polsts/new">Create polst</Link>
         </Button>
       }
+      // The pager lives in the fixed footer band — the header's mirror.
+      footer={rows.length ? pager : null}
     >
       {/* The action row rides ABOVE the card — the stat hero's altitude. */}
       <section className="space-y-2">
         {toolbar}
         {view === "grid" ? (
           rows.length ? (
-            <>
-              <SectionGrid>
-                {pageRows.map((polst) => (
-                  <PolstGridCard key={polst.id} polst={polst} />
-                ))}
-              </SectionGrid>
-              {pager}
-            </>
+            <SectionGrid>
+              {pageRows.map((polst) => (
+                <PolstGridCard key={polst.id} polst={polst} />
+              ))}
+            </SectionGrid>
           ) : (
             <DashboardCard padded={false}>
               <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
             </DashboardCard>
           )
         ) : rows.length ? (
-          <>
-            <DashboardCard padded={false}>
-              <DataTable
-                rows={pageRows}
-                columns={tableColumns}
-                onRowClick={(row) => navigate(`/polsts/${row.id}`)}
-                sort={sort}
-                onSortChange={setFilterAndResetPage(setSort)}
-              />
-            </DashboardCard>
-            {pager}
-          </>
+          <DashboardCard padded={false}>
+            <DataTable
+              rows={pageRows}
+              columns={tableColumns}
+              onRowClick={(row) => navigate(`/polsts/${row.id}`)}
+              sort={sort}
+              onSortChange={setFilterAndResetPage(setSort)}
+            />
+          </DashboardCard>
         ) : (
           <DashboardCard padded={false}>
             <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />

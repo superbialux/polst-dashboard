@@ -207,6 +207,10 @@ type WorkspaceStore = {
   reorderChain: (campaignId: string, from: number, to: number) => void;
   publishCampaign: (id: string) => { ok: true; status: Status } | { ok: false; reason: string };
   unpublishCampaign: (id: string) => { ok: true } | { ok: false; reason: string };
+  /** Collection on hold — voters see nothing new until resume. */
+  pauseCampaign: (id: string) => void;
+  /** Back to the schedule's honest state (Active, or Ended if dates passed). */
+  resumeCampaign: (id: string) => Status;
   restoreCampaign: (id: string) => Status;
   endCampaign: (id: string) => void;
   archiveCampaign: (id: string) => void;
@@ -218,6 +222,8 @@ type WorkspaceStore = {
   restorePolst: (id: string) => Status;
   /** Refused once a run has votes — evidence is part of the record. */
   deletePolst: (id: string) => { ok: true } | { ok: false; reason: string };
+  /** Refused once a run has votes — archive keeps the record instead. */
+  unpublishPolst: (id: string) => { ok: true } | { ok: false; reason: string };
 
   addSource: (input: AddSourceInput) => string;
   assignSource: (sourceId: string, linked: NonNullable<Source["linked"]>) => void;
@@ -471,6 +477,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
         return status;
       },
+      pauseCampaign: (id) => patchCampaign(id, (c) => ({ ...c, status: "Paused" })),
+      // Resume resolves the schedule honestly: a run whose end date passed
+      // while paused comes back as Ended, not Active.
+      resumeCampaign: (id) => {
+        const c = campaigns.find((x) => x.id === id);
+        const status = publishedStatus(c?.startAt, c?.endAt);
+        patchCampaign(id, (x) => ({ ...x, status: publishedStatus(x.startAt, x.endAt) }));
+        return status;
+      },
       endCampaign: (id) =>
         patchCampaign(id, (c) => ({
           ...c,
@@ -516,6 +531,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         return { ok: true as const, status };
       },
       archivePolst: (id) => patchPolst(id, (p) => ({ ...p, status: "Archived" })),
+      // The polst mirror of unpublishCampaign: a voted run never rewinds
+      // to Draft — its evidence is part of the record.
+      unpublishPolst: (id) => {
+        const p = polsts.find((x) => x.id === id);
+        if (!p) return { ok: false as const, reason: "Polst not found." };
+        if (p.votes > 0)
+          return {
+            ok: false as const,
+            reason: "This polst collected votes — archive it instead.",
+          };
+        patchPolst(id, (x) => ({ ...x, status: "Draft" }));
+        return { ok: true as const };
+      },
       // A run that collected votes can't go back to Draft — its evidence is
       // part of the record, so it restores as Ended instead. Returns the
       // resulting status so the UI speaks the true destination.

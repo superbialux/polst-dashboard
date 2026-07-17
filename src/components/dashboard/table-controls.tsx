@@ -205,9 +205,9 @@ const pageList = (page: number, pageCount: number): Array<number | "…"> => {
   return list;
 };
 
-/** The list pager as a STICKY footer bar — its own raised card pinned
- *  to the scroller's bottom edge, so the count and the controls never
- *  scroll away. Left: the honest range ("1–8 of 17 polsts"); right:
+/** The list pager, made for the page's FOOTER BAND (DashboardPage's
+ *  `footer` slot — fixed chrome below the scroller, the header's
+ *  mirror). Left: the honest range ("1–25 of 50 polsts"); right:
  *  shadcn pagination. */
 export function TablePagination({
   page,
@@ -231,10 +231,7 @@ export function TablePagination({
 
   return (
     <div
-      className={cn(
-        "sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-card border border-border-default bg-surface-raised px-4 py-2 shadow-sm",
-        className,
-      )}
+      className={cn("flex flex-wrap items-center justify-between gap-2 py-2", className)}
     >
       <p className="text-sm text-text-secondary">
         <span className="font-semibold tabular-nums text-text-primary">

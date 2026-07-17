@@ -11,7 +11,7 @@ import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
 import { FieldHelper, SelectMenu, TextInput } from "@/components/Field";
-import { HeaderActions, HeaderTabsSlot } from "./Shell";
+import { HeaderActions, HeaderTabsSlot, PageFooterSlot } from "./Shell";
 import { STATUS_TONE, daysBetween, fmtDateRange, type StatusTone } from "@/lib/canon";
 import { addDays } from "@/lib/engine";
 import type { AnalyticsFilters } from "@/lib/analytics";
@@ -40,6 +40,9 @@ type PageProps = {
   /** A HeaderTabs row — rendered as a full-width band flush under the
    *  sticky header, before the centered content column. */
   tabs?: ReactNode;
+  /** Fixed footer content (a list pager) — teleports into the footer
+   *  band below the scroller, the header's mirror. */
+  footer?: ReactNode;
   children: ReactNode;
 };
 
@@ -48,12 +51,13 @@ type PageProps = {
  *  content does the explaining. `actions` teleport into the header's
  *  right side (the page-contextual slot). Every page shares the one
  *  `max-w-dashboard` container — no per-page widths. */
-export function DashboardPage({ actions, tabs, children }: PageProps) {
+export function DashboardPage({ actions, tabs, footer, children }: PageProps) {
   return (
     <>
       {/* Tabs teleport into the header block itself — part of the fixed
-          chrome, above the scroller. */}
+          chrome, above the scroller; the footer mirrors it below. */}
       {tabs ? <HeaderTabsSlot>{tabs}</HeaderTabsSlot> : null}
+      {footer ? <PageFooterSlot>{footer}</PageFooterSlot> : null}
       <div className="mx-auto max-w-dashboard space-y-8">
         {actions ? <HeaderActions>{actions}</HeaderActions> : null}
         {children}

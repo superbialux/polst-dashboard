@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
-import { Menu, MenuItem } from "@/components/Menu";
+import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard, useToast } from "@/components/Toast";
 import {
@@ -168,13 +168,130 @@ const listColumns: Array<DataColumn<Campaign>> = [
   {
     header: "Created",
     sort: (row) => row.createdAt,
+    cell: (row) => <span className="whitespace-nowrap">{fmtDate(row.createdAt)}</span>,
+  },
+  {
+    header: "",
+    align: "right",
     cell: (row) => (
-      <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.createdAt)}</span>
+      <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+        <CampaignRowMenu campaign={row} />
+      </div>
     ),
   },
 ];
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 25;
+
+/* ── Row actions ─────────────────────────────────────────────────── */
+
+/** One labeled overflow menu per row; items follow the lifecycle.
+ *  Campaigns pause and resume, never delete — a run's record stays. */
+function CampaignRowMenu({ campaign }: { campaign: Campaign }) {
+  const {
+    pauseCampaign,
+    resumeCampaign,
+    unpublishCampaign,
+    archiveCampaign,
+    restoreCampaign,
+  } = useWorkspace();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const view = (
+    <MenuItem icon="visibility" label="View" onClick={() => navigate(`/campaigns/${campaign.id}`)} />
+  );
+
+  return (
+    <Menu
+      label={`Actions for ${campaign.name}`}
+      trigger={({ open, toggle }) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Actions for ${campaign.name}`}
+          onClick={toggle}
+        >
+          <Icon name="more_horiz" size={18} />
+        </Button>
+      )}
+    >
+      {campaign.status === "Active" ? (
+        <>
+          {view}
+          <MenuItem
+            icon="pause"
+            label="Pause campaign"
+            onClick={() => {
+              pauseCampaign(campaign.id);
+              toast("Campaign paused — collection is on hold");
+            }}
+          />
+        </>
+      ) : campaign.status === "Paused" ? (
+        <>
+          {view}
+          <MenuItem
+            icon="play_arrow"
+            label="Resume campaign"
+            onClick={() => {
+              const status = resumeCampaign(campaign.id);
+              toast(
+                status === "Ended"
+                  ? "Resumed — its dates already passed, so it's Ended"
+                  : "Campaign resumed — collecting again",
+              );
+            }}
+          />
+        </>
+      ) : campaign.status === "Scheduled" ? (
+        <>
+          {view}
+          <MenuItem
+            icon="undo"
+            label="Unpublish"
+            onClick={() => {
+              const result = unpublishCampaign(campaign.id);
+              toast(result.ok ? "Campaign unpublished — back to drafts" : result.reason);
+            }}
+          />
+        </>
+      ) : campaign.status === "Ended" ? (
+        <>
+          {view}
+          <MenuSeparator />
+          <MenuItem
+            icon="archive"
+            label="Move to archive"
+            onClick={() => {
+              archiveCampaign(campaign.id);
+              toast("Moved to archive");
+            }}
+          />
+        </>
+      ) : campaign.status === "Archived" ? (
+        <>
+          {view}
+          <MenuItem
+            icon="restore"
+            label={campaign.voters > 0 ? "Restore" : "Restore to drafts"}
+            onClick={() => {
+              const status = restoreCampaign(campaign.id);
+              toast(
+                status === "Ended"
+                  ? "Restored — back under Ended (its voters are part of the record)"
+                  : "Restored to drafts",
+              );
+            }}
+          />
+        </>
+      ) : (
+        <MenuItem icon="edit" label="Edit draft" onClick={() => navigate(`/campaigns/${campaign.id}`)} />
+      )}
+    </Menu>
+  );
+}
 
 export function CampaignsPage() {
   const { campaigns, sources } = useWorkspace();
@@ -220,6 +337,19 @@ export function CampaignsPage() {
           <Link to="/campaigns/new">Create campaign</Link>
         </Button>
       }
+      // The pager lives in the fixed footer band — always visible,
+      // never scrolling, the header's mirror.
+      footer={
+        rows.length ? (
+          <TablePagination
+            page={safePage}
+            pageSize={PAGE_SIZE}
+            total={rows.length}
+            onPage={setPage}
+            noun="campaigns"
+          />
+        ) : null
+      }
     >
       {/* The action row rides ABOVE the card — the stat hero's altitude. */}
       <section className="space-y-2">
@@ -242,20 +372,11 @@ export function CampaignsPage() {
           <ViewToggle value={view} onChange={setView} />
         </TableToolbar>
         {rows.length > 0 && view === "grid" ? (
-          <>
-            <div className="grid items-start gap-3 lg:grid-cols-2">
-              {pageRows.map((c) => (
-                <CampaignCard key={c.id} campaign={c} sourceCount={sourceCount(c.id)} />
-              ))}
-            </div>
-            <TablePagination
-              page={safePage}
-              pageSize={PAGE_SIZE}
-              total={rows.length}
-              onPage={setPage}
-              noun="campaigns"
-            />
-          </>
+          <div className="grid items-start gap-3 lg:grid-cols-2">
+            {pageRows.map((c) => (
+              <CampaignCard key={c.id} campaign={c} sourceCount={sourceCount(c.id)} />
+            ))}
+          </div>
         ) : (
         <DashboardCard padded={false}>
         {searching && rows.length > 0 ? (
@@ -308,15 +429,6 @@ export function CampaignsPage() {
         )}
         </DashboardCard>
         )}
-        {rows.length > 0 && view === "list" ? (
-          <TablePagination
-            page={safePage}
-            pageSize={PAGE_SIZE}
-            total={rows.length}
-            onPage={setPage}
-            noun="campaigns"
-          />
-        ) : null}
       </section>
     </DashboardPage>
   );

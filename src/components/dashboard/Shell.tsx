@@ -137,6 +137,16 @@ export function HeaderTabsSlot({ children }: { children: ReactNode }) {
   return createPortal(children, slot);
 }
 
+/** The footer band under the scroller — the header's mirror: fixed
+ *  chrome pinned to the page bottom, where list pagers live. */
+const PageFooterContext = createContext<HTMLElement | null>(null);
+
+export function PageFooterSlot({ children }: { children: ReactNode }) {
+  const slot = useContext(PageFooterContext);
+  if (!slot) return null;
+  return createPortal(children, slot);
+}
+
 /** The shell: one dark surface — the full-height sidebar rail — beside a
  *  light column: a fixed header block (48px row + optional tab row) over
  *  the working canvas. MAIN is the one scroller — the chrome never
@@ -144,6 +154,7 @@ export function HeaderTabsSlot({ children }: { children: ReactNode }) {
 export function DashboardShell({ children }: { children: ReactNode }) {
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   const [tabsSlot, setTabsSlot] = useState<HTMLElement | null>(null);
+  const [footerSlot, setFooterSlot] = useState<HTMLElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const { pathname } = useLocation();
@@ -177,15 +188,22 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </div>
         <HeaderActionsContext.Provider value={actionsSlot}>
           <HeaderTabsContext.Provider value={tabsSlot}>
-            <main
-              id="main-content"
-              ref={mainRef}
-              className="flex-1 overflow-y-auto px-4 pb-10 pt-6 sm:px-5"
-            >
-              {children}
-            </main>
+            <PageFooterContext.Provider value={footerSlot}>
+              <main
+                id="main-content"
+                ref={mainRef}
+                className="flex-1 overflow-y-auto px-4 pb-10 pt-6 sm:px-5"
+              >
+                {children}
+              </main>
+            </PageFooterContext.Provider>
           </HeaderTabsContext.Provider>
         </HeaderActionsContext.Provider>
+        {/* The header's mirror: a fixed band below the scroller. */}
+        <div
+          ref={setFooterSlot}
+          className="shrink-0 border-t border-border-default bg-surface-raised px-4 empty:hidden sm:px-5"
+        />
       </div>
       <MobileNav
         open={navOpen}
