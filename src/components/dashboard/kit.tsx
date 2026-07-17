@@ -477,7 +477,9 @@ export function DurationField({
   );
 }
 
-/** The list-page toolbar: status filters on the left, search on the right. */
+/** The list-page toolbar. With `tabs`, status filters lead and search
+ *  trails; without them (status lives in the page's HeaderTabs), the
+ *  compact search leads the row Grok-style and extra controls trail. */
 export function SearchAndFilters({
   tabs,
   active,
@@ -488,9 +490,9 @@ export function SearchAndFilters({
   action,
   className,
 }: {
-  tabs: readonly string[];
-  active: string;
-  onChange: (tab: string) => void;
+  tabs?: readonly string[];
+  active?: string;
+  onChange?: (tab: string) => void;
   placeholder: string;
   query: string;
   onQueryChange: (next: string) => void;
@@ -502,12 +504,14 @@ export function SearchAndFilters({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-b border-border-default px-4 py-4 lg:flex-row lg:items-center lg:justify-between",
+        "flex flex-col gap-3 border-b border-border-default px-4 py-3 lg:flex-row lg:items-center lg:justify-between",
         className,
       )}
     >
-      <FilterTabs tabs={tabs} active={active} onChange={onChange} />
-      <div className="flex items-center gap-2">
+      {tabs && active && onChange ? (
+        <FilterTabs tabs={tabs} active={active} onChange={onChange} />
+      ) : null}
+      <div className={cn("flex items-center gap-2", !tabs && "w-full lg:justify-between")}>
         <div className="w-full lg:w-72">
           <label htmlFor={searchId} className="sr-only">{placeholder}</label>
           <TextInput

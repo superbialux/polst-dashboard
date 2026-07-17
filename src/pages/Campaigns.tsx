@@ -41,6 +41,7 @@ import {
   RateCell,
   ReportPreview,
   ReviewModal,
+  HeaderTabs,
   SearchAndFilters,
   SectionGrid,
   SectionTitle,
@@ -190,12 +191,11 @@ export function CampaignsPage() {
           <Link to="/campaigns/new">Create campaign</Link>
         </Button>
       }
+      // Status views are page-level — they ride the header band.
+      tabs={<HeaderTabs tabs={CAMPAIGN_FILTERS} active={active} onChange={setActive} />}
     >
       <DashboardCard padded={false}>
         <SearchAndFilters
-          tabs={CAMPAIGN_FILTERS}
-          active={active}
-          onChange={setActive}
           placeholder="Search campaigns"
           query={query}
           onQueryChange={setQuery}

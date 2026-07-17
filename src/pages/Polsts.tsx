@@ -33,6 +33,7 @@ import {
   PollThumb,
   PolstListRow,
   ReviewModal,
+  HeaderTabs,
   SearchAndFilters,
   SectionGrid,
   SegmentedControl,
@@ -191,7 +192,7 @@ const columns = (
   onQr: (polst: SinglePolst) => void,
 ): Array<DataColumn<SinglePolst>> => [
   {
-    header: "polst",
+    header: "Polst",
     cell: (row) => (
       <PolstListRow options={polstOptions(row)} question={row.question} to={`/polsts/${row.id}`} />
     ),
@@ -338,9 +339,6 @@ export function PolstsPage() {
 
   const toolbar = (
     <SearchAndFilters
-      tabs={POLST_FILTERS}
-      active={active}
-      onChange={setFilterAndResetPage(setActive)}
       placeholder="Search polsts"
       query={query}
       onQueryChange={setFilterAndResetPage(setQuery)}
@@ -365,6 +363,14 @@ export function PolstsPage() {
         <Button asChild>
           <Link to="/polsts/new">Create polst</Link>
         </Button>
+      }
+      // Status views are page-level — they ride the header band.
+      tabs={
+        <HeaderTabs
+          tabs={POLST_FILTERS}
+          active={active as (typeof POLST_FILTERS)[number]}
+          onChange={setFilterAndResetPage(setActive)}
+        />
       }
     >
       {view === "grid" ? (
