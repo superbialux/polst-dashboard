@@ -59,7 +59,10 @@
     --color-red-10:   rgba(227, 97, 51, 0.10);
     --color-red-25:   rgba(227, 97, 51, 0.25);
     --color-yellow-15: rgba(242, 186, 28, 0.15);
-    --color-yellow-ink: #8f6400; /* AA-dark amber for text on white (4.9:1 ✓) */
+    /* Warning ink: the brand yellow darkened for AA lands in olive at its
+       own hue (42°), so the ink warms toward amber (33°) instead — reads
+       caramel, not mud, and stays clear of danger's orange-red (20°). */
+    --color-yellow-ink: #ad5f00; /* AA-dark amber for text on white (4.8:1 ✓) */
     --color-neutral-800-60: rgba(33, 38, 47, 0.6);
     --color-green-10: rgba(18, 140, 120, 0.10);
     --color-green-25: rgba(18, 140, 120, 0.25);
@@ -233,7 +236,7 @@
     --destructive-foreground: 0 0% 100%;
     --success: 170 77% 31%;             /* --color-green */
     --success-foreground: 0 0% 100%;
-    --warning: 42 100% 28%;             /* --color-yellow-ink */
+    --warning: 33 100% 34%;             /* --color-yellow-ink */
     --warning-foreground: 0 0% 100%;
     --ring: 240 48% 58%;
     --radius: 0.375rem;
