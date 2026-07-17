@@ -531,22 +531,24 @@ thresholds live in one place — `signalFor` / `confidenceFor` /
 `isReadyToDecide` in canon — and no page restates a margin or volume cutoff,
 but its raw labels never reach the dashboard UI. Surfaces speak the
 plain-language translation, `verdictLabel` in `workspace.ts` ("Minimal label
-+16 pts", "Too close to call", "Collecting votes", "No clear winner"), plus
-"Ready to decide · {confidence} confidence" where `isReadyToDecide` holds —
-**on live runs only**: once the run is Ended the call is made, and every
-ready surface (brief eyebrow, Home card, Analytics rails) speaks
-"Decided · {confidence} confidence" with an "Open report" CTA instead of
-nagging "Ready to decide" forever. Ended runs speak **past voice**
-everywhere: `verdictLabel` says "finished slightly ahead" and
-`headlineLabel` says "Ended: … — short of decisive", never "Early read" or
-"slightly ahead" on a closed race. `headlineLabel` (workspace.ts) is the one
-headline framing of the call ("Decided: Trio Box +10 pts" / "Recommended: …" /
-"Ended: … — short of decisive"), and **`decisionEyebrow`** (workspace.ts) is
-the one status-aware eyebrow above it ("Decided · High confidence" on
-ended-ready runs, "Ready to decide · …" live, otherwise the verdict with its
-voter progress); the DecisionBrief and the decision report both consume the
-same pair, so the report never prints the raw lead label twice and the two
-surfaces can never drift.
+· 16 percentage-point lead" — the margin unit is always spelled out, never a
+bare "pts"; "Too close to call", "Collecting votes", "No clear winner").
+Ready states speak **`readyTitle`** (workspace.ts): "Results ready" once a
+run has Ended, "Target reached" / "Strong lead" on a live run — never
+"Ready to decide", which read as "results are in" while a run was still
+collecting. Ended runs speak **past voice** everywhere: `verdictLabel` says
+"finished slightly ahead" and `headlineLabel` says "Ended: … — short of
+decisive", never "Early read" or "slightly ahead" on a closed race.
+`headlineLabel` (workspace.ts) is the one headline framing of the call
+("Decided: Trio Box · 10 percentage-point lead" / "Recommended: …" /
+"Ended: … — short of decisive"), and **`decisionEyebrow`** (workspace.ts)
+is the one status-aware eyebrow above it ("Results ready · High confidence"
+on ended-ready runs, "Target reached · … — collecting until {date}" live,
+otherwise the verdict with its voter progress); the DecisionBrief and the
+decision report both consume the same pair, so the two surfaces can never
+drift. A stated confidence always carries its method on hover
+(`METRIC_INFO.confidence` via InfoHint) — volume and source diversity,
+never an implied significance test.
 Campaign tables carry **both** columns — Status and **"Result so far"**
 (the verdict) — never one string mixing the two. The chain itself previews
 as a **`ThumbStrip`** (first three split A/B minis + a "+N" chip). No
@@ -578,7 +580,13 @@ weaken it).
   no number is authored twice, so the same metric reconciles across Home,
   Analytics, and campaign pages by construction. Reporting windows and their
   "vs previous period" labels come from `workspaceWindow`. The demo clock is
-  fixed: `TODAY` = 2026-06-15, `NOW_HOUR` = 14 for hourly readouts.
+  **live**: `TODAY` is the real date at load and `NOW_HOUR` the real hour;
+  seeds are authored against `SEED_ANCHOR` (2026-06-15) and the whole model
+  shifts by `SEED_SHIFT` days (`workspace.shiftSeed` moves every ISO date
+  AND every "Jun 17"-style mention inside narrative copy), so relative
+  facts — "starts in 2 days", calendar urgency — hold on any day the
+  prototype runs. `scripts/verify-model.ts` authors its date cases relative
+  to TODAY for the same reason.
 - **`lib/store.tsx` is the in-session store** — flows mutate real state over
   the seed model: created objects appear everywhere immediately (breadcrumbs,
   ⌘K, calendar, lists) and start with zero traffic so every derived number
@@ -606,8 +614,9 @@ fork. New surface area should feel assembled, not authored:
   content does the explaining.
 - **`DecisionBrief`** — the **Decision Narrative** as one reusable object:
   a plain-language **verdict eyebrow** (the shared `decisionEyebrow` —
-  "Decided · …" / "Ready to decide · High confidence", or `verdictLabel` +
-  progress — "Collecting votes — 640 of 1,200 voters") →
+  "Results ready · …" / "Target reached · High confidence — collecting
+  until Jun 17", or `verdictLabel` + progress — "Collecting votes — 640 of
+  1,200 voters") →
   a 20px headline (the call) → what changed
   and why → an amber **caveat** line → an **evidence strip** (label/value
   pairs, each with an optional `InfoHint` definition) → one primary action.
@@ -622,15 +631,24 @@ fork. New surface area should feel assembled, not authored:
   chain-preview mini-thumbs (see "Status is a tone"); the badge form is gone.
   **`InfoHint`** — a hoverable ⓘ that reveals a metric's definition (formula +
   denominator); the inspectable data contract behind every number.
-- **Create flows are single-page forms** — no wizard, no step chrome. Create
-  Campaign (name / decision / schedule / target / event) lands on a draft
-  campaign detail with a launch checklist; Create Polst likewise, with
-  working Save draft / Publish. Saving is quiet and never a primary moment.
+- **Create flows are single-page forms** — no wizard, no step chrome — but
+  **publishing always passes through a review dialog**: the Polst review
+  shows the exact voter-facing card, the resolved schedule, and the lock
+  warning (question, options, images freeze at publish); the campaign
+  review shows the final ordered chain with thumbnails, public URL,
+  schedule, decision/target, and the exact lock contract (chain, order,
+  and start lock at the first vote; after that only End remains). Back to
+  editing / Confirm & publish — never a one-click launch. Required fields
+  are visibly marked (`Field`'s `required` prop, "(required)" in composer
+  placeholders) and character budgets show an always-on `n/limit` counter
+  (question 70, options 40 — staging's exact limits); a category is
+  required to publish, never to save a draft.
   **`DurationField`** is the one run-length control (`DURATION_PRESETS` =
-  3/7/10 days · No end · Custom, plus `durationEnd` / `durationPresetFor`),
-  shared by both create flows **and the campaign Settings schedule** — a
-  saved run round-trips to its preset exactly; "No end" is an explicit
-  preset, never Custom-with-an-empty-end.
+  fixed 3/7/10 days, plus `durationEnd` / `durationPresetFor`), shared by
+  both create flows **and the campaign Settings schedule** — a saved run
+  round-trips to its preset exactly. "No end" and "Custom" are retired
+  from creation (explicit marketing feedback); "Custom" survives only as
+  the honest representation of an already-saved non-preset schedule.
 - **`DashboardCard`** — section container (optional header row with title,
   description, action). The atom every panel sits in. **No header rule** — the
   title sits flush above the body; cards read flat.
@@ -688,15 +706,16 @@ fork. New surface area should feel assembled, not authored:
   glyph) via `MediaFill`. The image bleeds the edges it touches — no padding
   there. Height comes from the **grid** (`SectionGrid` stretches rows equal;
   add `items-start` for a natural-height bento so a hero card doesn't stretch
-  its neighbours). Home's key dates render as equal `col-span-3` text
-  ActionCards whose `reason` states real coverage ("Nothing is attached to
-  this date yet.").
+  its neighbours).
 - **`NextStepsCard`** — the setup checklist (Shopify "Get your first N"): a
   header with a progress ring and a **collapse chevron** (the whole card folds
   to its header). Steps are a **click-to-expand accordion** — the open step
   shows its copy, CTA and a full-bleed 3:4 image; the rest are one line each.
   Every **bullet keeps the same x-position** open or closed, so expanding never
-  shifts the checkboxes. Full width. Steps are `SetupStep[]`.
+  shifts the checkboxes. Full width. Steps are `SetupStep[]`. It lives on the
+  **campaign detail** (the launch checklist) — Home carries no checklist and
+  no per-key-date cards: one attention flow, one calendar (key dates ride the
+  calendar's day cells and popover), nothing repeated.
 - **Home's lists are page-local compositions.** The Campaigns and Recent
   Polsts lists compose `StatusBadge` + `PollThumb` + canon formatters — list
   rows are not kit components. Metrics say what they measure ("71%
@@ -726,17 +745,24 @@ fork. New surface area should feel assembled, not authored:
 - **`PollResults`** — the product's face: the REAL consumer `PollOptionsBlock`
   in its results state (leader selected, bars animating from the seam). Renders
   the Polst grid cards, campaign chain cards, and the Settings branding
-  preview; the Polst detail page embeds the full consumer **`PollCard`** as a
-  live, votable preview. One card anatomy across both apps.
+  preview; the Polst detail page embeds the full consumer **`PollCard`**
+  behind a **"Preview as voter" toggle** (preview-on-demand — the always-on
+  card was "a waste of real estate"; collapsed, the card shows a `PollThumb`
+  and one line). One card anatomy across both apps.
 - **`Funnel`** — the voter journey (Started → each question → Completed):
   pill bars scaled to the first step, per-step drop percentages, the largest
   loss tagged **"biggest drop"** in danger ink, the final step in success ink.
+  It is **campaign-scoped only** — the brand-wide two-step funnel is retired
+  (unrelated runs share no sequence, so it answered nothing).
 - **`MixBars`** — the one ranked-share list (source mix, devices, platforms,
   interests, age bands): label · bar · share, optional detail count.
 - **`SnippetCard`** — a labeled code block (iframe/JS embeds) with a Copy
-  action. **`LockedCard`** — the honest gated state (lock glyph, one promise
-  line, a plan chip) for demographics we don't collect yet and the Pro-tier
-  developer platform.
+  action. **`LockedCard`** — the honest gated state (lock glyph, one line on
+  what's missing, a **required factual chip** like "Not connected"). "Coming
+  soon" roadmap promises are retired — a capability we can't honestly gate
+  simply doesn't render — and the Developer section is a working capability
+  (Settings › Developer: scoped API keys with a shown-once secret, webhook
+  endpoints with staging's ten-endpoint cap), never a plan-gated teaser.
 - **`PollComposer`** — the consumer "Ask the world" composer as an inline
   block (question with a character-budget ring, choice tiles split by the OR
   disc that mock-attach photos, category select, tag chips). Both create flows
@@ -777,7 +803,7 @@ fork. New surface area should feel assembled, not authored:
   scale) with a Fewer→More legend; answers "when does our audience answer?"
   All heat surfaces stay single-hue — status colors never enter charts.
 - **`FilterBar`** — the shared, fully controlled analytics filter row
-  (**date preset · channel · vertical**); every visible control belongs to
+  (**date preset · channel · category**); every visible control belongs to
   the query. `AnalyticsProvider` owns one scope that persists across the
   Analytics routes. Every visible aggregate, table, insight, and empty
   state is derived from `lib/analytics.ts`; no selector is decorative.
@@ -826,10 +852,11 @@ The load-bearing facts a builder must not re-invent:
   at band level — omitted when the previous window has no comparable
   traffic — and tiles say only "% vs the previous period".
 - **Polst detail** — Vote velocity is **votes/hr** over the last 1h/6h/24h
-  (engine `hourlyVotes`, on the fixed demo clock, sharing its daypart curve
+  (engine `hourlyVotes`, on the live demo clock, sharing its daypart curve
   with `TimeHeatmap`), shown only for Active runs with votes.
 - **Team & access lives inside Settings.** Roles are **Owner | Manager**
-  only; members are provisioned brand-only accounts — no invite emails.
+  only (chosen at provisioning); members are provisioned brand-only
+  accounts — no invite emails, a generated initial password shown once.
   The members table is Member / Role / Joined, with "Awaiting first sign-in"
   until a member's first login.
 

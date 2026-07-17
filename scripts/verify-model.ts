@@ -143,9 +143,32 @@ for (const range of ["7D", "30D", "90D", "All"] as const) {
   check(segmentTotal(rows, "voters") === w.voters, `${range}: analytics voters ≠ workspace voters`);
 }
 
-/* ── 9. Attention items reference live entities, no stale months ───── */
+/* ── 9. Attention items reference live entities, no stale dates ─────
+   The model rides the live clock (seeds shift to TODAY), so instead of
+   ruling out specific stale months, assert every month-day mention in
+   attention copy lands near TODAY — copy that names a far-off date is
+   either stale or fabricated. */
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const nearestDayDistance = (mon: string, day: number): number => {
+  const year = Number(TODAY.slice(0, 4));
+  const candidates = [year - 1, year, year + 1].map((y) =>
+    Math.abs(
+      Math.round(
+        (Date.parse(`${y}-${String(MONTHS_SHORT.indexOf(mon) + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`) -
+          Date.parse(TODAY)) /
+          86_400_000,
+      ),
+    ),
+  );
+  return Math.min(...candidates);
+};
 for (const item of ATTENTION_ITEMS) {
-  check(!/Feb|Mar|Apr(?!il snack)/.test(item.reason ?? ""), `attention ${item.id}: stale month in copy`);
+  for (const match of (item.reason ?? "").matchAll(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{1,2})\b/g)) {
+    check(
+      nearestDayDistance(match[1], Number(match[2])) <= 60,
+      `attention ${item.id}: copy mentions "${match[0]}", far from TODAY ${TODAY}`,
+    );
+  }
   check(!!item.to, `attention ${item.id}: no destination`);
 }
 
@@ -284,28 +307,44 @@ check(
    record) and any date change on a published run re-resolves the status —
    an Active run can never claim a future start, a Scheduled run can never
    stay "Scheduled" after its start moves into the past. */
-const votedActive = { status: "Active" as const, voters: 2103, startAt: "2026-06-01", endAt: "2026-06-30" };
+// Cases are authored relative to TODAY (the live clock) so they hold on
+// any day the harness runs — never against a fixed calendar date.
+const votedActive = {
+  status: "Active" as const,
+  voters: 2103,
+  startAt: addDays(TODAY, -14),
+  endAt: addDays(TODAY, 15),
+};
 check(
-  !scheduleEdit(votedActive, "2026-06-20", "2026-06-30").ok,
+  !scheduleEdit(votedActive, addDays(TODAY, 5), votedActive.endAt).ok,
   "scheduleEdit: a voted Active run accepted a start-date change",
 );
-const endMovedPast = scheduleEdit(votedActive, "2026-06-01", "2026-06-10");
+const endMovedPast = scheduleEdit(votedActive, votedActive.startAt, addDays(TODAY, -5));
 check(
   endMovedPast.ok && endMovedPast.status === "Ended",
   "scheduleEdit: an end date moved into the past did not resolve to Ended",
 );
-const stillActive = scheduleEdit(votedActive, "2026-06-01", "2026-06-25");
+const stillActive = scheduleEdit(votedActive, votedActive.startAt, addDays(TODAY, 10));
 check(
   stillActive.ok && stillActive.status === "Active",
   "scheduleEdit: an in-range end edit changed a live run's status",
 );
-const scheduledRun = { status: "Scheduled" as const, voters: 0, startAt: "2026-06-20", endAt: "2026-06-27" };
-const startMovedPast = scheduleEdit(scheduledRun, "2026-06-10", "2026-06-27");
+const scheduledRun = {
+  status: "Scheduled" as const,
+  voters: 0,
+  startAt: addDays(TODAY, 5),
+  endAt: addDays(TODAY, 12),
+};
+const startMovedPast = scheduleEdit(scheduledRun, addDays(TODAY, -5), scheduledRun.endAt);
 check(
   startMovedPast.ok && startMovedPast.status === "Active",
   "scheduleEdit: a Scheduled run kept 'Scheduled' after its start moved into the past",
 );
-const draftEdit = scheduleEdit({ status: "Draft" as const, voters: 0 }, "2026-05-01", "2026-05-10");
+const draftEdit = scheduleEdit(
+  { status: "Draft" as const, voters: 0 },
+  addDays(TODAY, -45),
+  addDays(TODAY, -36),
+);
 check(
   draftEdit.ok && draftEdit.status === "Draft",
   "scheduleEdit: a draft's dates re-resolved its status (plans are not runs)",

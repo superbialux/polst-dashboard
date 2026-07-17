@@ -3,8 +3,31 @@
    formatters. Every page and kit component consumes these; nothing may
    restate a status label, signal threshold, or metric formula locally. */
 
-/** The fixed demo "today". Every date in the workspace is coherent with it. */
-export const TODAY = "2026-06-15";
+/** The authored anchor: every seed date in workspace.ts is written against
+ *  this model date. It is a constant of the AUTHORED data, never the clock. */
+export const SEED_ANCHOR = "2026-06-15";
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const nowAtLoad = new Date();
+
+/** The live demo "today" — the real date at load. The whole seed model
+ *  shifts by SEED_SHIFT days (workspace.shiftSeed), so every relative fact
+ *  ("starts in 3 days", calendar urgency) holds on any day the prototype
+ *  runs — a stale June "today" during a July demo taught the wrong product. */
+export const TODAY = `${nowAtLoad.getFullYear()}-${pad2(nowAtLoad.getMonth() + 1)}-${pad2(
+  nowAtLoad.getDate(),
+)}`;
+
+/** Whole days the authored model shifts to land its anchor on TODAY. */
+export const SEED_SHIFT = Math.round(
+  (Date.parse(TODAY) - Date.parse(SEED_ANCHOR)) / 86_400_000,
+);
+
+/** One authored ISO date, moved by the model shift. */
+export const shiftSeedDate = (iso: string) =>
+  SEED_SHIFT === 0
+    ? iso
+    : new Date(Date.parse(iso) + SEED_SHIFT * 86_400_000).toISOString().slice(0, 10);
 
 /* ── Lifecycle status ─────────────────────────────────────────────── */
 
@@ -146,7 +169,7 @@ export const fmtDateRange = (start?: string, end?: string) => {
 export const daysBetween = (from: string, to: string) =>
   Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
 
-/** "in 2 days" / "today" / "3 days ago" relative to the fixed TODAY. */
+/** "in 2 days" / "today" / "3 days ago" relative to TODAY. */
 export const relativeToToday = (iso: string) => {
   const d = daysBetween(TODAY, iso);
   if (d === 0) return "today";

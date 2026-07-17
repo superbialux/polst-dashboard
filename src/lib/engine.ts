@@ -4,7 +4,7 @@
    Analytics, campaign tables, trend charts — reads from the same series
    and reconciles by construction. No randomness: same inputs, same data. */
 
-import { TODAY, daysBetween } from "@/lib/canon";
+import { TODAY, daysBetween, shiftSeedDate } from "@/lib/canon";
 
 /* ── Deterministic seeding ────────────────────────────────────────── */
 
@@ -92,7 +92,8 @@ export const WINDOW_DAYS: Record<Exclude<WindowRange, "All">, number> = {
 /** [start, end] inclusive ISO bounds for a range ending at TODAY.
  *  `offset: 1` gives the previous window of equal length. */
 export function windowBounds(range: WindowRange, offset = 0): [string, string] {
-  if (range === "All") return ["2026-01-01", TODAY];
+  // "All" opens at the authored model's epoch, shifted with the seeds.
+  if (range === "All") return [shiftSeedDate("2026-01-01"), TODAY];
   const days = WINDOW_DAYS[range];
   const end = addDays(TODAY, -offset * days);
   return [addDays(end, -(days - 1)), end];
@@ -161,9 +162,9 @@ export function timeHeat(votesInWindow: number): number[][] {
   return buckets.map((row, day) => row.map((_, slot) => alloc[day * 12 + slot]));
 }
 
-/** The demo clock: "now" is TODAY at 14:00. Hourly reads anchor here so
- *  they stay coherent with the fixed TODAY the daily series use. */
-export const NOW_HOUR = 14;
+/** The demo clock's hour: the real hour at load, so "last hour" velocity
+ *  readouts anchor to the same live clock TODAY does. */
+export const NOW_HOUR = new Date().getHours();
 
 /** The 24 completed hours ending at TODAY {NOW_HOUR}:00, oldest first.
  *  Each day's REAL total from the daily series spreads across its 24

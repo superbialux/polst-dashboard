@@ -948,11 +948,14 @@ function CreateApiKeyModal({
           <ul className="mt-1.5 space-y-2">
             {API_SCOPES.map((scope) => (
               <li key={scope}>
-                <Checkbox
-                  checked={scopes.includes(scope)}
-                  onCheckedChange={() => toggleScope(scope)}
-                  label={scope}
-                />
+                <label className="flex cursor-pointer items-center gap-2.5 text-sm text-text-primary">
+                  <Checkbox
+                    checked={scopes.includes(scope)}
+                    onCheckedChange={() => toggleScope(scope)}
+                    label={scope}
+                  />
+                  {scope}
+                </label>
               </li>
             ))}
           </ul>
@@ -1113,11 +1116,14 @@ function AddWebhookModal({
           <ul className="mt-1.5 space-y-2">
             {WEBHOOK_EVENTS.map((event) => (
               <li key={event}>
-                <Checkbox
-                  checked={events.includes(event)}
-                  onCheckedChange={() => toggleEvent(event)}
-                  label={event}
-                />
+                <label className="flex cursor-pointer items-center gap-2.5 font-mono text-sm text-text-primary">
+                  <Checkbox
+                    checked={events.includes(event)}
+                    onCheckedChange={() => toggleEvent(event)}
+                    label={event}
+                  />
+                  {event}
+                </label>
               </li>
             ))}
           </ul>
@@ -1142,9 +1148,7 @@ const monthColumns: Array<DataColumn<{ id: string; month: string; views: number;
   {
     header: "Month",
     cell: (row) => (
-      <span className="font-display font-semibold text-text-primary">
-        {row.month} 2026
-      </span>
+      <span className="font-display font-semibold text-text-primary">{row.month}</span>
     ),
   },
   {

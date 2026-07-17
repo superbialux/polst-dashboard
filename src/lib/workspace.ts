@@ -1,6 +1,7 @@
 import type { PollOption } from "@/lib/poll";
 import {
   METRIC_INFO,
+  SEED_ANCHOR,
   TODAY,
   confidenceFor,
   daysBetween,
@@ -9,6 +10,7 @@ import {
   fmtPct,
   isReadyToDecide,
   relativeToToday,
+  shiftSeedDate,
   signalFor,
   type Confidence,
   type DecisionSignal,
@@ -153,14 +155,49 @@ export type Source = {
 
 export type KeyDate = { id: string; title: string; start: string; end: string };
 
+/* ── Live clock: the authored model rides the real date ──────────────
+   Every seed below is authored against canon.SEED_ANCHOR. shiftSeed
+   moves every ISO date — and every "Jun 17"-style mention inside
+   narrative copy — by the same whole-day offset, so the model's
+   relative facts ("starts in 3 days", calendar urgency) hold on any
+   day the prototype runs. A stale fixed "today" was the audit's #1
+   trust defect; nothing below renders unshifted. */
+
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TEXT_DATE_RE = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{1,2})\b/g;
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** "Jun 17" inside authored copy → the shifted month-day. Authored text
+ *  dates always live in the anchor's year. */
+const shiftTextDates = (text: string) =>
+  text.replace(TEXT_DATE_RE, (_, mon: string, day: string) => {
+    const iso = `${SEED_ANCHOR.slice(0, 4)}-${pad2(MONTH_SHORT.indexOf(mon) + 1)}-${pad2(Number(day))}`;
+    const shifted = shiftSeedDate(iso);
+    return `${MONTH_SHORT[Number(shifted.slice(5, 7)) - 1]} ${Number(shifted.slice(8, 10))}`;
+  });
+
+/** Deep-shift a seed literal: ISO date strings and in-copy month-day
+ *  mentions move together; everything else passes through untouched. */
+function shiftSeed<T>(value: T): T {
+  if (typeof value === "string")
+    return (ISO_DATE_RE.test(value) ? shiftSeedDate(value) : shiftTextDates(value)) as T;
+  if (Array.isArray(value)) return value.map(shiftSeed) as T;
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, shiftSeed(v)]),
+    ) as T;
+  return value;
+}
+
 /* ── Key dates (planning events, authored) ───────────────────────── */
 
-export const KEY_DATES: KeyDate[] = [
+export const KEY_DATES: KeyDate[] = shiftSeed([
   { id: "world-cup", title: "World Cup Kickoff", start: "2026-06-18", end: "2026-06-18" },
   { id: "product-launch", title: "Product Launch Week", start: "2026-06-22", end: "2026-06-26" },
   { id: "fancy-food-show", title: "Summer Fancy Food Show", start: "2026-06-28", end: "2026-06-30" },
   { id: "july-fourth", title: "Independence Day", start: "2026-07-04", end: "2026-07-04" },
-];
+]);
 
 /* ── Campaign seeds (authored observations + narrative) ──────────── */
 
@@ -478,7 +515,7 @@ const POLST_SEEDS: PolstSeed[] = [
 
 type SourceSeed = Omit<Source, "voters" | "views" | "completed" | "completionRate" | "lastActivity">;
 
-const SOURCE_SEEDS: SourceSeed[] = [
+const SOURCE_SEEDS: SourceSeed[] = shiftSeed([
   // Flavor Launch Recap
   { id: "qr-packaging", name: "QR — Packaging", kind: "QR code", channel: "QR", placement: "On-pack sticker", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-26", voterShare: 0.26, completionDelta: 4 },
   { id: "link-newsletter", name: "Share Link — Newsletter", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-27", voterShare: 0.41, completionDelta: 2 },
@@ -511,7 +548,7 @@ const SOURCE_SEEDS: SourceSeed[] = [
   // Unlinked — the assign flow's material
   { id: "qr-poster", name: "QR — Retail Poster", kind: "QR code", channel: "QR", placement: "End-cap poster", linked: null, createdAt: "2026-06-09" },
   { id: "link-instagram-spare", name: "Instagram Story Link", kind: "Share link", channel: "Instagram", linked: null, createdAt: "2026-03-18" },
-];
+]);
 
 /* ── Derivation pipeline ─────────────────────────────────────────── */
 
@@ -555,8 +592,8 @@ const derivePolst = (seed: PolstSeed): SinglePolst => {
   };
 };
 
-export const CAMPAIGNS: Campaign[] = CAMPAIGN_SEEDS.map(deriveCampaign);
-export const SINGLE_POLSTS: SinglePolst[] = POLST_SEEDS.map(derivePolst);
+export const CAMPAIGNS: Campaign[] = shiftSeed(CAMPAIGN_SEEDS).map(deriveCampaign);
+export const SINGLE_POLSTS: SinglePolst[] = shiftSeed(POLST_SEEDS).map(derivePolst);
 
 const campaignById = new Map(CAMPAIGNS.map((c) => [c.id, c]));
 const polstById = new Map(SINGLE_POLSTS.map((p) => [p.id, p]));
@@ -601,7 +638,7 @@ export const SOURCES: Source[] = (() => {
     // Last activity follows the linked run: its end if past, otherwise today.
     const lastActivity =
       seed.id === "link-instagram-spare"
-        ? "2026-03-24" // dormant — collected before it was ever re-pointed
+        ? shiftSeedDate("2026-03-24") // dormant — collected before it was ever re-pointed
         : alloc.voters > 0 && totals?.startAt
           ? totals.endAt && totals.endAt < TODAY
             ? totals.endAt
@@ -1084,7 +1121,12 @@ export const ATTENTION_ITEMS: ListItem[] = attentionItems(CAMPAIGNS, SINGLE_POLS
 /* ── Calendar (Home) ─────────────────────────────────────────────── */
 
 /** The month the calendar opens on, and "today". Navigation moves off this. */
-export const CALENDAR_MONTH = { month: 5, year: 2026, today: TODAY };
+/** The calendar opens on the live clock's month. */
+export const CALENDAR_MONTH = {
+  month: Number(TODAY.slice(5, 7)) - 1,
+  year: Number(TODAY.slice(0, 4)),
+  today: TODAY,
+};
 
 export type CalendarItemKind = "campaign" | "polst" | "date";
 
@@ -1133,12 +1175,12 @@ const byMostRecent = <T extends { at: string }>(items: T[]): T[] =>
 /* Milestone stamps agree with the derived daily series: cumulative voters
    cross 1,200 (Packaging) on Jun 13 and 2,000 (Summer) on Jun 15 — checked
    by scripts/verify-model.ts. */
-export const WHAT_CHANGED: WhatChanged[] = byMostRecent([
+export const WHAT_CHANGED: WhatChanged[] = byMostRecent(shiftSeed([
   { id: "wc-packaging-target", text: "Packaging Direction Test passed its 1,200-voter target", at: "2026-06-13", to: "/campaigns/packaging-direction" },
   { id: "wc-conference", text: "QR — Conference Booth completion fell to 41%", at: "2026-06-14", to: "/distribution" },
   { id: "wc-flavor-report", text: "Flavor Launch Recap report is ready", at: "2026-06-11", to: "/analytics/reports" },
   { id: "wc-summer-2k", text: "Summer Flavor Lineup passed 2,000 voters", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup" },
-]);
+]));
 
 /** Drop feed entries a run's own record now contradicts: when a schedule
  *  edit or an in-session ending moves a campaign's end earlier, milestones
@@ -1168,13 +1210,13 @@ export type WorkspaceNotification = {
 /* Stamps agree with the derived series: Summer crosses 2,000 voters on
    Jun 15 (2,103 is today's total), and Holiday first clears the Leading
    threshold (≥70% of its 1,200 target: 892 voters = 74%) on Jun 15. */
-export const WORKSPACE_NOTIFICATIONS: WorkspaceNotification[] = byMostRecent([
+export const WORKSPACE_NOTIFICATIONS: WorkspaceNotification[] = byMostRecent(shiftSeed([
   { id: "nt-packaging-target", title: "Packaging Direction Test passed its target", body: "1,486 of 1,200 voters — the recommendation is ready to review.", at: "2026-06-13", to: "/campaigns/packaging-direction", read: false },
   { id: "nt-conference", title: "QR — Conference Booth completion fell to 41%", body: "Scans keep coming, but most voters stop before the last question.", at: "2026-06-14", to: "/distribution", read: false },
   { id: "nt-flavor-report", title: "Flavor Launch Recap report is ready", body: "The decision report for the ended run is ready to preview.", at: "2026-06-11", to: "/analytics/reports", read: true },
   { id: "nt-summer-2k", title: "Summer Flavor Lineup passed 2,000 voters", body: "2,103 voters so far, against a 2,500 target.", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup", read: false },
   { id: "nt-holiday-leading", title: "Holiday Gifting Bundles moved to Leading", body: "Trio Box leads by 10 points with 74% of the voter target reached.", at: "2026-06-15", to: "/campaigns/holiday-gifting-bundles", read: false },
-]);
+]));
 
 /* ── Reports ─────────────────────────────────────────────────────── */
 
@@ -1187,11 +1229,11 @@ export type WorkspaceReport = {
   createdAt: string;
 };
 
-export const REPORTS: WorkspaceReport[] = [
+export const REPORTS: WorkspaceReport[] = shiftSeed([
   { id: "flavor-launch-recap-report", name: "Flavor Launch Recap — decision report", linked: { type: "campaign", id: "flavor-launch-recap" }, state: "Ready", createdAt: "2026-06-11" },
   { id: "label-layout-report", name: "Label Layout — results summary", linked: { type: "polst", id: "label-layout" }, state: "Ready", createdAt: "2026-06-01" },
   { id: "packaging-direction-report", name: "Packaging Direction Test — decision report", linked: { type: "campaign", id: "packaging-direction" }, state: "Draft", createdAt: "2026-06-15" },
-];
+]);
 
 /* ── Usage (plan/billing surface) ────────────────────────────────── */
 
@@ -1200,15 +1242,25 @@ const monthTotals = (series: DailySeries, monthPrefix: string) =>
 
 export const USAGE = (() => {
   const all = workspaceWindow("All");
+  // The two most recent calendar months, derived from the live clock —
+  // the labels carry the year so the table never guesses one.
+  const currentMonth = TODAY.slice(0, 7);
+  const previousMonth = new Date(Date.parse(`${currentMonth}-01`) - 86_400_000)
+    .toISOString()
+    .slice(0, 7);
+  const monthLabel = (prefix: string) =>
+    `${MONTH_SHORT[Number(prefix.slice(5, 7)) - 1]} ${prefix.slice(0, 4)}`;
+  const monthRow = (prefix: string) => ({
+    month: monthLabel(prefix),
+    views: monthTotals(all.series.views, prefix),
+    votes: monthTotals(all.series.votes, prefix),
+  });
   return {
     campaignsCreated: CAMPAIGNS.length,
     polstsCreated: CAMPAIGNS.reduce((a, c) => a + c.chain.length, 0) + SINGLE_POLSTS.length,
     totalViews: all.views,
     totalVotes: all.votes,
-    byMonth: [
-      { month: "May", views: monthTotals(all.series.views, "2026-05"), votes: monthTotals(all.series.votes, "2026-05") },
-      { month: "Jun", views: monthTotals(all.series.views, "2026-06"), votes: monthTotals(all.series.votes, "2026-06") },
-    ],
+    byMonth: [monthRow(previousMonth), monthRow(currentMonth)],
   };
 })();
 
@@ -1478,13 +1530,13 @@ export type TeamMember = {
   joined?: string;
 };
 
-export const TEAM: TeamMember[] = [
+export const TEAM: TeamMember[] = shiftSeed([
   { id: "owner", name: WORKSPACE.owner, email: WORKSPACE.email, role: "Owner", joined: "2026-01-12" },
   { id: "strategist", name: "Elena Morris", email: "elena@northstarpantry.co", role: "Manager", joined: "2026-02-03" },
   { id: "analyst", name: "Devon Park", email: "devon@northstarpantry.co", role: "Manager", joined: "2026-04-18" },
-  // Provisioned Jun 12 for the agency; hasn't signed in yet.
+  // Provisioned three days before the anchor for the agency; hasn't signed in yet.
   { id: "agency", name: "Sam Ellery", email: "sam@brightside.agency", role: "Manager" },
-];
+]);
 
 /* ── Developer platform (Settings) ───────────────────────────────────
    Staging exposes a working Developer section — scoped API keys and up
@@ -1506,7 +1558,7 @@ export type ApiKey = {
   lastUsed?: string;
 };
 
-export const API_KEYS: ApiKey[] = [
+export const API_KEYS: ApiKey[] = shiftSeed([
   {
     id: "key-site",
     name: "Website embeds",
@@ -1515,7 +1567,7 @@ export const API_KEYS: ApiKey[] = [
     createdAt: "2026-03-02",
     lastUsed: "2026-06-14",
   },
-];
+]);
 
 export const WEBHOOK_EVENTS = [
   "polst.vote.created",
@@ -1537,7 +1589,7 @@ export type Webhook = {
   lastDelivery?: { at: string; ok: boolean };
 };
 
-export const WEBHOOKS: Webhook[] = [
+export const WEBHOOKS: Webhook[] = shiftSeed([
   {
     id: "wh-warehouse",
     url: "https://hooks.northstarpantry.co/polst",
@@ -1545,7 +1597,7 @@ export const WEBHOOKS: Webhook[] = [
     createdAt: "2026-04-22",
     lastDelivery: { at: "2026-06-14", ok: true },
   },
-];
+]);
 
 /* ── Integrations (Settings) ─────────────────────────────────────── */
 
