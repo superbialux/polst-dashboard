@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/badge";
 import { IconButton, IconTile } from "@/components/ui/icon-button";
-import { Sparkline, TrendChart } from "./charts";
+import { TrendChart } from "./charts";
 import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
@@ -694,144 +694,137 @@ const INSIGHT_TONES = {
   accent: { border: "border-accent-default", dot: "bg-accent-default" },
 } as const;
 
-const trendClass = (trend?: Stat["trend"]) =>
-  trend === "up"
-    ? "text-status-success"
-    : trend === "down"
-      ? "text-status-danger"
-      : "text-text-secondary";
+/** Period-over-period change as a tinted pill, polarity at a glance:
+ *  success when the metric rose, danger when it fell, quiet when there is
+ *  no honest comparison (deltaParts' "—" rides the same neutral chip). The
+ *  sign is spelled out (+/−) so colour never carries the reading alone. */
+function DeltaChip({ delta, trend = "flat" }: { delta: string; trend?: Stat["trend"] }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center rounded-pill px-1.5 font-display text-xs font-medium tabular-nums",
+        trend === "up" && "bg-status-success-soft text-status-success",
+        trend === "down" && "bg-status-danger-soft text-status-danger",
+        trend === "flat" && "bg-surface-subtle text-text-secondary",
+      )}
+    >
+      {trend === "up" ? "+" : trend === "down" ? "−" : ""}
+      {delta}
+    </span>
+  );
+}
 
-/** The mini-stats bar (Shopify-style): a padded parent holding borderless,
- *  rounded, hoverable stat cards. Click one to expand its full chart below
- *  (with a smooth reveal); the chevron toggles the panel. Purple sparklines
- *  echo the expanded chart; the trend arrow keeps its up/down colour. The
+/** The fused KPI hero (Dub × Vercel): ONE card. The top strip is metric
+ *  cells split by hairlines — 12px label, 24px tabular value, delta chip —
+ *  and each cell is a tab: the active one carries a 2px accent underline
+ *  (the strip's only violet; chart ink comes from charts.tsx) and picks
+ *  which stat's TrendChart fills the card below. The chart is always on —
+ *  the old expand/collapse chevron is retired. A cell without its own
+ *  series borrows the nearest stat that has one; the chart header names
+ *  the series it actually draws, so the fallback never mislabels. The
  *  dashed previous-period line is the data layer's real previous series —
  *  when a stat carries none, the chart simply shows the current period. */
 export function StatsStrip({
   stats,
   xTicks,
-  scope,
   scopeLabel,
+  className,
 }: {
   stats: Stat[];
   xTicks: string[];
-  /** What the numbers cover, for surfaces that do not already establish it. */
-  scope?: string;
   /** The comparison window behind every delta — "vs previous 30 days". */
   scopeLabel?: string;
+  className?: string;
 }) {
-  const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(0);
   const active = stats[sel] ?? stats[0];
-  const series = active.spark ?? [];
-  const previous = active.previous;
+  const chartStat = active.spark?.length ? active : stats.find((s) => s.spark?.length);
+  // A "%"-valued stat charts as a rate: its y-axis and hover chip say so.
+  const format = chartStat?.value.trim().endsWith("%")
+    ? (v: number) => `${Math.round(v * 10) / 10}%`
+    : undefined;
 
   return (
-    <section className="rounded-card border border-border-default bg-surface-raised p-1.5 shadow-sm">
-      {scope || scopeLabel ? (
-        <div className="flex items-baseline justify-between gap-3 px-2 pb-1 pt-1.5 text-xs text-text-tertiary">
-          <span>{scope}</span>
-          {scopeLabel ? <span className="ml-auto text-right">{scopeLabel}</span> : null}
-        </div>
-      ) : null}
-      <div className="flex items-stretch gap-1">
-        <div className="grid flex-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat, i) => {
-            const selected = open && i === sel;
-            return (
-              <button
-                key={stat.label}
-                onClick={() => {
-                  setSel(i);
-                  setOpen(true);
-                }}
-                aria-pressed={selected}
-                className={cn(
-                  "rounded-md px-3 py-2.5 text-left transition-colors hover:bg-surface-subtle",
-                  selected && "bg-surface-subtle",
-                )}
-              >
-                <p className="truncate text-xs font-semibold text-text-secondary">{stat.label}</p>
-                <div className="mt-1.5 flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-baseline gap-1">
-                    <span className="font-display text-2xl font-semibold leading-8 tracking-tight tabular-nums text-text-primary">
-                      {stat.value}
-                    </span>
-                    {stat.trend && stat.trend !== "flat" ? (
-                      <span className={cn("flex items-center text-xs font-semibold", trendClass(stat.trend))}>
-                        <Icon
-                          name={stat.trend === "up" ? "arrow_drop_up" : "arrow_drop_down"}
-                          size={20}
-                          filled
-                          className="-mr-0.5"
-                        />
-                        {stat.delta}
-                      </span>
-                    ) : null}
-                  </div>
-                  {!open && stat.spark ? (
-                    <Sparkline values={stat.spark} className="w-16 shrink-0 text-accent-default" />
-                  ) : null}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        <IconButton
-          onClick={() => setOpen((o) => !o)}
-          aria-label={open ? "Collapse chart" : "Expand chart"}
-          className="h-auto w-9 self-stretch"
-        >
-          <Icon name={open ? "expand_less" : "expand_more"} size={20} />
-        </IconButton>
-      </div>
-
-      <div
-        className={cn(
-          "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
-          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-        )}
-      >
-        <div className="overflow-hidden">
-          <div
+    <section
+      className={cn(
+        "overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm",
+        className,
+      )}
+    >
+      <div className="grid grid-cols-2 border-b border-border-default lg:grid-cols-4">
+        {stats.map((stat, i) => (
+          <button
+            key={stat.label}
+            type="button"
+            onClick={() => setSel(i)}
+            aria-pressed={i === sel}
             className={cn(
-              "grid gap-4 px-2 pb-2 pt-4",
-              active.insights?.length && "lg:grid-cols-12",
+              // Hairline dividers: left of every in-row neighbour, above the
+              // second row of the 2-up wrap below lg (one row at lg).
+              "relative border-border-default px-4 py-3 text-left transition-colors hover:bg-surface-subtle",
+              i % 2 === 1 && "border-l",
+              i >= 2 && "max-lg:border-t lg:border-l",
             )}
           >
-            <div className={cn(active.insights?.length && "lg:col-span-7")}>
-              {/* The metric's definition rides a visible ⓘ, not a title=. */}
-              <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-text-secondary">
-                {active.label}
-                {active.info ? <InfoHint text={active.info} /> : null}
-              </div>
-              <TrendChart series={series} previous={previous} xTicks={xTicks} />
-            </div>
-            {active.insights?.length ? (
-              <div className="lg:col-span-5">
-                <ul className="space-y-2">
-                  {active.insights.map((insight) => (
-                    <li key={insight.text}>
-                      <Link
-                        to={insight.to}
-                        className={cn(
-                          "flex h-9 items-center gap-2 rounded-sm border bg-surface-raised py-2 pl-3 pr-2.5 text-sm leading-5 text-text-primary transition-colors hover:bg-surface-subtle",
-                          INSIGHT_TONES[insight.tone].border,
-                        )}
-                      >
-                        <span
-                          aria-hidden
-                          className={cn("h-2 w-2 shrink-0 rounded-pill", INSIGHT_TONES[insight.tone].dot)}
-                        />
-                        <span className="truncate">{insight.text}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <span className="block truncate text-xs font-semibold text-text-secondary">
+              {stat.label}
+            </span>
+            <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-display text-2xl font-semibold leading-8 tracking-tight tabular-nums text-text-primary">
+                {stat.value}
+              </span>
+              <DeltaChip delta={stat.delta} trend={stat.trend} />
+            </span>
+            {i === sel ? (
+              // The active tab's 2px accent underline, flush with the strip's
+              // bottom hairline — tab semantics, not border-colour semantics.
+              <span
+                aria-hidden
+                className="absolute inset-x-0 bottom-0 border-b-2 border-accent-default"
+              />
             ) : null}
-          </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="pt-3">
+        {/* The chart names the series it draws; the metric's definition
+            rides a visible ⓘ, not a title=. */}
+        <div className="mb-2 flex items-baseline justify-between gap-3 px-4">
+          <span className="flex items-center gap-1 text-xs font-semibold text-text-secondary">
+            {chartStat?.label ?? active.label}
+            {chartStat?.info ? <InfoHint text={chartStat.info} /> : null}
+          </span>
+          {scopeLabel ? <span className="text-xs text-text-tertiary">{scopeLabel}</span> : null}
         </div>
+        <TrendChart
+          series={chartStat?.spark ?? []}
+          previous={chartStat?.previous}
+          xTicks={xTicks}
+          format={format}
+          className="px-2 pb-3"
+        />
+        {active.insights?.length ? (
+          <ul className="flex flex-wrap gap-2 border-t border-border-default px-4 py-3">
+            {active.insights.map((insight) => (
+              <li key={insight.text} className="min-w-0">
+                <Link
+                  to={insight.to}
+                  className={cn(
+                    "flex h-9 items-center gap-2 rounded-sm border bg-surface-raised py-2 pl-3 pr-2.5 text-sm leading-5 text-text-primary transition-colors hover:bg-surface-subtle",
+                    INSIGHT_TONES[insight.tone].border,
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn("h-2 w-2 shrink-0 rounded-pill", INSIGHT_TONES[insight.tone].dot)}
+                  />
+                  <span className="truncate">{insight.text}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </section>
   );
@@ -1231,8 +1224,14 @@ export function useTabs<T extends string>(tabs: readonly T[]) {
 
 /* ── Stat tile ───────────────────────────────────────────────────── */
 
-/** The one KPI tile (Distribution / Analytics / Audience headline rows):
- *  quiet label, display number, and a toned detail line. */
+/** Splits a windowTileDelta detail ("12% vs Jun 1 – Jun 7") into the chip's
+ *  figure and its comparison caption. A non-delta detail (a source's name,
+ *  "3 unassigned") deliberately doesn't match and stays plain text. */
+const DELTA_DETAIL = /^(\d+(?:\.\d+)?%)(?:\s+(.*))?$/;
+
+/** The one KPI tile (Distribution / Audience / Usage headline rows):
+ *  quiet label, display number, and the same DeltaChip the hero strip
+ *  wears — every KPI reads alike. */
 export function StatTile({
   label,
   value,
@@ -1266,19 +1265,19 @@ export function StatTile({
         {value}
       </p>
       {detail ? (
-        <p
-          className={cn(
-            "mt-2 flex items-center gap-1 text-sm font-medium",
-            trend === "up" && "font-semibold text-status-success",
-            trend === "down" && "font-semibold text-status-danger",
-            trend === "flat" && "text-text-secondary",
-          )}
-        >
-          {trend !== "flat" ? (
-            <Icon name={trend === "up" ? "trending_up" : "trending_down"} size={16} />
-          ) : null}
-          {detail}
-        </p>
+        (() => {
+          const parts = detail.match(DELTA_DETAIL);
+          return parts || trend !== "flat" ? (
+            <p className="mt-2 flex flex-wrap items-center gap-1.5">
+              <DeltaChip delta={parts ? parts[1] : detail} trend={trend} />
+              {parts?.[2] ? (
+                <span className="text-xs text-text-secondary">{parts[2]}</span>
+              ) : null}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm font-medium text-text-secondary">{detail}</p>
+          );
+        })()
       ) : null}
     </DashboardCard>
   );

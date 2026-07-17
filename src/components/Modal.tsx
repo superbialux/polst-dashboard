@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { Icon } from "./Icon";
 import { IconButton } from "@/components/ui/icon-button";
@@ -24,28 +25,10 @@ type ModalProps = {
   children: ReactNode;
 };
 
-/** Keep Tab cycling inside the dialog while it's open. */
-function trapFocus(panel: HTMLElement, e: KeyboardEvent) {
-  if (e.key !== "Tab") return;
-  const focusables = panel.querySelectorAll<HTMLElement>(
-    'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
-  );
-  if (focusables.length === 0) return;
-  const first = focusables[0];
-  const last = focusables[focusables.length - 1];
-  const active = document.activeElement;
-  if (e.shiftKey && (active === first || !panel.contains(active))) {
-    e.preventDefault();
-    last.focus();
-  } else if (!e.shiftKey && active === last) {
-    e.preventDefault();
-    first.focus();
-  }
-}
-
-/** Centered dialog over a dimmed backdrop. Stays mounted for the fade,
- *  inert while closed; Escape and the backdrop close it; focus is trapped
- *  inside and handed back to the opener on close. */
+/** Centered dialog over a dimmed backdrop, built on Radix Dialog — focus
+ *  trap, Escape, scroll lock, and focus return all come from the primitive.
+ *  Escape layering (an open Menu above the dialog claims the first press)
+ *  is handled by Radix's dismissable-layer stack. */
 export function Modal({
   open,
   onClose,
@@ -58,113 +41,107 @@ export function Modal({
   className,
   children,
 }: ModalProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
+  // Radix's default close-focus targets a DialogTrigger, which this API
+  // (imperative open/onClose) never renders — so the opener is captured
+  // before Radix moves focus in, and handed back explicitly on close.
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (rootRef.current) rootRef.current.inert = !open;
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    returnFocusRef.current = document.activeElement as HTMLElement | null;
-    if (closeRef.current) {
-      closeRef.current.focus();
-    } else {
-      panelRef.current
-        ?.querySelector<HTMLElement>("input, select, textarea, button")
-        ?.focus();
-    }
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      // A topmost layer (an open Menu portaled above this dialog) claims
-      // Escape by marking it handled — the dialog only closes on the next
-      // one. One keypress, one layer.
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
-      else if (e.key !== "Escape" && panelRef.current) trapFocus(panelRef.current, e);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = "";
-      document.removeEventListener("keydown", onKey);
-      returnFocusRef.current?.focus?.();
-    };
-  }, [open, onClose]);
-
   return (
-    <div
-      ref={rootRef}
-      aria-hidden={!open}
-      className={cn(
-        "fixed inset-0 z-50 transition-opacity duration-200",
-        open ? "opacity-100" : "pointer-events-none opacity-0",
-        placement === "top"
-          ? "flex items-start justify-center px-4 pb-4 pt-[10vh]"
-          : cn("grid place-items-center", sheetOnMobile ? "p-0 lg:p-4" : "p-4"),
-      )}
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <button
-        tabIndex={-1}
-        aria-label="Close"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
-      />
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        className={cn(
-          "relative flex max-h-full w-full flex-col overflow-hidden bg-surface-raised shadow-lg transition-transform duration-200",
-          open ? "scale-100" : "scale-[0.98]",
-          sheetOnMobile
-            ? "h-full max-w-none rounded-none pt-[env(safe-area-inset-top)] lg:h-auto lg:max-w-md lg:rounded-card lg:border lg:border-border-default lg:pt-0"
-            : "max-w-md rounded-card border border-border-default",
-          className,
-        )}
-      >
-        {!bare ? (
+      <DialogPrimitive.Portal>
+        {/* duration must ride the data-state variants: the plain utility
+            loses specificity to the variant-wrapped animate-in/out. */}
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] data-[state=open]:duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+        {/* Content doubles as the layout layer (Presence watches the
+            portal's direct child for exit animations, so the fade must
+            live here). Presses on its padding — outside the panel —
+            close the dialog, standing in for the old backdrop button. */}
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          onOpenAutoFocus={() => {
+            returnFocusRef.current = document.activeElement as HTMLElement | null;
+          }}
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            returnFocusRef.current?.focus?.();
+          }}
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+          className={cn(
+            "group fixed inset-0 z-50 outline-none data-[state=open]:duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+            placement === "top"
+              ? "flex items-start justify-center px-4 pb-4 pt-[10vh]"
+              : cn("grid place-items-center", sheetOnMobile ? "p-0 lg:p-4" : "p-4"),
+          )}
+        >
           <div
             className={cn(
-              "flex shrink-0 items-center px-4",
-              title
-                ? "justify-between border-b border-border-default py-2.5"
-                : "justify-end pt-3",
+              "relative flex max-h-full w-full flex-col overflow-hidden bg-surface-raised shadow-lg",
+              "group-data-[state=open]:duration-200 group-data-[state=open]:animate-in group-data-[state=open]:zoom-in-[.98] group-data-[state=closed]:duration-200 group-data-[state=closed]:animate-out group-data-[state=closed]:zoom-out-[.98]",
+              sheetOnMobile
+                ? "h-full max-w-none rounded-none pt-[env(safe-area-inset-top)] lg:h-auto lg:max-w-md lg:rounded-card lg:border lg:border-border-default lg:pt-0"
+                : "max-w-md rounded-card border border-border-default",
+              className,
             )}
           >
-            {title && (
-              <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
-                {title}
-              </h2>
+            {/* Exactly one DialogTitle names the dialog: the visible header
+                title when there is one, an sr-only copy of `label` otherwise
+                (bare dialogs carry their own visible heading). */}
+            {(bare || !title) && (
+              <DialogPrimitive.Title className="sr-only">
+                {label}
+              </DialogPrimitive.Title>
             )}
-            <IconButton
-              ref={closeRef}
-              onClick={onClose}
-              aria-label="Close"
-              size="lg"
-              shape="pill"
-              className="-mr-1.5"
-            >
-              <Icon name="close" size={22} />
-            </IconButton>
-          </div>
-        ) : null}
+            {!bare ? (
+              <div
+                className={cn(
+                  "flex shrink-0 items-center px-4",
+                  title
+                    ? "justify-between border-b border-border-default py-2.5"
+                    : "justify-end pt-3",
+                )}
+              >
+                {title && (
+                  <DialogPrimitive.Title asChild>
+                    <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
+                      {title}
+                    </h2>
+                  </DialogPrimitive.Title>
+                )}
+                <DialogPrimitive.Close asChild>
+                  <IconButton
+                    aria-label="Close"
+                    size="lg"
+                    shape="pill"
+                    className="-mr-1.5"
+                  >
+                    <Icon name="close" size={22} />
+                  </IconButton>
+                </DialogPrimitive.Close>
+              </div>
+            ) : null}
 
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
 
-        {footer && (
-          <div
-            className={cn(
-              "shrink-0 border-t border-border-default",
-              sheetOnMobile && "pb-[env(safe-area-inset-bottom)] lg:pb-0",
+            {footer && (
+              <div
+                className={cn(
+                  "shrink-0 border-t border-border-default",
+                  sheetOnMobile && "pb-[env(safe-area-inset-bottom)] lg:pb-0",
+                )}
+              >
+                {footer}
+              </div>
             )}
-          >
-            {footer}
           </div>
-        )}
-      </div>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

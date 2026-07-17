@@ -1,20 +1,25 @@
 import {
+  createContext,
+  useContext,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Icon } from "./Icon";
 
+/** Lets MenuItem honour the enclosing Menu's `closeOnClick` contract. */
+const MenuContext = createContext({ closeOnClick: true });
+
 /** Anchored dropdown: `trigger` renders the button, `children` the items.
- *  Closes on outside click, Escape, or any item click. The panel renders in
- *  a body portal, fixed-positioned from the trigger's rect (same approach
- *  as the calendar's day popover), so an `overflow-hidden` card can never
- *  clip a row-action menu. */
+ *  Built on Radix DropdownMenu — outside-press dismissal, Escape layering
+ *  (one press closes only the menu, the next reaches a parent dialog),
+ *  keyboard navigation, and collision flipping all come from the primitive.
+ *  The panel renders in a body portal, so an `overflow-hidden` card can
+ *  never clip a row-action menu; portals stack by DOM order, so a menu
+ *  opened inside a Modal renders above it. */
 export function Menu({
   trigger,
   align = "end",
@@ -41,131 +46,62 @@ export function Menu({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<CSSProperties | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  // Anchor the fixed panel to the trigger before paint. The panel is never
-  // narrower than its trigger (208px floor = the old min-w-52), so selects
-  // still read as one control with their input.
-  useLayoutEffect(() => {
-    if (!open) {
-      setPos(null);
-      return;
-    }
-    const r = rootRef.current?.getBoundingClientRect();
-    if (!r) return;
-    const gap = 4;
-    // Measurable in the same commit (portal already mounted), so a menu that
-    // would leave the viewport flips to the trigger's other side instead.
-    const panelHeight = listRef.current?.getBoundingClientRect().height ?? 0;
-    const fitsBelow = r.bottom + gap + panelHeight <= window.innerHeight - 8;
-    const fitsAbove = r.top - gap - panelHeight >= 8;
-    const openBelow = side === "bottom" ? fitsBelow || !fitsAbove : !fitsAbove && fitsBelow;
-    const style: CSSProperties = { minWidth: Math.max(r.width, 208) };
-    if (openBelow) style.top = r.bottom + gap;
-    else style.bottom = window.innerHeight - r.top + gap;
-    if (align === "end") style.right = Math.max(8, window.innerWidth - r.right);
-    else style.left = Math.max(8, r.left);
-    setPos(style);
-  }, [open, align, side]);
-
+  // Menus (not rich panels) hand focus to the selected item on open, so a
+  // select reopens on its current value; Radix's default (panel or first
+  // item) stands otherwise. Runs a frame late, after Radix's own autofocus.
   useEffect(() => {
-    if (!open) return;
-    // Menus (not rich panels) move focus to their first item on open.
-    if (closeOnClick) {
-      const selected = listRef.current?.querySelector<HTMLElement>('[role="menuitem"][aria-pressed="true"]');
-      (selected ?? listRef.current?.querySelector<HTMLElement>('[role="menuitem"]'))?.focus();
-    }
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (!rootRef.current?.contains(t) && !listRef.current?.contains(t)) setOpen(false);
-    };
-    // The panel is fixed, so it can't ride an anchor that scrolls away —
-    // close instead of chasing it. Scrolls inside the panel stay open.
-    // If focus was inside the panel, hand it back to the trigger so the
-    // keyboard user isn't dropped on <body> when the panel unmounts.
-    const closeFromLayout = () => {
-      const focusWasInside = listRef.current?.contains(document.activeElement);
-      setOpen(false);
-      if (focusWasInside) rootRef.current?.querySelector<HTMLElement>("button")?.focus();
-    };
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Node && listRef.current?.contains(e.target)) return;
-      closeFromLayout();
-    };
-    const onResize = () => closeFromLayout();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        // The menu is the topmost layer while open: one Escape closes only
-        // it. Marking the event handled (and stopping it in the capture
-        // phase, before Modal's bubble listener) keeps a parent dialog open
-        // — the second Escape reaches the modal.
-        e.preventDefault();
-        e.stopPropagation();
-        setOpen(false);
-        rootRef.current?.querySelector<HTMLElement>("button")?.focus();
-        return;
-      }
-      // Roving focus over the items with the arrow keys.
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
-      const items = Array.from(
-        listRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ??
-          [],
-      );
-      if (items.length === 0) return;
-      e.preventDefault();
-      const current = items.indexOf(document.activeElement as HTMLElement);
-      const next =
-        e.key === "Home"
-          ? 0
-          : e.key === "End"
-            ? items.length - 1
-            : e.key === "ArrowDown"
-              ? (current + 1) % items.length
-              : (current - 1 + items.length) % items.length;
-      items[next].focus();
-    };
-    document.addEventListener("pointerdown", onDown);
-    // Capture phase, so the menu sees Escape before a parent Modal's
-    // document-level (bubble) listener and can claim it for its own layer.
-    document.addEventListener("keydown", onKey, true);
-    document.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onResize);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey, true);
-      document.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onResize);
-    };
+    if (!open || !closeOnClick) return;
+    const raf = requestAnimationFrame(() => {
+      contentRef.current
+        ?.querySelector<HTMLElement>('[role="menuitem"][aria-pressed="true"]')
+        ?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [open, closeOnClick]);
 
   return (
-    <div ref={rootRef} className={cn("relative", rootClassName)}>
-      {trigger({ open, toggle: () => setOpen((v) => !v) })}
-      {/* Closed = unmounted, so the panel is inert until asked for. */}
-      {open &&
-        createPortal(
-          <div
-            ref={listRef}
-            role={closeOnClick ? "menu" : "dialog"}
-            aria-label={label}
-            // Item clicks bubble here and close the menu after they run.
-            onClick={closeOnClick ? () => {
-              setOpen(false);
-              requestAnimationFrame(() => rootRef.current?.querySelector<HTMLElement>("button")?.focus());
-            } : undefined}
-            style={pos ?? undefined}
-            className={cn(
-              "fixed z-50 rounded-card border border-border-default bg-surface-raised p-1 shadow-lg",
-              className,
-            )}
-          >
+    <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen} modal={false}>
+      <div className={cn("relative", rootClassName)}>
+        {/* Radix's Trigger owns the open/close gesture (pointerdown and
+            Enter/Space/ArrowDown), so the `toggle` handed to the render
+            prop is a no-op — call sites keep wiring `onClick={toggle}`
+            and the primitive performs the same flip on the same press,
+            without the two racing each other. `open` still reports the
+            controlled state for aria-expanded / caret rotation. */}
+        <DropdownMenuPrimitive.Trigger asChild>
+          {trigger({ open, toggle: () => {} })}
+        </DropdownMenuPrimitive.Trigger>
+      </div>
+      <DropdownMenuPrimitive.Portal>
+        <DropdownMenuPrimitive.Content
+          ref={contentRef}
+          aria-label={label}
+          align={align}
+          side={side}
+          sideOffset={4}
+          collisionPadding={8}
+          loop
+          // Item clicks bubble here and close the menu after they run;
+          // rich panels opt out (and rows like "mark all read" keep the
+          // panel open by stopping propagation).
+          onClick={closeOnClick ? () => setOpen(false) : undefined}
+          // The panel is never narrower than its trigger (208px floor =
+          // the old min-w-52), so selects still read as one control.
+          style={{ minWidth: "max(var(--radix-dropdown-menu-trigger-width), 13rem)" }}
+          className={cn(
+            "z-50 rounded-card border border-border-default bg-surface-raised p-1 shadow-lg",
+            "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+            className,
+          )}
+        >
+          <MenuContext.Provider value={{ closeOnClick }}>
             {children}
-          </div>,
-          document.body,
-        )}
-    </div>
+          </MenuContext.Provider>
+        </DropdownMenuPrimitive.Content>
+      </DropdownMenuPrimitive.Portal>
+    </DropdownMenuPrimitive.Root>
   );
 }
 
@@ -185,17 +121,20 @@ export function MenuItem({
   disabled?: boolean;
   onClick?: () => void;
 }) {
+  const { closeOnClick } = useContext(MenuContext);
   return (
-    <button
-      role="menuitem"
-      aria-pressed={selected || undefined}
+    <DropdownMenuPrimitive.Item
       disabled={disabled}
-      onClick={onClick}
+      aria-pressed={selected || undefined}
+      onSelect={(e) => {
+        if (!closeOnClick) e.preventDefault();
+        onClick?.();
+      }}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left font-display text-ui font-semibold transition-colors",
+        "flex w-full select-none items-center gap-2.5 rounded-sm px-2.5 py-2 text-left font-display text-ui font-semibold outline-none transition-colors",
         danger
-          ? "text-status-danger hover:bg-status-danger-soft"
-          : "text-text-primary hover:bg-surface-subtle",
+          ? "text-status-danger data-[highlighted]:bg-status-danger-soft"
+          : "text-text-primary data-[highlighted]:bg-surface-subtle",
         selected && !danger && "bg-surface-subtle",
         disabled && "cursor-not-allowed opacity-50",
       )}
@@ -203,7 +142,7 @@ export function MenuItem({
       {icon ? <Icon name={icon} size={20} className="shrink-0" /> : null}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {selected ? <Icon name="check" size={18} className="shrink-0 text-accent-default" /> : null}
-    </button>
+    </DropdownMenuPrimitive.Item>
   );
 }
 

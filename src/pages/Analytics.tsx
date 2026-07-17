@@ -21,9 +21,8 @@ import {
   ReadyDecisionRow,
   ReportPreview,
   SectionGrid,
-  StatTile,
+  StatsStrip,
   StatusBadge,
-  TrendChart,
   type DataColumn,
 } from "@/components/dashboard";
 import {
@@ -42,7 +41,6 @@ import {
   dateSpan,
   windowBounds,
   windowDelta,
-  windowTileDelta,
   type WindowRange,
 } from "@/lib/engine";
 import {
@@ -61,7 +59,9 @@ import {
   verdictLabel,
   winnerLabel,
   type Campaign,
+  type SeriesMetric,
   type SinglePolst,
+  type Stat,
   type WorkspaceReport,
 } from "@/lib/workspace";
 import {
@@ -190,33 +190,44 @@ const OBJECTS = new Map<string, { kind: "campaign" | "polst"; object: Campaign |
   ...SINGLE_POLSTS.map((p) => [p.id, { kind: "polst" as const, object: p }] as const),
 ]);
 
-function scopedDailyVotes(rows: SegmentRow[], range: WindowRange, offset = 0): number[] {
+function scopedDailySeries(
+  rows: SegmentRow[],
+  range: WindowRange,
+  metric: SeriesMetric,
+  offset = 0,
+): number[] {
   const [start, end] = windowBounds(range, offset);
   const days = dateSpan(start, end);
   const totals = days.map(() => 0);
-  const votesByObject = new Map<string, number>();
+  const byObject = new Map<string, number>();
   for (const row of rows) {
-    votesByObject.set(row.objectId, (votesByObject.get(row.objectId) ?? 0) + row.metrics.votes);
+    byObject.set(row.objectId, (byObject.get(row.objectId) ?? 0) + row.metrics[metric]);
   }
-  for (const [objectId, scopedVotes] of votesByObject) {
+  for (const [objectId, scopedTotal] of byObject) {
     const entry = OBJECTS.get(objectId);
     if (!entry) continue;
     const series =
       entry.kind === "campaign"
-        ? campaignSeries(entry.object as Campaign, "votes")
-        : polstSeries(entry.object as SinglePolst, "votes");
+        ? campaignSeries(entry.object as Campaign, metric)
+        : polstSeries(entry.object as SinglePolst, metric);
     const daily = days.map((iso) => {
       const i = series.dates.indexOf(iso);
       return i === -1 ? 0 : series.values[i];
     });
     const windowTotal = daily.reduce((a, b) => a + b, 0);
-    const allocated = windowTotal === scopedVotes ? daily : allocate(scopedVotes, daily);
+    const allocated = windowTotal === scopedTotal ? daily : allocate(scopedTotal, daily);
     allocated.forEach((v, i) => {
       totals[i] += v;
     });
   }
   return totals;
 }
+
+/** Daily rate series (%, 1dp) from two count series — the same votes/views
+ *  arithmetic the headline rates use, per day, guarded where the
+ *  denominator is empty. */
+const rateSeries = (numer: number[], denom: number[]): number[] =>
+  numer.map((v, i) => (denom[i] > 0 ? Math.round((v / denom[i]) * 1000) / 10 : 0));
 
 /* ── Overview ────────────────────────────────────────────────────── */
 
@@ -436,11 +447,78 @@ export function AnalyticsOverviewPage() {
     return campaigns.filter((c) => isReadyToDecide(c) && inScope.has(c.id));
   }, [rows, campaigns]);
 
-  const trend = useMemo(() => scopedDailyVotes(rows, filters.range), [rows, filters.range]);
-  const prevTrend = useMemo(
-    () => (prevRows && comparable ? scopedDailyVotes(prevRows, filters.range, 1) : undefined),
+  /* Every hero metric charts its own windowed series under the same
+     filters; the rates derive per-day from the two count series they are
+     defined by — nothing synthesized. */
+  const daily = useMemo(
+    () => ({
+      views: scopedDailySeries(rows, filters.range, "views"),
+      votes: scopedDailySeries(rows, filters.range, "votes"),
+      voters: scopedDailySeries(rows, filters.range, "voters"),
+      completed: scopedDailySeries(rows, filters.range, "completed"),
+    }),
+    [rows, filters.range],
+  );
+  const prevDaily = useMemo(
+    () =>
+      prevRows && comparable
+        ? {
+            views: scopedDailySeries(prevRows, filters.range, "views", 1),
+            votes: scopedDailySeries(prevRows, filters.range, "votes", 1),
+            voters: scopedDailySeries(prevRows, filters.range, "voters", 1),
+            completed: scopedDailySeries(prevRows, filters.range, "completed", 1),
+          }
+        : null,
     [prevRows, comparable, filters.range],
   );
+  /* The hero strip's Stat shape — the exact totals and deltas the four
+     tiles carried (same windowDelta arithmetic windowTileDelta used),
+     with each metric's own windowed series behind the fused chart. */
+  const heroDelta = (
+    current: number,
+    previous: number | null | undefined,
+  ): Pick<Stat, "delta" | "trend"> => {
+    const d = comparable && previous != null ? windowDelta(current, previous) : null;
+    return {
+      delta: d === null ? "—" : `${Math.abs(d)}%`,
+      trend: d === null || d === 0 ? "flat" : d > 0 ? "up" : "down",
+    };
+  };
+  const heroStats: Stat[] = [
+    {
+      label: "Total views",
+      value: fmtInt(views),
+      ...heroDelta(views, prev?.views),
+      info: METRIC_INFO.views,
+      spark: daily.views,
+      previous: prevDaily?.views,
+    },
+    {
+      label: "Total votes",
+      value: fmtInt(votes),
+      ...heroDelta(votes, prev?.votes),
+      info: METRIC_INFO.votes,
+      spark: daily.votes,
+      previous: prevDaily?.votes,
+    },
+    {
+      label: "Engagement rate",
+      value: pct(votes, views, 1),
+      ...heroDelta(engagement ?? 0, prevEngagement),
+      info: METRIC_INFO.engagementRate,
+      spark: rateSeries(daily.votes, daily.views),
+      previous: prevDaily ? rateSeries(prevDaily.votes, prevDaily.views) : undefined,
+    },
+    {
+      label: "Completion rate",
+      value: pct(completed, voters, 1),
+      ...heroDelta(completion ?? 0, prevCompletion),
+      info: METRIC_INFO.completionRate,
+      spark: rateSeries(daily.completed, daily.voters),
+      previous: prevDaily ? rateSeries(prevDaily.completed, prevDaily.voters) : undefined,
+    },
+  ];
+
   const sourceMix = useMemo(() => mixBy(rows, (row) => row.channel, "voters"), [rows]);
   const categories = useMemo(() => categoryRows(rows), [rows]);
   const campaignPerf = useMemo(() => buildCampaignPerf(rows, campaigns), [rows, campaigns]);
@@ -523,48 +601,15 @@ export function AnalyticsOverviewPage() {
       </DashboardCard>
 
       <SectionGrid>
-        <StatTile
-          className="lg:col-span-3"
-          label="Total views"
-          value={fmtInt(views)}
-          info={METRIC_INFO.views}
-          {...windowTileDelta(views, prev?.views, compareLabel)}
-        />
-        <StatTile
-          className="lg:col-span-3"
-          label="Total votes"
-          value={fmtInt(votes)}
-          info={METRIC_INFO.votes}
-          {...windowTileDelta(votes, prev?.votes, compareLabel)}
-        />
-        <StatTile
-          className="lg:col-span-3"
-          label="Engagement rate"
-          value={pct(votes, views, 1)}
-          info={METRIC_INFO.engagementRate}
-          {...windowTileDelta(engagement ?? 0, prevEngagement, compareLabel)}
-        />
-        <StatTile
-          className="lg:col-span-3"
-          label="Completion rate"
-          value={pct(completed, voters, 1)}
-          info={METRIC_INFO.completionRate}
-          {...windowTileDelta(completion ?? 0, prevCompletion, compareLabel)}
-        />
-      </SectionGrid>
-
-      <SectionGrid>
-        <DashboardCard
-          title="Votes per day"
+        {/* The fused KPI hero: the four headline metrics as tabs over one
+            always-on chart — the same totals, deltas, and daily series the
+            separate tiles and "Votes per day" card carried. */}
+        <StatsStrip
           className="lg:col-span-8"
-          action={
-            compareLabel ? (
-              <span className="text-xs text-text-tertiary">{compareLabel}</span>
-            ) : undefined
-          }
-        >
-          <TrendChart series={trend} previous={prevTrend} xTicks={STAT_XTICKS[filters.range]} />
-        </DashboardCard>
+          stats={heroStats}
+          xTicks={STAT_XTICKS[filters.range]}
+          scopeLabel={compareLabel ?? undefined}
+        />
         <DashboardCard
           title="Source mix"
           className="lg:col-span-4"

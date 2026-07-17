@@ -29,9 +29,11 @@ type NavItem = {
   children?: Array<{ label: string; to: string }>;
 };
 
-/** Nav rides in three bands split by hairline dividers: daily work,
- *  learning surfaces, then workspace administration. */
-const NAV_GROUPS: Array<{ items: NavItem[] }> = [
+/** Nav rides in three bands: daily work (unlabeled, straight under
+ *  search), learning surfaces ("Measure"), then workspace
+ *  administration ("Workspace"). The desktop rail renders the labels
+ *  as uppercase micro-headers; the mobile drawer keeps its dividers. */
+const NAV_GROUPS: Array<{ label?: string; items: NavItem[] }> = [
   {
     items: [
       { label: "Home", icon: "home", to: "/" },
@@ -41,6 +43,7 @@ const NAV_GROUPS: Array<{ items: NavItem[] }> = [
     ],
   },
   {
+    label: "Measure",
     items: [
       {
         label: "Analytics",
@@ -56,6 +59,7 @@ const NAV_GROUPS: Array<{ items: NavItem[] }> = [
     ],
   },
   {
+    label: "Workspace",
     items: [{ label: "Settings", icon: "settings", to: "/settings" }],
   },
 ];
@@ -92,17 +96,17 @@ function useNavGroups() {
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium transition-colors",
+    "flex h-8 items-center gap-2 rounded-sm px-2 text-ui font-medium transition-colors",
     isActive
-      ? "bg-sidenav-active text-sidenav-fg"
-      : "text-sidenav-muted hover:bg-sidenav-hover hover:text-sidenav-fg",
+      ? "bg-white/10 text-sidenav-fg"
+      : "text-sidenav-muted hover:bg-white/5 hover:text-sidenav-fg",
   );
 
-/** Every rail glyph and identity mark occupies the same 20px column. */
+/** Every rail glyph occupies the same 16px column. */
 function NavIcon({ name, active }: { name: string; active: boolean }) {
   return (
-    <span className="grid h-5 w-5 shrink-0 place-items-center">
-      <Icon name={name} size={20} weight={400} filled={active} />
+    <span className="grid h-4 w-4 shrink-0 place-items-center">
+      <Icon name={name} size={16} weight={400} filled={active} />
     </span>
   );
 }
@@ -143,7 +147,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-app-content text-text-primary">
       <Sidebar onSearch={() => setSearchOpen(true)} />
-      <div className="lg:pl-64">
+      <div className="lg:pl-60">
         <Header onActionsSlot={setActionsSlot} onMenu={() => setNavOpen(true)} />
         <HeaderActionsContext.Provider value={actionsSlot}>
           <main id="main-content" className="px-4 pb-10 pt-6 sm:px-5">
@@ -168,23 +172,23 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
   const location = useLocation();
   const groups = useNavGroups();
   return (
-    <aside className="scroll-subtle fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto bg-sidenav pb-2 lg:flex">
-      <div className="flex h-12 shrink-0 items-center border-b border-sidenav-active px-2">
+    <aside className="scroll-subtle fixed inset-y-0 left-0 z-30 hidden w-60 flex-col overflow-y-auto bg-sidenav pb-2 lg:flex">
+      <div className="flex h-12 shrink-0 items-center px-2">
         <WorkspaceMenu />
       </div>
-      <div className="px-2 pb-3 pt-2">
+      <div className="px-2 pb-3">
         <button
           type="button"
           onClick={onSearch}
           aria-label="Search the workspace"
           aria-keyshortcuts="Meta+K Control+K"
-          className="flex h-9 w-full items-center gap-2 rounded-md border border-sidenav-active bg-sidenav-hover px-2 text-left text-sm font-medium text-sidenav-muted transition-colors hover:bg-sidenav-active hover:text-sidenav-fg"
+          className="flex h-8 w-full items-center gap-2 rounded-sm border border-white/10 px-2 text-left text-ui font-medium text-sidenav-muted transition-colors hover:bg-white/5 hover:text-sidenav-fg"
         >
-          <span className="grid h-5 w-5 shrink-0 place-items-center">
-            <Icon name="search" size={20} />
+          <span className="grid h-4 w-4 shrink-0 place-items-center">
+            <Icon name="search" size={16} />
           </span>
           <span className="min-w-0 flex-1 truncate">Search</span>
-          <kbd className="rounded-sm border border-sidenav-active px-1.5 py-0.5 font-sans text-micro font-medium text-sidenav-muted">
+          <kbd className="rounded-sm border border-white/10 px-1 py-0.5 font-sans text-micro font-medium text-sidenav-muted">
             ⌘K
           </kbd>
         </button>
@@ -192,9 +196,11 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
 
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
         {groups.map((group, gi) => (
-          <div key={gi}>
-            {gi > 0 ? (
-              <div aria-hidden className="my-2 h-px bg-sidenav-active" />
+          <div key={gi} className={gi > 0 ? "mt-3" : undefined}>
+            {group.label ? (
+              <p className="flex h-6 items-center px-2 text-micro font-medium uppercase tracking-wide text-white/45">
+                {group.label}
+              </p>
             ) : null}
             <ul className="space-y-px">
               {group.items.map((item) => {
@@ -215,7 +221,7 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
                     </NavLink>
 
                     {item.children && parentActive ? (
-                      <ul className="mt-1 space-y-px pl-7">
+                      <ul className="mt-1 space-y-px pl-6">
                         {item.children.map((child) => (
                           <li key={child.to}>
                             <NavLink
@@ -223,8 +229,10 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
                               end={child.to === item.to}
                               className={({ isActive }) =>
                                 cn(
-                                  "block rounded-sm px-2 py-1.5 text-sm font-medium text-sidenav-muted transition-colors hover:text-sidenav-fg",
-                                  isActive && "text-sidenav-fg",
+                                  "flex h-7 items-center rounded-sm px-2 text-ui font-medium transition-colors",
+                                  isActive
+                                    ? "text-sidenav-fg"
+                                    : "text-sidenav-muted hover:bg-white/5 hover:text-sidenav-fg",
                                 )
                               }
                             >
@@ -243,7 +251,7 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
 
         <div className="mt-auto pt-4">
           <SidebarSuggestions />
-          <div aria-hidden className="my-2 h-px bg-sidenav-active" />
+          <div aria-hidden className="my-2 h-px bg-white/[0.08]" />
           <UserMenu />
         </div>
       </nav>
@@ -790,13 +798,13 @@ function WorkspaceMenu() {
           type="button"
           onClick={toggle}
           aria-expanded={open}
-          className="grid h-9 w-full grid-cols-[20px_minmax(0,1fr)_20px] items-center gap-2 rounded-md px-2 transition-colors hover:bg-sidenav-hover"
+          className="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-left transition-colors hover:bg-white/5"
         >
           <WorkspaceMark initials={WORKSPACE.initials} size="xs" />
-          <span className="min-w-0 truncate text-center text-sm font-medium leading-5 text-sidenav-fg">
+          <span className="min-w-0 flex-1 truncate text-ui font-medium text-sidenav-fg">
             {WORKSPACE.brand}
           </span>
-          <Icon name="unfold_more" size={20} className="text-sidenav-muted" />
+          <Icon name="unfold_more" size={16} className="shrink-0 text-sidenav-muted" />
         </button>
       )}
     >
@@ -838,11 +846,11 @@ function SidebarSuggestions() {
   return (
     <section
       aria-labelledby="sidebar-suggestions-title"
-      className="rounded-md border border-sidenav-active bg-sidenav-hover p-3"
+      className="rounded-sm border border-white/10 bg-white/5 p-3"
     >
       <p
         id="sidebar-suggestions-title"
-        className="text-sm font-semibold text-sidenav-fg"
+        className="text-ui font-semibold text-sidenav-fg"
       >
         {items.length} {items.length === 1 ? "item needs" : "items need"} attention
       </p>
@@ -855,7 +863,7 @@ function SidebarSuggestions() {
       <div className="mt-3 flex gap-2">
         <Link
           to="/"
-          className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-md border border-sidenav-active bg-sidenav-active px-3 text-xs font-semibold text-sidenav-fg transition-colors hover:border-sidenav-muted"
+          className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-sm border border-white/10 bg-white/10 px-3 text-xs font-semibold text-sidenav-fg transition-colors hover:bg-white/15"
         >
           Review {items.length} {items.length === 1 ? "item" : "items"}
         </Link>
@@ -863,7 +871,7 @@ function SidebarSuggestions() {
           type="button"
           onClick={() => setVisible(false)}
           aria-label="Dismiss suggestions"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-sidenav-active text-sidenav-muted transition-colors hover:border-sidenav-muted hover:text-sidenav-fg"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-sm border border-white/10 text-sidenav-muted transition-colors hover:border-white/25 hover:text-sidenav-fg"
         >
           <Icon name="close" size={18} />
         </button>
@@ -888,17 +896,17 @@ function UserMenu() {
           type="button"
           onClick={toggle}
           aria-expanded={open}
-          className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-sidenav-hover"
+          className="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-left transition-colors hover:bg-white/5"
         >
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-micro font-semibold text-text-on-accent">
             {initialsOf(WORKSPACE.owner)}
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-sidenav-fg">
+          <span className="min-w-0 flex-1 truncate text-ui font-medium text-sidenav-fg">
             {WORKSPACE.owner}
           </span>
           <Icon
             name={open ? "expand_more" : "more_horiz"}
-            size={20}
+            size={16}
             className="shrink-0 text-sidenav-muted"
           />
         </button>
