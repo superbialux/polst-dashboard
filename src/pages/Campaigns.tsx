@@ -41,8 +41,7 @@ import {
   RateCell,
   ReportPreview,
   ReviewModal,
-  HeaderTabs,
-  SearchAndFilters,
+  TableToolbar,
   SectionGrid,
   SectionTitle,
   filterByCreated,
@@ -122,6 +121,7 @@ const scheduleNote = (row: Campaign): string | null => {
 const listColumns: Array<DataColumn<Campaign>> = [
   {
     header: "Campaign",
+    sort: (row) => row.name.toLowerCase(),
     // A real link, like the polsts list — the row onClick is a pointer
     // convenience, but keyboard and screen-reader users need an anchor.
     cell: (row) => (
@@ -136,8 +136,12 @@ const listColumns: Array<DataColumn<Campaign>> = [
       </Link>
     ),
   },
-  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  { header: "Polsts", cell: (row) => <ThumbStrip ids={row.chain.map((q) => q.id)} /> },
+  { header: "Status", sort: (row) => row.status, cell: (row) => <StatusBadge status={row.status} /> },
+  {
+    header: "Polsts",
+    sort: (row) => row.chain.length,
+    cell: (row) => <ThumbStrip ids={row.chain.map((q) => q.id)} />,
+  },
   /* Funnel columns only — the audit's contract for the index. Started,
      Completed, and Finish rate are participant facts; interpretation
      ("Result so far") moved to campaign Insights, and the participant
@@ -146,18 +150,21 @@ const listColumns: Array<DataColumn<Campaign>> = [
     header: "Started",
     info: METRIC_INFO.started,
     align: "right",
+    sort: (row) => row.voters,
     cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
   },
   {
     header: "Completed",
     info: METRIC_INFO.completed,
     align: "right",
+    sort: (row) => row.completed,
     cell: (row) => <span className="tabular-nums">{fmtInt(row.completed)}</span>,
   },
   {
     header: "Finish rate",
     info: METRIC_INFO.finishRate,
     align: "right",
+    sort: (row) => (row.voters > 0 ? row.completed / row.voters : -1),
     cell: (row) => pct(row.completed, row.voters),
   },
 ];
@@ -191,23 +198,26 @@ export function CampaignsPage() {
           <Link to="/campaigns/new">Create campaign</Link>
         </Button>
       }
-      // Status views are page-level — they ride the header band.
-      tabs={<HeaderTabs tabs={CAMPAIGN_FILTERS} active={active} onChange={setActive} />}
     >
-      <DashboardCard padded={false}>
-        <SearchAndFilters
-          placeholder="Search campaigns"
-          query={query}
-          onQueryChange={setQuery}
-          action={
-            <CreatedRange
-              from={createdFrom}
-              to={createdTo}
-              onFromChange={setCreatedFrom}
-              onToChange={setCreatedTo}
-            />
-          }
-        />
+      {/* The action row rides ABOVE the card — the stat hero's altitude. */}
+      <section className="space-y-2">
+        <TableToolbar placeholder="Search campaigns" query={query} onQueryChange={setQuery}>
+          <SelectMenu
+            label="Status"
+            compact
+            icon="filter_list"
+            options={CAMPAIGN_FILTERS.map((f) => ({ value: f, label: f }))}
+            value={active}
+            onValueChange={setActive}
+          />
+          <CreatedRange
+            from={createdFrom}
+            to={createdTo}
+            onFromChange={setCreatedFrom}
+            onToChange={setCreatedTo}
+          />
+        </TableToolbar>
+        <DashboardCard padded={false}>
         {searching && rows.length > 0 ? (
           <p className="border-b border-border-default px-4 py-2 text-xs text-text-secondary">
             {rows.length} {rows.length === 1 ? "campaign matches" : "campaigns match"} “
@@ -254,7 +264,8 @@ export function CampaignsPage() {
             }
           />
         )}
-      </DashboardCard>
+        </DashboardCard>
+      </section>
     </DashboardPage>
   );
 }

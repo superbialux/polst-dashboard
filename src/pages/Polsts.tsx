@@ -9,7 +9,7 @@ import {
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
-import { Field, FieldHelper, TextInput } from "@/components/Field";
+import { Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
 import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
 import { PollCard } from "@/components/PollCard";
 import { PollComposer, type ComposerState } from "@/components/PollComposer";
@@ -33,8 +33,7 @@ import {
   PollThumb,
   PolstListRow,
   ReviewModal,
-  HeaderTabs,
-  SearchAndFilters,
+  TableToolbar,
   SectionGrid,
   SegmentedControl,
   StatTile,
@@ -46,6 +45,8 @@ import {
   type DataColumn,
   type DurationPreset,
   type EmptyStateAction,
+  type SortState,
+  sortRows,
 } from "@/components/dashboard";
 import {
   METRIC_INFO,
@@ -193,16 +194,18 @@ const columns = (
 ): Array<DataColumn<SinglePolst>> => [
   {
     header: "Polst",
+    sort: (row) => row.question.toLowerCase(),
     cell: (row) => (
       <PolstListRow options={polstOptions(row)} question={row.question} to={`/polsts/${row.id}`} />
     ),
   },
-  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
-  { header: "Views", align: "right", cell: (row) => numberCell(row, row.views) },
-  { header: "Votes", align: "right", cell: (row) => numberCell(row, row.votes) },
-  { header: "Interactions", align: "right", cell: (row) => numberCell(row, row.interactions) },
+  { header: "Status", sort: (row) => row.status, cell: (row) => <StatusBadge status={row.status} /> },
+  { header: "Views", align: "right", sort: (row) => row.views, cell: (row) => numberCell(row, row.views) },
+  { header: "Votes", align: "right", sort: (row) => row.votes, cell: (row) => numberCell(row, row.votes) },
+  { header: "Interactions", align: "right", sort: (row) => row.interactions, cell: (row) => numberCell(row, row.interactions) },
   {
     header: "Created",
+    sort: (row) => row.createdAt,
     cell: (row) => (
       <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.createdAt)}</span>
     ),
@@ -285,19 +288,24 @@ export function PolstsPage() {
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<SortState | null>(null);
   const [sharePolst, setSharePolst] = useState<SinglePolst | null>(null);
   const [qrPolst, setQrPolst] = useState<SinglePolst | null>(null);
 
+  const tableColumns = useMemo(() => columns(setSharePolst, setQrPolst), []);
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return filterByCreated(filterByStatus(polsts, active), createdFrom, createdTo).filter(
+    const filtered = filterByCreated(filterByStatus(polsts, active), createdFrom, createdTo).filter(
       (polst) =>
         !normalized ||
         [polst.question, polst.optionA, polst.optionB].some((value) =>
           value.toLowerCase().includes(normalized),
         ),
     );
-  }, [polsts, active, query, createdFrom, createdTo]);
+    // The FULL list sorts before pagination — page 2 continues page 1's
+    // order instead of sorting its own slice.
+    return sortRows(filtered, tableColumns, sort);
+  }, [polsts, active, query, createdFrom, createdTo, sort, tableColumns]);
 
   /* Pagination clamps to the filtered list — a filter change that shrinks
      the result below the current page snaps back instead of showing air. */
@@ -338,23 +346,27 @@ export function PolstsPage() {
   );
 
   const toolbar = (
-    <SearchAndFilters
+    <TableToolbar
       placeholder="Search polsts"
       query={query}
       onQueryChange={setFilterAndResetPage(setQuery)}
-      action={
-        <div className="flex flex-wrap items-center gap-2">
-          <CreatedRange
-            from={createdFrom}
-            to={createdTo}
-            onFromChange={setFilterAndResetPage(setCreatedFrom)}
-            onToChange={setFilterAndResetPage(setCreatedTo)}
-          />
-          <SegmentedControl tabs={VIEWS} active={view} onChange={setView} />
-        </div>
-      }
-      className={view === "grid" ? "border-b-0" : undefined}
-    />
+    >
+      <SelectMenu
+        label="Status"
+        compact
+        icon="filter_list"
+        options={POLST_FILTERS.map((f) => ({ value: f, label: f }))}
+        value={active}
+        onValueChange={setFilterAndResetPage(setActive)}
+      />
+      <CreatedRange
+        from={createdFrom}
+        to={createdTo}
+        onFromChange={setFilterAndResetPage(setCreatedFrom)}
+        onToChange={setFilterAndResetPage(setCreatedTo)}
+      />
+      <SegmentedControl tabs={VIEWS} active={view} onChange={setView} />
+    </TableToolbar>
   );
 
   return (
@@ -364,50 +376,44 @@ export function PolstsPage() {
           <Link to="/polsts/new">Create polst</Link>
         </Button>
       }
-      // Status views are page-level — they ride the header band.
-      tabs={
-        <HeaderTabs
-          tabs={POLST_FILTERS}
-          active={active as (typeof POLST_FILTERS)[number]}
-          onChange={setFilterAndResetPage(setActive)}
-        />
-      }
     >
-      {view === "grid" ? (
-        <>
-          <DashboardCard padded={false}>
-            {toolbar}
-            {pager}
-          </DashboardCard>
-          {rows.length ? (
-            <SectionGrid>
-              {pageRows.map((polst) => (
-                <PolstGridCard key={polst.id} polst={polst} />
-              ))}
-            </SectionGrid>
+      {/* The action row rides ABOVE the card — the stat hero's altitude. */}
+      <section className="space-y-2">
+        {toolbar}
+        {view === "grid" ? (
+          rows.length ? (
+            <>
+              <SectionGrid>
+                {pageRows.map((polst) => (
+                  <PolstGridCard key={polst.id} polst={polst} />
+                ))}
+              </SectionGrid>
+              <DashboardCard padded={false}>{pager}</DashboardCard>
+            </>
           ) : (
             <DashboardCard padded={false}>
               <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
             </DashboardCard>
-          )}
-        </>
-      ) : (
-        <DashboardCard padded={false}>
-          {toolbar}
-          {rows.length ? (
-            <>
-              <DataTable
-                rows={pageRows}
-                columns={columns(setSharePolst, setQrPolst)}
-                onRowClick={(row) => navigate(`/polsts/${row.id}`)}
-              />
-              {pager}
-            </>
-          ) : (
-            <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
-          )}
-        </DashboardCard>
-      )}
+          )
+        ) : (
+          <DashboardCard padded={false}>
+            {rows.length ? (
+              <>
+                <DataTable
+                  rows={pageRows}
+                  columns={tableColumns}
+                  onRowClick={(row) => navigate(`/polsts/${row.id}`)}
+                  sort={sort}
+                  onSortChange={setFilterAndResetPage(setSort)}
+                />
+                {pager}
+              </>
+            ) : (
+              <EmptyState icon="ballot" title={emptyTitle} action={emptyAction} />
+            )}
+          </DashboardCard>
+        )}
+      </section>
       <SocialShareModal
         open={Boolean(sharePolst)}
         onClose={() => setSharePolst(null)}

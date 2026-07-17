@@ -477,6 +477,50 @@ export function DurationField({
   );
 }
 
+/** The list action row OUTSIDE the table card (the StackAI register,
+ *  and the same altitude as Home's date-range row): the compact search
+ *  leads; selects, ranges, and toggles trail. */
+export function TableToolbar({
+  placeholder,
+  query,
+  onQueryChange,
+  children,
+  className,
+}: {
+  placeholder: string;
+  query: string;
+  onQueryChange: (next: string) => void;
+  /** Trailing controls — status select, date range, view toggle. */
+  children?: ReactNode;
+  className?: string;
+}) {
+  const searchId = useId();
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between",
+        className,
+      )}
+    >
+      <div className="w-full lg:w-72">
+        <label htmlFor={searchId} className="sr-only">
+          {placeholder}
+        </label>
+        <TextInput
+          id={searchId}
+          type="search"
+          icon="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          className="h-8 text-sm"
+          placeholder={placeholder}
+        />
+      </div>
+      {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
+    </div>
+  );
+}
+
 /** The list-page toolbar. With `tabs`, status filters lead and search
  *  trails; without them (status lives in the page's HeaderTabs), the
  *  compact search leads the row Grok-style and extra controls trail. */
@@ -601,7 +645,40 @@ export type DataColumn<T> = {
   className?: string;
   /** Right-align a column (numbers, row actions). */
   align?: "right";
+  /** Sortable when present: the comparable value behind the cell. */
+  sort?: (row: T) => string | number;
 };
+
+export type SortState = { key: string; dir: "asc" | "desc" };
+
+/** Order rows by a column's `sort` accessor — exported so pages that
+ *  paginate can sort the FULL list before slicing a page. */
+export function sortRows<T>(
+  rows: T[],
+  columns: Array<DataColumn<T>>,
+  sort: SortState | null,
+): T[] {
+  const col = sort ? columns.find((c) => c.header === sort.key) : undefined;
+  if (!sort || !col?.sort) return rows;
+  const dir = sort.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const va = col.sort!(a);
+    const vb = col.sort!(b);
+    const cmp =
+      typeof va === "number" && typeof vb === "number"
+        ? va - vb
+        : String(va).localeCompare(String(vb));
+    return cmp * dir;
+  });
+}
+
+/** asc → desc → natural order, per click. */
+const nextSort = (current: SortState | null, key: string): SortState | null =>
+  current?.key !== key
+    ? { key, dir: "asc" }
+    : current.dir === "asc"
+      ? { key, dir: "desc" }
+      : null;
 
 /** The one list primitive (Navattic anatomy): quiet 12px gray header
  *  labels — never uppercase — over ~52px rows (py-4 around a 20px text
@@ -612,41 +689,86 @@ export function DataTable<T extends { id: string }>({
   columns,
   onRowClick,
   emptyLabel = "Nothing to show yet",
+  sort: controlledSort,
+  onSortChange,
 }: {
   rows: T[];
   columns: Array<DataColumn<T>>;
   onRowClick?: (row: T) => void;
   emptyLabel?: string;
+  /** Controlled sort — pass with onSortChange when the page must sort
+   *  the full list itself (pagination). Omit both for internal sorting. */
+  sort?: SortState | null;
+  onSortChange?: (next: SortState | null) => void;
 }) {
+  const [internalSort, setInternalSort] = useState<SortState | null>(null);
+  const sort = controlledSort !== undefined ? controlledSort : internalSort;
+  const changeSort = onSortChange ?? setInternalSort;
+  const sorted = controlledSort !== undefined ? rows : sortRows(rows, columns, sort);
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="border-b border-border-default text-xs text-text-secondary">
           <tr>
-            {columns.map((column) => (
-              <th
-                key={column.header}
-                className={cn(
-                  "whitespace-nowrap px-3 py-3 font-medium first:pl-4 last:pr-4",
-                  column.align === "right" && "text-right",
-                  column.className,
-                )}
-              >
-                {column.info ? (
-                  <span className="inline-flex items-center gap-1">
-                    {column.header}
-                    <InfoHint text={column.info} label={column.header} />
-                  </span>
-                ) : (
-                  column.header
-                )}
-              </th>
-            ))}
+            {columns.map((column) => {
+              const active = sort?.key === column.header ? sort.dir : undefined;
+              const label = column.info ? (
+                <span className="inline-flex items-center gap-1">
+                  {column.header}
+                  <InfoHint text={column.info} label={column.header} />
+                </span>
+              ) : (
+                column.header
+              );
+              return (
+                <th
+                  key={column.header}
+                  aria-sort={active ? (active === "asc" ? "ascending" : "descending") : undefined}
+                  className={cn(
+                    "whitespace-nowrap px-3 py-3 font-medium first:pl-4 last:pr-4",
+                    column.align === "right" && "text-right",
+                    column.className,
+                  )}
+                >
+                  {column.sort ? (
+                    <button
+                      type="button"
+                      onClick={() => changeSort(nextSort(sort, column.header))}
+                      className={cn(
+                        "group/sort inline-flex items-center gap-0.5 transition-colors hover:text-text-primary",
+                        active && "text-text-primary",
+                      )}
+                    >
+                      {label}
+                      <Icon
+                        name={
+                          active === "asc"
+                            ? "arrow_upward"
+                            : active === "desc"
+                              ? "arrow_downward"
+                              : "unfold_more"
+                        }
+                        size={14}
+                        className={cn(
+                          "shrink-0",
+                          active
+                            ? "text-icon-primary"
+                            : "text-icon-tertiary opacity-0 transition-opacity group-hover/sort:opacity-100",
+                        )}
+                      />
+                    </button>
+                  ) : (
+                    label
+                  )}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody className="divide-y divide-border-default">
-          {rows.length ? (
-            rows.map((row) => (
+          {sorted.length ? (
+            sorted.map((row) => (
               <tr
                 key={row.id}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
