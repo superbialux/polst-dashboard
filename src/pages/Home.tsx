@@ -168,19 +168,21 @@ export function HomePage() {
   const dismissSuggestion = (id: string) =>
     setDismissed((prev) => new Set(prev).add(id));
 
-  /* The rail: campaign totals at a glance (the Shopify accounts-card
-     anatomy — label rows over one shared value column). */
+  /* The rail: totals across every campaign, in the audit's vocabulary —
+     Started (people who began a chain), Completed (answered every
+     question), Finish rate (completed ÷ started). */
   const campaignStats = useMemo<Array<[string, string]>>(() => {
     const count = (status: string) => campaigns.filter((c) => c.status === status).length;
-    const voters = campaigns.reduce((a, c) => a + c.voters, 0);
+    const started = campaigns.reduce((a, c) => a + c.voters, 0);
     const completed = campaigns.reduce((a, c) => a + c.completed, 0);
     return [
       ["Active", fmtInt(count("Active"))],
       ["Scheduled", fmtInt(count("Scheduled"))],
       ["Ended", fmtInt(count("Ended"))],
       ["Drafts", fmtInt(count("Draft"))],
-      ["Total voters", fmtInt(voters)],
-      ["Completion", pct(completed, voters)],
+      ["Started", fmtInt(started)],
+      ["Completed", fmtInt(completed)],
+      ["Finish rate", pct(completed, started)],
     ];
   }, [campaigns]);
 

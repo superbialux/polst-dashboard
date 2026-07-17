@@ -220,12 +220,12 @@ export function CampaignCard({
   sourceCount: number;
 }) {
   const live = campaign.status === "Active";
+  // The audit's list contract: votes and completion, never "voters /
+  // target" — the participant goal is a planning target, not a cap,
+  // and the fraction reads as a hard limit.
   const stats: ReactNode = live ? (
     <>
-      <InlineStat
-        value={`${fmtInt(campaign.voters)}${campaign.target ? ` / ${fmtInt(campaign.target)}` : ""}`}
-        label="voters"
-      />
+      <InlineStat value={fmtInt(campaign.votes)} label="votes" />
       <StatDot />
       <InlineStat value={pct(campaign.completed, campaign.voters)} label="completion" />
     </>
@@ -289,10 +289,11 @@ export function CampaignCardGrid({ children }: { children: ReactNode }) {
   return <div className="grid items-start gap-3">{children}</div>;
 }
 
-/* ── Campaign stats rail ─────────────────────────────────────────── */
+/* ── All-campaigns overview rail ─────────────────────────────────── */
 
-/** Overall campaign totals in the Shopify accounts-card anatomy: a
- *  card title over DetailList's bordered label → value rows. */
+/** The account's campaign totals in the Shopify accounts-card anatomy:
+ *  a card title over DetailList's bordered label → value rows. The
+ *  title says whose numbers these are — every campaign, not one. */
 export function CampaignStatsCard({
   rows,
   className,
@@ -308,7 +309,7 @@ export function CampaignStatsCard({
       )}
     >
       <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
-        Campaign stats
+        All campaigns
       </h2>
       <div className="mt-3">
         <DetailList items={rows} />
