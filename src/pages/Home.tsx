@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
-  ActivityFeed,
+  RecommendationRail,
   CampaignCard,
   CampaignCardGrid,
   DashboardPage,
@@ -19,7 +19,7 @@ import { useWorkspace } from "@/lib/store";
 import {
   STAT_XTICKS,
   attentionItems,
-  workspaceActivity,
+  workspaceRecommendations,
   dashboardStats,
   readyTitle,
   winnerLabel,
@@ -168,8 +168,8 @@ export function HomePage() {
   const dismissSuggestion = (id: string) =>
     setDismissed((prev) => new Set(prev).add(id));
 
-  /* The activity rail: recent launches and endings with their outcomes. */
-  const activity = useMemo(() => workspaceActivity(campaigns, polsts), [campaigns, polsts]);
+  /* The rail: decisions the data already supports, with their evidence. */
+  const recommendations = useMemo(() => workspaceRecommendations(campaigns), [campaigns]);
 
   const activeCampaigns = campaigns.filter((c) => c.status === "Active");
   const queuedCampaigns = useMemo(
@@ -228,27 +228,25 @@ export function HomePage() {
         onDismiss={dismissSuggestion}
       />
 
-      {/* 4 · One campaign, one row — the activity rail rides the last
-             quarter and says what launched, ended, and how it came out. */}
+      {/* 4 · One campaign, one row — the recommendation rail rides the
+             last quarter and states the decisions the data supports. */}
       <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
-            Campaigns
-          </h2>
-          <div className="flex items-center gap-2">
-            <SegmentedControl
-              tabs={["Active", "Queued"]}
-              active={campaignView}
-              onChange={setCampaignView}
-              size="compact"
-            />
-            <Button variant="secondary" size="sm" asChild>
-              <Link to="/campaigns">View all</Link>
-            </Button>
-          </div>
-        </div>
+        <h2 className="mb-3 font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+          Campaigns
+        </h2>
         <div className="grid items-start gap-3 lg:grid-cols-4">
-          <div className="lg:col-span-3">
+          <div className="space-y-3 lg:col-span-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <SegmentedControl
+                tabs={["Active", "Queued"]}
+                active={campaignView}
+                onChange={setCampaignView}
+                size="compact"
+              />
+              <Button variant="secondary" size="sm" asChild>
+                <Link to="/campaigns">View all</Link>
+              </Button>
+            </div>
             {shownCampaigns.length ? (
               <CampaignCardGrid>
                 {shownCampaigns.map((c: Campaign) => (
@@ -269,7 +267,7 @@ export function HomePage() {
               </div>
             )}
           </div>
-          <ActivityFeed items={activity} />
+          <RecommendationRail items={recommendations} />
         </div>
       </section>
     </DashboardPage>

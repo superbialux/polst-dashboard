@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { fmtDateRange, fmtInt, pct, relativeToToday } from "@/lib/canon";
-import { polstImage, type ActivityItem, type Campaign } from "@/lib/workspace";
+import { polstImage, type Campaign, type Recommendation } from "@/lib/workspace";
 import { CtaButton, MediaFill, StatusBadge, type CardTone } from "./kit";
 
 /* ══════════════════════════════════════════════════════════════════
@@ -289,17 +289,18 @@ export function CampaignCardGrid({ children }: { children: ReactNode }) {
   return <div className="grid items-start gap-3">{children}</div>;
 }
 
-/* ── What happened ───────────────────────────────────────────────── */
+/* ── Recommendations ─────────────────────────────────────────────── */
 
-const ACTIVITY_CHIP: Record<ActivityItem["kind"], { icon: string; tone: string }> = {
-  launch: { icon: "rocket_launch", tone: "bg-accent-soft text-accent-default" },
-  end: { icon: "flag", tone: "bg-surface-subtle text-text-secondary" },
-};
-
-/** The Hotjar "recent activity" rail, spoken from workspace facts:
- *  what launched, what ended, and how it came out — the same glyph
- *  language as the chart markers. */
-export function ActivityFeed({ items, className }: { items: ActivityItem[]; className?: string }) {
+/** The decisions the data already supports, one action line each: the
+ *  winning option with its numbers, then the run and the strength of
+ *  the read. Same heading register as the campaign cards beside it. */
+export function RecommendationRail({
+  items,
+  className,
+}: {
+  items: Recommendation[];
+  className?: string;
+}) {
   return (
     <section
       className={cn(
@@ -307,29 +308,26 @@ export function ActivityFeed({ items, className }: { items: ActivityItem[]; clas
         className,
       )}
     >
-      <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
-        What happened
+      <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
+        Recommendations
       </h2>
       {items.length ? (
-        <ul className="mt-2 divide-y divide-border-default">
+        <ul className="mt-1 divide-y divide-border-default">
           {items.map((item) => (
             <li key={item.id}>
-              <Link to={item.to} className="group flex items-start gap-2.5 py-2.5">
+              <Link to={item.to} className="group flex items-start gap-2.5 py-3">
                 <span
                   aria-hidden
-                  className={cn(
-                    "mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-pill",
-                    ACTIVITY_CHIP[item.kind].tone,
-                  )}
+                  className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-accent-soft text-accent-default"
                 >
-                  <Icon name={ACTIVITY_CHIP[item.kind].icon} size={14} weight={300} filled />
+                  <Icon name="lightbulb" size={14} weight={300} filled />
                 </span>
                 <span className="min-w-0">
-                  <span className="line-clamp-2 text-sm font-medium leading-5 text-text-primary group-hover:underline">
+                  <span className="block text-sm font-medium leading-5 text-text-primary group-hover:underline">
                     {item.title}
                   </span>
                   <span className="mt-0.5 block text-xs leading-4 text-text-secondary">
-                    {item.detail} · {relativeToToday(item.date)}
+                    {item.meta}
                   </span>
                 </span>
               </Link>
@@ -337,7 +335,9 @@ export function ActivityFeed({ items, className }: { items: ActivityItem[]; clas
           ))}
         </ul>
       ) : (
-        <p className="mt-2 text-sm text-text-tertiary">Nothing has launched or ended yet.</p>
+        <p className="mt-2 text-sm text-text-tertiary">
+          No run has a readable result yet — recommendations appear as winners emerge.
+        </p>
       )}
     </section>
   );
