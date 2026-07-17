@@ -849,8 +849,167 @@ const derivePolst = (seed: PolstSeed): SinglePolst => {
   };
 };
 
-export const CAMPAIGNS: Campaign[] = shiftSeed(CAMPAIGN_SEEDS).map(deriveCampaign);
-export const SINGLE_POLSTS: SinglePolst[] = shiftSeed(POLST_SEEDS).map(derivePolst);
+/* ── Generated archive (volume for the lists) ────────────────────── */
+
+/* The hand-authored seeds above carry the workspace's stories; the
+   archive below carries its HISTORY — enough past runs that lists
+   paginate, sort, and filter like a real account. Deterministic
+   (fixed-seed mulberry32, never Math.random) so every load and the
+   invariant suite see the same workspace. Only Ended/Archived states:
+   generated runs add volume, never attention items or live noise.
+   Every narrative number is computed from the same values the model
+   derives from — the copy can't disagree with the data. */
+const mulberry32 = (a: number) => () => {
+  a |= 0;
+  a = (a + 0x6d2b79f5) | 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+const ARCHIVE_THEMES = [
+  "Autumn Menu", "Winter Warmers", "Spring Refresh", "Cold Brew", "Weekend Brunch",
+  "Snack Wall", "Breakfast Bar", "Pantry Staples", "Gift Card", "Sampler Box",
+  "Farm Box", "Trail Mix", "Tea Range", "Granola", "Hot Sauce", "Soup Season",
+  "Juice Line", "Bread Club", "Cheese Board", "Dessert Case", "Picnic Kit",
+  "Office Snacks", "Kids Lunch", "Game Night", "Road Trip", "Garden Party",
+  "Harvest Fair", "Cocoa Nights", "Salad Days", "Grill Season", "Citrus Drop",
+  "Berry Patch", "Nut Butter", "Season Pass",
+] as const;
+
+const ARCHIVE_FOCUS = ["Label Test", "Flavor Vote", "Price Check", "Creative Pick", "Name Vote", "Shelf Test"] as const;
+
+const ARCHIVE_QUESTIONS: Array<{ q: string; a: string; b: string }> = [
+  { q: "Which label reads better?", a: "Bold type", b: "Soft script" },
+  { q: "Which flavor leads?", a: "Classic", b: "Seasonal twist" },
+  { q: "Which price feels right?", a: "$3.49", b: "$3.99" },
+  { q: "Which photo sells it?", a: "Close-up", b: "Table scene" },
+  { q: "Which name sticks?", a: "Plain name", b: "Playful name" },
+  { q: "Which shelf spot works?", a: "Eye level", b: "End cap" },
+];
+
+const ARCHIVE_CATEGORIES: Category[] = ["Food & drink", "Lifestyle", "Shopping & deals"];
+
+function generateCampaignArchive(count: number): CampaignSeed[] {
+  const rand = mulberry32(20260717);
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  return Array.from({ length: count }, (_, i) => {
+    const name = `${ARCHIVE_THEMES[i % ARCHIVE_THEMES.length]} ${ARCHIVE_FOCUS[i % ARCHIVE_FOCUS.length]}`;
+    // Archived = shelved before launch (the model's contract: no
+    // traffic); Ended = a completed run with real numbers.
+    const archived = i % 4 === 3;
+    // History marches backward from late spring but never before the
+    // model's epoch (the "All" window opens at Jan 1, seed space).
+    const start = addDays("2026-05-15", -(i * 3 + int(0, 2)));
+    const end = addDays(start, int(10, 18));
+    const chainLen = int(2, 3);
+    const chain: ChainQuestion[] = Array.from({ length: chainLen }, (_, qi) => {
+      const t = ARCHIVE_QUESTIONS[(i + qi) % ARCHIVE_QUESTIONS.length];
+      return {
+        id: `gen-c${i}-q${qi}`,
+        question: t.q,
+        optionA: t.a,
+        optionB: t.b,
+        splitA: archived ? 0 : int(40, 64),
+      };
+    });
+    const voters = archived ? 0 : int(300, 2400);
+    const completed = archived ? 0 : Math.round(voters * (0.55 + rand() * 0.3));
+    const lead = chain[0];
+    const winner = lead.splitA >= 50 ? lead.optionA : lead.optionB;
+    const winPct = lead.splitA >= 50 ? lead.splitA : 100 - lead.splitA;
+    return {
+      id: `gen-campaign-${i}`,
+      name,
+      decision: lead.question,
+      status: (archived ? "Archived" : "Ended") as Status,
+      createdAt: addDays(start, -int(4, 9)),
+      ...(archived ? {} : { startAt: start, endAt: end }),
+      category: ARCHIVE_CATEGORIES[i % ARCHIVE_CATEGORIES.length],
+      viewsFactor: Math.round((1.8 + rand() * 0.8) * 10) / 10,
+      voters,
+      completed,
+      shares: archived ? 0 : Math.round(voters * 0.05),
+      ...(archived ? {} : { avgTimeSeconds: int(24, 58) }),
+      decisionIndex: 0,
+      chain,
+      summary: archived
+        ? "Archived before launch — no voters were collected."
+        : `${winner} received ${winPct}% of responses on the decision question. The run collected ${fmtInt(voters)} voters before ending.`,
+      nextStep: archived
+        ? "Restore the draft if this decision comes back."
+        : "The result is on record — open the report if the decision resurfaces.",
+      findings: archived
+        ? []
+        : [
+            `${winner} received ${winPct}% of responses on "${lead.question}"; the other option received ${100 - winPct}%.`,
+          ],
+      caveats: archived ? [] : ["Collected under an earlier season's traffic mix."],
+      sampleNote: archived
+        ? "No voters — archived before launch."
+        : `${fmtInt(voters)} voters over the run; kept for the record.`,
+    };
+  });
+}
+
+function generatePolstArchive(count: number): PolstSeed[] {
+  const rand = mulberry32(20260718);
+  const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+  return Array.from({ length: count }, (_, i) => {
+    const t = ARCHIVE_QUESTIONS[i % ARCHIVE_QUESTIONS.length];
+    const theme = ARCHIVE_THEMES[(i * 5) % ARCHIVE_THEMES.length];
+    const archived = i % 4 === 3;
+    const start = addDays("2026-05-20", -(i * 3 + int(0, 2)));
+    return {
+      id: `gen-polst-${i}`,
+      question: `${theme}: ${t.q.toLowerCase()}`,
+      optionA: t.a,
+      optionB: t.b,
+      splitA: archived ? 0 : int(38, 64),
+      status: (archived ? "Archived" : "Ended") as Status,
+      createdAt: addDays(start, -int(2, 6)),
+      ...(archived ? {} : { startAt: start, endAt: addDays(start, int(7, 14)) }),
+      category: ARCHIVE_CATEGORIES[i % ARCHIVE_CATEGORIES.length],
+      votes: archived ? 0 : int(150, 2200),
+      viewsFactor: Math.round((1.9 + rand() * 0.7) * 10) / 10,
+      interactions: archived ? 0 : int(5, 90),
+    };
+  });
+}
+
+/* 50 of each: the authored stories plus enough archive to fill them. */
+const CAMPAIGN_ARCHIVE = generateCampaignArchive(50 - CAMPAIGN_SEEDS.length);
+const POLST_ARCHIVE = generatePolstArchive(50 - POLST_SEEDS.length);
+
+/* Every traffic-bearing run needs a source — analytics attributes ALL
+   traffic through channels, and an unsourced run would fall out of the
+   totals (invariant 8). One share link each, channels cycled. */
+const ARCHIVE_CHANNELS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
+const ARCHIVE_SOURCE_SEEDS: SourceSeed[] = shiftSeed([
+  ...CAMPAIGN_ARCHIVE.filter((c) => c.voters > 0).map((c, i) => ({
+    id: `gen-src-${c.id}`,
+    name: `Share link — ${c.name}`,
+    kind: "Share link" as const,
+    channel: ARCHIVE_CHANNELS[i % ARCHIVE_CHANNELS.length],
+    linked: { type: "campaign" as const, id: c.id },
+    createdAt: c.createdAt,
+    voterShare: 1,
+  })),
+  ...POLST_ARCHIVE.filter((p) => p.votes > 0).map((p, i) => ({
+    id: `gen-src-${p.id}`,
+    name: `Share link — ${p.question}`,
+    kind: "Share link" as const,
+    channel: ARCHIVE_CHANNELS[(i + 2) % ARCHIVE_CHANNELS.length],
+    linked: { type: "polst" as const, id: p.id },
+    createdAt: p.createdAt,
+    voterShare: 1,
+  })),
+]);
+
+const ALL_SOURCE_SEEDS: SourceSeed[] = [...SOURCE_SEEDS, ...ARCHIVE_SOURCE_SEEDS];
+
+export const CAMPAIGNS: Campaign[] = shiftSeed([...CAMPAIGN_SEEDS, ...CAMPAIGN_ARCHIVE]).map(deriveCampaign);
+export const SINGLE_POLSTS: SinglePolst[] = shiftSeed([...POLST_SEEDS, ...POLST_ARCHIVE]).map(derivePolst);
 
 const campaignById = new Map(CAMPAIGNS.map((c) => [c.id, c]));
 const polstById = new Map(SINGLE_POLSTS.map((p) => [p.id, p]));
@@ -871,7 +1030,7 @@ const linkedTotals = (linked: NonNullable<Source["linked"]>) => {
 export const SOURCES: Source[] = (() => {
   const derived = new Map<string, { voters: number; views: number; completed: number }>();
   const byObject = new Map<string, SourceSeed[]>();
-  for (const seed of SOURCE_SEEDS) {
+  for (const seed of ALL_SOURCE_SEEDS) {
     if (!seed.linked) continue;
     const key = `${seed.linked.type}:${seed.linked.id}`;
     byObject.set(key, [...(byObject.get(key) ?? []), seed]);
@@ -889,7 +1048,7 @@ export const SOURCES: Source[] = (() => {
       derived.set(s.id, { voters: voters[i], views: views[i], completed: completed[i] }),
     );
   }
-  return SOURCE_SEEDS.map((seed) => {
+  return ALL_SOURCE_SEEDS.map((seed) => {
     const alloc = derived.get(seed.id) ?? { voters: 0, views: 0, completed: 0 };
     const totals = seed.linked ? linkedTotals(seed.linked) : null;
     // Last activity follows the linked run: its end if past, otherwise today.

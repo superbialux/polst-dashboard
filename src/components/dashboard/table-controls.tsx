@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { SegmentedControl } from "./kit";
 import { fmtDate } from "@/lib/canon";
 
 /* ══════════════════════════════════════════════════════════════════
@@ -75,9 +75,9 @@ export function DateRangePicker({
         <Button
           variant="secondary"
           size="md"
-          className={cn("justify-start", !from && "text-text-tertiary", className)}
+          className={cn(TOOLBAR_CONTROL, "justify-start", !from && "text-text-tertiary", className)}
         >
-          <Icon name="calendar_month" size={18} className="shrink-0" />
+          <Icon name="calendar_month" size={16} className="shrink-0 text-icon-secondary" />
           <span className="truncate">{label}</span>
         </Button>
       </PopoverTrigger>
@@ -111,8 +111,14 @@ export function DateRangePicker({
 
 /* ── Status select ───────────────────────────────────────────────── */
 
-/** The list status filter on shadcn Select — 32px trigger, filter glyph,
- *  one item per lifecycle view. */
+/* Toolbar control contract: every control is 32px on the raised (white)
+   surface with the default hairline border, px-2.5 side padding, 16px
+   secondary-ink glyphs, gap-2, and 14px medium text. */
+const TOOLBAR_CONTROL =
+  "h-8 gap-2 rounded-md border-border-default bg-surface-raised px-2.5 text-sm font-medium text-text-primary shadow-none";
+
+/** The list status filter on shadcn Select — same chrome as every
+ *  toolbar neighbour. */
 export function StatusSelect({
   options,
   value,
@@ -126,11 +132,8 @@ export function StatusSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger
-        aria-label="Status"
-        className={cn("h-8 w-36 gap-1.5 text-sm font-medium", className)}
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
+      <SelectTrigger aria-label="Status" className={cn(TOOLBAR_CONTROL, "w-36", className)}>
+        <span className="flex min-w-0 items-center gap-2">
           <Icon name="filter_list" size={16} className="shrink-0 text-icon-secondary" />
           <SelectValue />
         </span>
@@ -150,8 +153,13 @@ export function StatusSelect({
 
 /* ── View toggle ─────────────────────────────────────────────────── */
 
-/** List ⇄ grid on shadcn ToggleGroup — 32px outline items, icon-only
- *  with accessible names. */
+const VIEW_ITEMS = [
+  { value: "list", icon: "table_rows", label: "List view" },
+  { value: "grid", icon: "grid_view", label: "Grid view" },
+] as const;
+
+/** List ⇄ grid on the house pill selector — the same SegmentedControl
+ *  that switches Active/Queued on Home. */
 export function ViewToggle({
   value,
   onChange,
@@ -162,20 +170,13 @@ export function ViewToggle({
   className?: string;
 }) {
   return (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      value={value}
-      onValueChange={(next) => next && onChange(next as "list" | "grid")}
-      className={cn("gap-0 -space-x-px", className)}
-    >
-      <ToggleGroupItem value="list" aria-label="List view" className="h-8 w-9 rounded-r-none">
-        <Icon name="table_rows" size={16} />
-      </ToggleGroupItem>
-      <ToggleGroupItem value="grid" aria-label="Grid view" className="h-8 w-9 rounded-l-none">
-        <Icon name="grid_view" size={16} />
-      </ToggleGroupItem>
-    </ToggleGroup>
+    <SegmentedControl
+      tabs={VIEW_ITEMS}
+      active={value}
+      onChange={onChange}
+      size="compact"
+      className={className}
+    />
   );
 }
 

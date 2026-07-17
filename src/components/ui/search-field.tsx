@@ -13,7 +13,10 @@ const TONE = {
   dark: "border-white/10 text-sidenav-muted transition-colors hover:bg-white/5 hover:text-sidenav-fg",
 } as const;
 
-const SHELL = "flex h-8 w-full items-center gap-2 rounded-sm border px-2 text-left text-sm font-medium";
+/* px-2.5 / gap-2 / 16px glyph / 14px medium — the toolbar control
+ * contract, shared with the status select and range picker. */
+const SHELL =
+  "flex h-8 w-full items-center gap-2 rounded-md border px-2.5 text-left text-sm font-medium";
 
 export function SearchField({
   placeholder,
