@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
+import { PollCard } from "@/components/PollCard";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard, useToast } from "@/components/Toast";
 import {
@@ -88,6 +89,7 @@ import {
   type CampaignReviewState,
   type ChainQuestion,
   type Source,
+  WORKSPACE,
 } from "@/lib/workspace";
 import {
   INSIGHT_STATE_TONE,
@@ -438,21 +440,186 @@ export function CampaignsPage() {
 
 /* ── Create campaign ─────────────────────────────────────────────── */
 
+/* ── Create campaign: the four-step builder ──────────────────────── */
+
+const BUILDER_STEPS = ["Decision", "Build chain", "Distribution", "Review"] as const;
+
+/** Steps dressed EXACTLY like header tabs — quiet labels, the active
+ *  one on the accent underline — with the step number ahead of the
+ *  name and a chevron between stops. Visited steps stay clickable. */
+function StepTabs({
+  current,
+  maxStep,
+  onStep,
+}: {
+  current: number; // 1-based
+  maxStep: number;
+  onStep: (step: number) => void;
+}) {
+  return (
+    <nav aria-label="Campaign builder steps" className="flex items-center gap-1">
+      {BUILDER_STEPS.map((label, i) => {
+        const step = i + 1;
+        const active = step === current;
+        const reachable = step <= maxStep;
+        return (
+          <span key={label} className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={!reachable}
+              aria-current={active ? "step" : undefined}
+              onClick={() => onStep(step)}
+              className={cn(
+                "relative flex h-9 items-center gap-1 px-1 font-display text-sm font-medium transition-colors",
+                active
+                  ? "text-text-primary"
+                  : reachable
+                    ? "text-text-secondary hover:text-text-primary"
+                    : "cursor-default text-text-tertiary",
+              )}
+            >
+              <span className="tabular-nums">{step}.</span>
+              {label}
+              {active ? (
+                <span
+                  aria-hidden
+                  className="absolute inset-x-0 bottom-0 border-b-2 border-accent-default"
+                />
+              ) : null}
+            </button>
+            {i < BUILDER_STEPS.length - 1 ? (
+              <Icon name="chevron_right" size={16} className="shrink-0 text-icon-tertiary" />
+            ) : null}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* ── Presets: what a campaign can be ─────────────────────────────── */
+
+type ChainSeed = { question: string; optionA: string; optionB: string };
+
+type CampaignPreset = {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  name?: string;
+  decision?: string;
+  chain?: ChainSeed[];
+};
+
+/** Each preset is a finished campaign one Continue away — they exist to
+ *  show the range: big-screen creative, product concepts, audiences,
+ *  events, internal calls. Scratch comes first and stays blank. */
+const PRESETS: CampaignPreset[] = [
+  {
+    id: "scratch",
+    icon: "edit_square",
+    title: "Start from scratch",
+    description: "A blank campaign — name it, chain your own polsts, and shape the decision yourself.",
+  },
+  {
+    id: "big-screen",
+    icon: "featured_video",
+    title: "Big-screen creative test",
+    description:
+      "Pick the ad that survives a six-second glance — built for jumbotrons, transit screens, and billboards.",
+    name: "Big-Screen Creative Test",
+    decision: "Which creative should run on the big screens?",
+    chain: [
+      { question: "Which visual reads from across the street?", optionA: "Bold product shot", optionB: "Lifestyle scene" },
+      { question: "Which four-word tagline lands?", optionA: "Taste the season", optionB: "Made for right now" },
+      { question: "Which color field pops at night?", optionA: "Electric violet", optionB: "Warm cream" },
+    ],
+  },
+  {
+    id: "concept-faceoff",
+    icon: "category",
+    title: "Product concept face-off",
+    description:
+      "Two concepts enter, one gets built — compare the idea, its name, and its price before a dollar of tooling.",
+    name: "Product Concept Face-Off",
+    decision: "Which product concept do we take to market?",
+    chain: [
+      { question: "Which concept should we build?", optionA: "Protein granola", optionB: "Overnight oats kit" },
+      { question: "Which name sells it?", optionA: "Morning Fuel", optionB: "First Light" },
+      { question: "Which launch price feels fair?", optionA: "$6.99", optionB: "$8.49" },
+    ],
+  },
+  {
+    id: "find-audience",
+    icon: "groups",
+    title: "Find your audience",
+    description:
+      "Let voters tell you who this is for — pair creator styles and vibes until the audience shows itself.",
+    name: "Audience Finder",
+    decision: "Which audience and creator lane fits the brand?",
+    chain: [
+      { question: "Whose kitchen do you trust?", optionA: "Chef-led recipes", optionB: "Real-home cooking" },
+      { question: "Which collab would you watch?", optionA: "Athlete morning routine", optionB: "Artist studio snacks" },
+      { question: "What matters more?", optionA: "Low sugar", optionB: "High protein" },
+    ],
+  },
+  {
+    id: "event-activation",
+    icon: "celebration",
+    title: "Event activation planner",
+    description:
+      "Plan the booth before you book it — sampling, giveaway, and signage decided by the crowd you'll meet.",
+    name: "Event Activation Planner",
+    decision: "What runs at the event booth?",
+    chain: [
+      { question: "Which sample stops foot traffic?", optionA: "Iced tasting flight", optionB: "Warm mini-bites" },
+      { question: "Which giveaway gets kept?", optionA: "Tote bag", optionB: "Enamel mug" },
+      { question: "Which sign pulls people in?", optionA: "Neon logo", optionB: "Chalkboard menu" },
+    ],
+  },
+  {
+    id: "internal-pulse",
+    icon: "diversity_3",
+    title: "Internal pulse check",
+    description:
+      "Settle the team debate with votes instead of meetings — quick calls, results in days.",
+    name: "Internal Pulse Check",
+    decision: "What does the team actually want?",
+    chain: [
+      { question: "Which roadmap bet comes first?", optionA: "New flavors", optionB: "New formats" },
+      { question: "Which office snack restock?", optionA: "Sparkling water", optionB: "Cold brew keg" },
+      { question: "Offsite: mountains or coast?", optionA: "Mountains", optionB: "Coast" },
+    ],
+  },
+];
+
 export function CreateCampaignPage() {
   const {
     campaigns,
+    sources: allSources,
     campaignById,
     createCampaign,
     updateCampaign,
     publishCampaign,
     reorderChain,
     removeChainQuestion,
+    addQuestionToCampaign,
+    assignSource,
+    addSource,
   } = useWorkspace();
   const toast = useToast();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const eventParam = params.get("event") ?? "";
 
+  const [step, setStep] = useState(1);
+  const [maxStep, setMaxStep] = useState(1);
+  const goStep = (next: number) => {
+    setStep(next);
+    setMaxStep((m) => Math.max(m, next));
+  };
+
+  const [preset, setPreset] = useState<string>("scratch");
   const [name, setName] = useState("");
   const [decision, setDecision] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -461,9 +628,6 @@ export function CreateCampaignPage() {
   const [event, setEvent] = useState(
     KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "",
   );
-
-  // ?event= can change while the form stays mounted (e.g. two "Plan a
-  // campaign" links for different key dates) — resync the preselect.
   useEffect(() => {
     setEvent(KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "");
   }, [eventParam]);
@@ -471,8 +635,6 @@ export function CreateCampaignPage() {
   /* The page IS the draft: the first meaningful change mints it, every
      change after patches it — nothing here can be lost by leaving. */
   const [draftId, setDraftId] = useState<string | null>(null);
-  /** initial → "Saved as draft"; any change spins ("Saving…") for a
-   *  beat, then lands on "Changes saved". */
   const [saveState, setSaveState] = useState<"initial" | "saving" | "saved">("initial");
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settleSave = () => {
@@ -480,13 +642,15 @@ export function CreateCampaignPage() {
     if (settleTimer.current) clearTimeout(settleTimer.current);
     settleTimer.current = setTimeout(() => setSaveState("saved"), 1200);
   };
+
   const [composerOpen, setComposerOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [launching, setLaunching] = useState(false);
+  const [selectedChainId, setSelectedChainId] = useState<string | null>(null);
+  const [finishing, setFinishing] = useState(false);
 
   const endAt = durationEnd(duration, startAt, customEnd);
-  // Only a Custom duration can invert the range — refuse it at the source.
   const endBeforeStart = Boolean(endAt && startAt && endAt < startAt);
 
   const draftInput = () => ({
@@ -513,38 +677,73 @@ export function CreateCampaignPage() {
     if (!dirty && !draftIdRef.current) return;
     settleSave();
     const t = setTimeout(() => {
-      if (!draftIdRef.current) {
-        ensureDraft();
-      } else {
-        updateCampaign(draftIdRef.current, draftInput());
-      }
+      if (!draftIdRef.current) ensureDraft();
+      else updateCampaign(draftIdRef.current, draftInput());
     }, 600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, decision, startAt, duration, customEnd, event]);
 
-  // Chain edits (add / reorder / remove) are saves too — same signal.
-  const chainLength = draftId ? (campaignById(draftId)?.chain.length ?? 0) : 0;
-  const prevChainLength = useRef(chainLength);
-  useEffect(() => {
-    if (chainLength !== prevChainLength.current && draftIdRef.current) settleSave();
-    prevChainLength.current = chainLength;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chainLength]);
-
   const draftCampaign = draftId ? campaignById(draftId) : undefined;
   const chain = draftCampaign?.chain ?? [];
+  const selectedChain = chain.find((q) => q.id === selectedChainId) ?? chain[0];
 
-  const launch = () => {
-    if (launching) return; // a double-click must not publish twice
+  // Chain edits (add / reorder / remove) are saves too — same signal.
+  const prevChainLength = useRef(chain.length);
+  useEffect(() => {
+    if (chain.length !== prevChainLength.current && draftIdRef.current) settleSave();
+    prevChainLength.current = chain.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chain.length]);
+
+  /** A preset prefills EVERYTHING — details and the staged chain — so
+   *  the rest of the flow is Continue, Continue, launch. */
+  const applyPreset = (p: CampaignPreset) => {
+    setPreset(p.id);
+    if (p.id === "scratch") return;
+    setName(p.name ?? "");
+    setDecision(p.decision ?? "");
+    if (!startAt) setStartAt(TODAY);
+    const id = ensureDraft();
+    updateCampaign(id, {
+      name: p.name ?? "Untitled campaign",
+      decision: p.decision,
+      startAt: startAt || TODAY,
+      endAt,
+      event: event || undefined,
+    });
+    // Stage the preset chain once — re-picking a preset resets nothing
+    // that's already staged (evidence-safe; remove rows by hand).
+    const existing = campaignById(id)?.chain ?? [];
+    if (existing.length === 0 && p.chain) {
+      for (const q of p.chain) addQuestionToCampaign(id, q);
+    }
+    settleSave();
+  };
+
+  const assigned = draftId
+    ? allSources.filter((s) => s.linked?.type === "campaign" && s.linked.id === draftId)
+    : [];
+  // The honest estimate: what these sources delivered historically.
+  const estReach = assigned.reduce((a, s) => a + s.views, 0);
+  const estVoters = assigned.reduce((a, s) => a + s.voters, 0);
+
+  const finish = (launchNow: boolean) => {
+    if (finishing) return;
     const id = ensureDraft();
     updateCampaign(id, draftInput());
+    if (!launchNow) {
+      setFinishing(true);
+      toast("Saved to drafts");
+      navigate(`/campaigns/${id}`);
+      return;
+    }
     const result = publishCampaign(id);
     if (!result.ok) {
       toast(result.reason);
       return;
     }
-    setLaunching(true);
+    setFinishing(true);
     toast(
       result.status === "Scheduled"
         ? `Campaign scheduled — starts ${fmtDate(startAt)}`
@@ -559,10 +758,12 @@ export function CreateCampaignPage() {
     .filter((c) => c.status === "Draft" && c.id !== draftId)
     .slice(0, 3);
 
+  const canContinue =
+    step === 1 ? Boolean(name.trim()) && !endBeforeStart : step === 2 ? chain.length > 0 : true;
+
   return (
     <DashboardPage
-      // The launch gate lives in the fixed footer: greyed until the
-      // chain has a polst, while "Saved to drafts" says nothing is lost.
+      tabs={<StepTabs current={step} maxStep={maxStep} onStep={goStep} />}
       footer={
         <>
           <p className="flex items-center gap-1.5 text-sm text-text-secondary">
@@ -584,219 +785,443 @@ export function CreateCampaignPage() {
             )}
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" asChild>
-              <Link to="/campaigns">Cancel</Link>
-            </Button>
-            <Button
-              disabled={chain.length === 0 || endBeforeStart || launching}
-              title={
-                chain.length === 0
-                  ? "Add at least one polst to launch."
-                  : endBeforeStart
-                    ? "The end date is before the start."
-                    : undefined
-              }
-              onClick={launch}
-            >
-              Launch campaign
-            </Button>
+            {step > 1 ? (
+              <Button variant="ghost" onClick={() => setStep(step - 1)}>
+                Back
+              </Button>
+            ) : (
+              <Button variant="ghost" asChild>
+                <Link to="/campaigns">Cancel</Link>
+              </Button>
+            )}
+            {step < 4 ? (
+              <Button
+                disabled={!canContinue}
+                title={
+                  step === 1 && !name.trim()
+                    ? "Name the campaign to continue."
+                    : step === 2 && chain.length === 0
+                      ? "Add at least one polst to continue."
+                      : undefined
+                }
+                onClick={() => goStep(step + 1)}
+              >
+                Continue
+                <Icon name="arrow_forward" size={16} />
+              </Button>
+            ) : (
+              <>
+                <Button variant="secondary" disabled={finishing} onClick={() => finish(false)}>
+                  Keep as draft
+                </Button>
+                <Button disabled={finishing || chain.length === 0} onClick={() => finish(true)}>
+                  Create &amp; launch
+                </Button>
+              </>
+            )}
           </div>
         </>
       }
     >
-      <SectionGrid>
-        <div className="space-y-4 lg:col-span-8">
-          <DashboardCard title="Campaign details">
-            <div className="space-y-5">
-              <Field label="Campaign name" required>
-                {(id) => (
-                  <TextInput
-                    id={id}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    maxLength={255}
-                    placeholder="Summer launch"
-                  />
-                )}
-              </Field>
-              <Field label="Decision question">
-                {(id) => (
-                  <textarea
-                    id={id}
-                    value={decision}
-                    onChange={(e) => setDecision(e.target.value)}
-                    rows={2}
-                    placeholder="Which flavor should lead retail sell-in?"
-                    className={cn(CONTROL, "h-auto min-h-16 resize-none px-3 py-2.5")}
-                  />
-                )}
-              </Field>
-              <Field label="Start date">
-                {(id) => (
-                  <TextInput
-                    id={id}
-                    type="date"
-                    value={startAt}
-                    onChange={(e) => setStartAt(e.target.value)}
-                  />
-                )}
-              </Field>
-              <DurationField
-                value={duration}
-                onChange={setDuration}
-                customEnd={customEnd}
-                onCustomEndChange={setCustomEnd}
-                startAt={startAt}
-                subject="campaign"
-              />
-              {endBeforeStart ? (
-                <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
-              ) : null}
-              {/* No key-date field: the calendar exists to spark ideas,
-                  not to gate creation. A ?event= arrival still ties the
-                  run to its date quietly. */}
-            </div>
-          </DashboardCard>
-
-          {/* The chain builds RIGHT HERE — real polst cards, draggable
-              into order, minted in the composer or pulled from the
-              library, never leaving this screen. */}
-          <DashboardCard
-            title="Polsts"
-            description="Voters answer them in the order below — drag to rearrange."
-            action={
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    ensureDraft();
-                    setLibraryOpen(true);
-                  }}
-                >
-                  Add from library
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    ensureDraft();
-                    setComposerOpen(true);
-                  }}
-                >
-                  Create polst
-                </Button>
-              </div>
-            }
-          >
-            {chain.length ? (
-              <ul className="space-y-2">
-                {chain.map((q, i) => (
-                  <li
-                    key={q.id}
-                    draggable
-                    onDragStart={() => setDragIndex(i)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => {
-                      if (dragIndex !== null && dragIndex !== i && draftId) {
-                        reorderChain(draftId, dragIndex, i);
-                      }
-                      setDragIndex(null);
-                    }}
-                    onDragEnd={() => setDragIndex(null)}
-                    className={cn(
-                      "flex cursor-grab items-center gap-2 rounded-md border border-border-default bg-surface-raised p-2 active:cursor-grabbing",
-                      dragIndex === i && "opacity-50",
-                    )}
-                  >
-                    <Icon name="drag_indicator" size={18} className="shrink-0 text-icon-tertiary" />
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-surface-subtle font-display text-xs font-semibold text-text-secondary">
-                      {i + 1}
-                    </span>
-                    <PolstListRow
-                      className="min-w-0 flex-1"
-                      question={q.question}
-                      options={polstOptions({
-                        id: q.id,
-                        optionA: q.optionA,
-                        optionB: q.optionB,
-                        splitA: q.splitA,
-                        votes: 0,
-                      })}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Remove ${q.question} from the chain`}
-                      onClick={() => draftId && removeChainQuestion(draftId, q.id)}
+      {step === 1 ? (
+        <SectionGrid>
+          <div className="space-y-4 lg:col-span-8">
+            <DashboardCard
+              title="What kind of decision is this?"
+              description="Pick a preset to see what a campaign can carry — everything prefills, ready to launch."
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                {PRESETS.map((p) => {
+                  const active = preset === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => applyPreset(p)}
+                      aria-pressed={active}
+                      className={cn(
+                        "flex flex-col items-start rounded-md border p-4 text-left transition-colors",
+                        active
+                          ? "border-accent-default bg-accent-soft/40 ring-1 ring-accent-default"
+                          : "border-border-default bg-surface-raised hover:border-border-strong",
+                      )}
                     >
-                      <Icon name="close" size={18} />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState
-                icon="ballot"
-                title="No polsts yet"
-                hint="Launch unlocks once the chain has at least one polst."
-              />
-            )}
-          </DashboardCard>
-        </div>
-
-        <div className="space-y-4 self-start lg:col-span-4">
-          {/* The banner cards' type combo — eyebrow, display title, quiet
-              description — carried into the rail. */}
-          <DashboardCard>
-            <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-              Campaigns
-            </p>
-            <h2 className="mt-1.5 font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
-              About campaigns
-            </h2>
-            <p className="mt-1.5 text-sm leading-5 text-text-secondary">
-              A campaign bundles several polsts under one shareable link. Voters see them in
-              the order you set — use one per launch, event, or research round.
-            </p>
-            <ul className="mt-4 space-y-3">
-              {[
-                "Reorder polsts at any time before launch",
-                "Pull from your existing polst library",
-                "Share via link, QR, or embed code",
-                "End the campaign manually",
-              ].map((line) => (
-                <ChecklistItem key={line} tone="done">
-                  {line}
-                </ChecklistItem>
-              ))}
-            </ul>
-          </DashboardCard>
-          {otherDrafts.length > 0 ? (
-            <DashboardCard>
-              <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
-                Drafts
-              </h2>
-              <div className="mt-3 space-y-2">
-                {otherDrafts.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between gap-3">
-                    <span className="min-w-0">
-                      <span className="block truncate font-display text-sm font-semibold text-text-primary">
-                        {c.name}
+                      <span
+                        className={cn(
+                          "grid h-9 w-9 place-items-center rounded-md",
+                          active ? "bg-accent-soft text-accent-default" : "bg-surface-subtle text-icon-secondary",
+                        )}
+                      >
+                        <Icon name={p.icon} size={20} />
                       </span>
-                      <span className="mt-0.5 block text-xs text-text-secondary">
-                        Created {fmtDate(c.createdAt)}
+                      <span className="mt-3 font-display text-sm font-semibold leading-5 text-text-primary">
+                        {p.title}
                       </span>
-                    </span>
-                    <Button variant="secondary" size="sm" asChild className="shrink-0">
-                      <Link to={`/campaigns/${c.id}`}>Open</Link>
-                    </Button>
-                  </div>
-                ))}
+                      <span className="mt-1 text-sm leading-5 text-text-secondary">
+                        {p.description}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </DashboardCard>
-          ) : null}
-        </div>
-      </SectionGrid>
+            <DashboardCard title="Campaign details">
+              <div className="space-y-5">
+                <Field label="Campaign name" required>
+                  {(id) => (
+                    <TextInput
+                      id={id}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={255}
+                      placeholder="Summer launch"
+                    />
+                  )}
+                </Field>
+                <Field label="Decision question">
+                  {(id) => (
+                    <textarea
+                      id={id}
+                      value={decision}
+                      onChange={(e) => setDecision(e.target.value)}
+                      rows={2}
+                      placeholder="Which flavor should lead retail sell-in?"
+                      className={cn(CONTROL, "h-auto min-h-16 resize-none px-3 py-2.5")}
+                    />
+                  )}
+                </Field>
+                <Field label="Start date">
+                  {(id) => (
+                    <TextInput
+                      id={id}
+                      type="date"
+                      value={startAt}
+                      onChange={(e) => setStartAt(e.target.value)}
+                    />
+                  )}
+                </Field>
+                <DurationField
+                  value={duration}
+                  onChange={setDuration}
+                  customEnd={customEnd}
+                  onCustomEndChange={setCustomEnd}
+                  startAt={startAt}
+                  subject="campaign"
+                />
+                {endBeforeStart ? (
+                  <FieldHelper tone="danger">The end date is before the start.</FieldHelper>
+                ) : null}
+              </div>
+            </DashboardCard>
+          </div>
+          <div className="space-y-4 self-start lg:col-span-4">
+            <DashboardCard>
+              <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+                About campaigns
+              </h2>
+              <p className="mt-1.5 text-sm leading-5 text-text-secondary">
+                A campaign bundles several polsts under one shareable link. Voters see them in
+                the order you set — use one per launch, event, or research round.
+              </p>
+              <ul className="mt-4 space-y-3">
+                {[
+                  "Reorder polsts at any time before launch",
+                  "Pull from your existing polst library",
+                  "Share via link, QR, or embed code",
+                  "End the campaign manually",
+                ].map((line) => (
+                  <ChecklistItem key={line} tone="done">
+                    {line}
+                  </ChecklistItem>
+                ))}
+              </ul>
+            </DashboardCard>
+            {otherDrafts.length > 0 ? (
+              <DashboardCard>
+                <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+                  Drafts
+                </h2>
+                <div className="mt-3 space-y-2">
+                  {otherDrafts.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate font-display text-sm font-semibold text-text-primary">
+                          {c.name}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-text-secondary">
+                          Created {fmtDate(c.createdAt)}
+                        </span>
+                      </span>
+                      <Button variant="secondary" size="sm" asChild className="shrink-0">
+                        <Link to={`/campaigns/${c.id}`}>Open</Link>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </DashboardCard>
+            ) : null}
+          </div>
+        </SectionGrid>
+      ) : step === 2 ? (
+        <SectionGrid>
+          <div className="lg:col-span-7">
+            <DashboardCard
+              title="Polsts"
+              action={
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      ensureDraft();
+                      setLibraryOpen(true);
+                    }}
+                  >
+                    Add from library
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      ensureDraft();
+                      setComposerOpen(true);
+                    }}
+                  >
+                    Create polst
+                  </Button>
+                </div>
+              }
+            >
+              {chain.length ? (
+                <ul className="space-y-2">
+                  {chain.map((q, i) => {
+                    const selected = (selectedChain?.id ?? null) === q.id;
+                    return (
+                      <li
+                        key={q.id}
+                        draggable
+                        onDragStart={() => setDragIndex(i)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => {
+                          if (dragIndex !== null && dragIndex !== i && draftId) {
+                            reorderChain(draftId, dragIndex, i);
+                            settleSave();
+                          }
+                          setDragIndex(null);
+                        }}
+                        onDragEnd={() => setDragIndex(null)}
+                        onClick={() => setSelectedChainId(q.id)}
+                        className={cn(
+                          "flex cursor-pointer items-center gap-2 rounded-md border p-2 transition-colors",
+                          selected
+                            ? "border-accent-default ring-1 ring-accent-default"
+                            : "border-border-default bg-surface-raised hover:border-border-strong",
+                          dragIndex === i && "opacity-50",
+                        )}
+                      >
+                        <Icon name="drag_indicator" size={18} className="shrink-0 cursor-grab text-icon-tertiary" />
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-surface-subtle font-display text-xs font-semibold text-text-secondary">
+                          {i + 1}
+                        </span>
+                        <PolstListRow
+                          className="pointer-events-none min-w-0 flex-1"
+                          question={q.question}
+                          options={polstOptions({
+                            id: q.id,
+                            optionA: q.optionA,
+                            optionB: q.optionB,
+                            splitA: q.splitA,
+                            votes: 0,
+                          })}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove ${q.question} from the chain`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (draftId) {
+                              removeChainQuestion(draftId, q.id);
+                              settleSave();
+                            }
+                          }}
+                        >
+                          <Icon name="close" size={18} />
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <EmptyState
+                  icon="ballot"
+                  title="No polsts yet"
+                  hint="Create one or pull from the library — voters answer them in order."
+                />
+              )}
+            </DashboardCard>
+          </div>
+          {/* The REAL card, exactly as voters get it — click a row to
+              preview it here. */}
+          <div className="self-start lg:sticky lg:top-4 lg:col-span-5">
+            {selectedChain ? (
+              <PollCard
+                preview
+                author={WORKSPACE.brand}
+                authorBadge={WORKSPACE.initials}
+                authorColor="var(--color-purple-tint)"
+                isFollowing
+                categories={[]}
+                question={selectedChain.question}
+                options={polstOptions({
+                  id: selectedChain.id,
+                  optionA: selectedChain.optionA,
+                  optionB: selectedChain.optionB,
+                  splitA: selectedChain.splitA,
+                  votes: 0,
+                })}
+                tags={[]}
+                likes={0}
+                reposts={0}
+                votes={0}
+              />
+            ) : (
+              <DashboardCard>
+                <EmptyState
+                  icon="visibility"
+                  title="Nothing to preview yet"
+                  hint="Add a polst and click its row to see the card voters will get."
+                />
+              </DashboardCard>
+            )}
+          </div>
+        </SectionGrid>
+      ) : step === 3 ? (
+        <SectionGrid>
+          <div className="lg:col-span-8">
+            <DashboardCard
+              title="Sources"
+              description="Where voters will come from — QR codes, links, and embeds pointed at this campaign."
+              action={
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    ensureDraft();
+                    setAssignOpen(true);
+                  }}
+                >
+                  Add source
+                </Button>
+              }
+            >
+              {assigned.length ? (
+                <ul className="divide-y divide-border-default">
+                  {assigned.map((s) => (
+                    <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block truncate font-display text-sm font-semibold text-text-primary">
+                          {s.name}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-text-secondary">
+                          {s.kind} · {s.channel}
+                        </span>
+                      </span>
+                      <StatusBadge status={s.voters > 0 ? "Active" : "Scheduled"} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState
+                  icon="hub"
+                  title="No sources yet"
+                  hint="A campaign can launch without sources — but nothing collects voters until one exists."
+                />
+              )}
+            </DashboardCard>
+          </div>
+          <div className="self-start lg:col-span-4">
+            <DashboardCard>
+              <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+                Estimated reach
+              </h2>
+              <p className="mt-1.5 text-sm leading-5 text-text-secondary">
+                Based on what these sources delivered on their previous runs.
+              </p>
+              <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border-default pt-4">
+                <div>
+                  <dt className="text-xs text-text-secondary">Views</dt>
+                  <dd className="mt-0.5 font-display text-2xl font-semibold tabular-nums text-text-primary">
+                    {assigned.length && estReach > 0 ? fmtInt(estReach) : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-text-secondary">Voters</dt>
+                  <dd className="mt-0.5 font-display text-2xl font-semibold tabular-nums text-text-primary">
+                    {assigned.length && estVoters > 0 ? fmtInt(estVoters) : "—"}
+                  </dd>
+                </div>
+              </dl>
+              {assigned.length === 0 ? (
+                <p className="mt-3 text-xs text-text-tertiary">
+                  Assign a source with history and the estimate fills in.
+                </p>
+              ) : null}
+            </DashboardCard>
+          </div>
+        </SectionGrid>
+      ) : (
+        <SectionGrid>
+          <div className="space-y-4 lg:col-span-8">
+            <DashboardCard title="Review">
+              <DetailList
+                items={[
+                  ["Name", name.trim() || "Untitled campaign"],
+                  ["Decision", decision.trim() || "—"],
+                  ["Runs", fmtDateRange(startAt || undefined, endAt)],
+                  ["Polsts", fmtInt(chain.length)],
+                  ["Sources", fmtInt(assigned.length)],
+                ]}
+              />
+            </DashboardCard>
+            <DashboardCard title="The chain, in order">
+              {chain.length ? (
+                <ul className="space-y-2">
+                  {chain.map((q, i) => (
+                    <li key={q.id} className="flex items-center gap-2">
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-surface-subtle font-display text-xs font-semibold text-text-secondary">
+                        {i + 1}
+                      </span>
+                      <PolstListRow
+                        className="min-w-0 flex-1"
+                        question={q.question}
+                        options={polstOptions({
+                          id: q.id,
+                          optionA: q.optionA,
+                          optionB: q.optionB,
+                          splitA: q.splitA,
+                          votes: 0,
+                        })}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState icon="ballot" title="No polsts yet" />
+              )}
+            </DashboardCard>
+          </div>
+          <div className="self-start lg:col-span-4">
+            <DashboardCard>
+              <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+                What launching does
+              </h2>
+              <p className="mt-1.5 text-sm leading-5 text-text-secondary">
+                The chain and start date lock once the first vote arrives. Keep it as a draft
+                and everything stays editable — either way you land on the campaign page.
+              </p>
+            </DashboardCard>
+          </div>
+        </SectionGrid>
+      )}
 
       {draftCampaign ? (
         <>
@@ -809,6 +1234,23 @@ export function CreateCampaignPage() {
             open={libraryOpen}
             onClose={() => setLibraryOpen(false)}
             campaign={draftCampaign}
+          />
+          <AssignSourceModal
+            open={assignOpen}
+            onClose={() => setAssignOpen(false)}
+            unlinked={allSources.filter((s) => !s.linked)}
+            onAssign={(s) => {
+              assignSource(s.id, { type: "campaign", id: draftCampaign.id });
+              toast(`${s.name} assigned`);
+              settleSave();
+              setAssignOpen(false);
+            }}
+            onCreate={(draft) => {
+              addSource({ ...draft, linked: { type: "campaign", id: draftCampaign.id } });
+              toast(`${draft.name} created and assigned`);
+              settleSave();
+              setAssignOpen(false);
+            }}
           />
         </>
       ) : null}
