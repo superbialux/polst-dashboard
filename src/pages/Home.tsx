@@ -146,7 +146,19 @@ export function HomePage() {
         </Button>
       }
     >
-      {/* 1 · The page's one primary invitation. */}
+      {/* 1 · Workspace health leads; every delta states its comparison window. */}
+      <section className="space-y-2">
+        <div className="flex justify-end">
+          <DateRangeMenu value={range} onChange={setRange} />
+        </div>
+        <StatsStrip
+          stats={stats}
+          xTicks={STAT_XTICKS[range]}
+          scopeLabel={workspaceWindow(range).compareLabel ?? undefined}
+        />
+      </section>
+
+      {/* 2 · The page's one primary invitation. */}
       {!bannerDismissed ? (
         <HeroBanner
           eyebrow="Campaigns"
@@ -159,29 +171,17 @@ export function HomePage() {
         />
       ) : null}
 
-      {/* 2 · Suggested for you — decisions, fixes, then discovery. */}
+      {/* 3 · Suggested for you — decisions, fixes, then discovery. */}
       <SuggestionGrid
         title="Suggested for you"
         suggestions={suggestions}
         onDismiss={dismissSuggestion}
       />
 
-      {/* 3 · Workspace health; every delta states its comparison window. */}
-      <section className="space-y-2">
-        <div className="flex justify-end">
-          <DateRangeMenu value={range} onChange={setRange} />
-        </div>
-        <StatsStrip
-          stats={stats}
-          xTicks={STAT_XTICKS[range]}
-          scopeLabel={workspaceWindow(range).compareLabel ?? undefined}
-        />
-      </section>
-
       {/* 4 · One campaign, one card — its running Polsts inside. */}
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
+          <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
             Campaigns
           </h2>
           <div className="flex items-center gap-2">

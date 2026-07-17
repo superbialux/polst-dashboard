@@ -1030,26 +1030,28 @@ export type Stat = {
   annotations?: StatAnnotation[];
 };
 
-/** A point on the stat hero's chart: a material bucket-over-bucket movement,
- *  attributed to the campaign/Polst lifecycle event that explains it. */
+/** A point on the stat hero's chart. Every campaign/Polst launch and end
+ *  inside the window gets a marker stating the metric's movement around
+ *  it; material movements with no such event get an "insight" marker —
+ *  so every movement on the curve carries its explanation. */
 export type StatAnnotation = {
   /** Index into the stat's spark — the bucket the marker sits on. */
   bucket: number;
   /** The bucket's real date span, e.g. "Jun 10 – Jun 14". */
   dateLabel: string;
-  direction: "rise" | "drop";
-  /** The movement with its number — "Views rose 43%". */
+  /** Picks the marker's glyph: launch, end, or unexplained movement. */
+  kind: "launch" | "end" | "insight";
+  /** "Summer Flavor Lineup launched" / "Views rose 43%". */
   headline: string;
-  /** One sentence tying the movement to its event, or saying none was found. */
+  /** One sentence on how the metric moved through this stretch. */
   detail: string;
-  tone: "success" | "danger" | "neutral";
   link?: { label: string; to: string };
 };
 
 export type StatRange = WindowRange;
 export const STAT_RANGES: StatRange[] = ["7D", "30D", "90D", "All"];
 
-const SPARK_POINTS = 12;
+const SPARK_POINTS = 30;
 
 /** Bucket a daily series into ~12 points (sums, so counts stay honest). */
 const downsampleCounts = (values: number[], points = SPARK_POINTS): number[] => {
@@ -1166,9 +1168,15 @@ const lifecycleEvents = (campaigns: Campaign[], polsts: SinglePolst[]): Lifecycl
   ]),
 ];
 
-/** A rise is only ever explained by a launch, a drop by an end — an event of
- *  the wrong kind nearby is a coincidence, and the card says "no linked
- *  event" instead of reaching. */
+/** "rose 43%" / "fell 12%" — past tripling, state the multiple instead
+ *  of an unreadable "rose 1870%". */
+const movePhrase = (pct: number) =>
+  pct >= 200 ? `rose ${round1((pct + 100) / 100)}×` : `${pct > 0 ? "rose" : "fell"} ${Math.abs(pct)}%`;
+
+/** Every launch/end in the window becomes a marker whose card states the
+ *  metric's movement through that stretch; material movements with no
+ *  event in this or the previous bucket become "insight" markers. One
+ *  marker per bucket — simultaneous events share a card. */
 const annotateStat = (
   subject: string,
   spark: number[] | undefined,
@@ -1177,38 +1185,58 @@ const annotateStat = (
   isRate = false,
 ): StatAnnotation[] => {
   if (!spark?.length || !dates.length) return [];
-  const bounds = bucketDayBounds(dates.length);
-  const floorPct = isRate ? MOVEMENT_FLOOR_PCT_RATE : MOVEMENT_FLOOR_PCT;
-  return detectMovements(spark, floorPct).map(({ bucket, pct }) => {
-    const [from, to] = bounds[bucket] ?? [0, 0];
-    // A launch a day or two before the bucket still explains its first
-    // full bucket of traffic — pad the span's start, never its end.
-    const spanStart = addDays(dates[from], -2);
-    const rise = pct > 0;
-    const cause = events
-      .filter((e) => e.kind === (rise ? "launch" : "end") && e.date >= spanStart && e.date <= dates[to])
-      .sort((a, b) => b.views - a.views)[0];
+  const bounds = bucketDayBounds(dates.length).slice(0, spark.length);
+  const spanLabel = ([from, to]: [number, number]) =>
+    from === to ? fmtDate(dates[from]) : `${fmtDate(dates[from])} – ${fmtDate(dates[to])}`;
+  /** % change into a bucket, null when there is nothing to compare. */
+  const pctAt = (b: number) =>
+    b > 0 && spark[b - 1] > 0 ? Math.round(((spark[b] - spark[b - 1]) / spark[b - 1]) * 100) : null;
+  const moveSentence = (b: number) => {
+    const pct = pctAt(b);
+    if (pct === null || Math.abs(pct) < 5) return `${subject} held steady through this stretch.`;
+    return `${subject} ${movePhrase(pct)} through this stretch.`;
+  };
+
+  const byBucket = new Map<number, LifecycleEvent[]>();
+  for (const e of events) {
+    const b = bounds.findIndex(([from, to]) => e.date >= dates[from] && e.date <= dates[to]);
+    if (b === -1) continue;
+    byBucket.set(b, [...(byBucket.get(b) ?? []), e]);
+  }
+
+  const annotations: StatAnnotation[] = [...byBucket.entries()].map(([bucket, evs]) => {
+    // The biggest run most plausibly moved the total — it fronts the card.
+    const [primary, ...rest] = [...evs].sort((a, b) => b.views - a.views);
     return {
       bucket,
-      dateLabel:
-        from === to ? fmtDate(dates[from]) : `${fmtDate(dates[from])} – ${fmtDate(dates[to])}`,
-      direction: rise ? "rise" : "drop",
-      // "rose 1870%" is unreadable — past tripling, state the multiple.
-      headline:
-        pct >= 200
-          ? `${subject} rose ${round1((pct + 100) / 100)}×`
-          : `${subject} ${rise ? "rose" : "fell"} ${Math.abs(pct)}%`,
-      detail: cause
-        ? cause.kind === "launch"
-          ? `${cause.name} launched ${fmtDate(cause.date)} and began collecting here.`
-          : `${cause.name} ended ${fmtDate(cause.date)} and stopped collecting.`
-        : "No campaign or Polst launched or ended near this stretch.",
-      tone: cause ? (rise ? ("success" as const) : ("danger" as const)) : ("neutral" as const),
-      ...(cause
-        ? { link: { label: cause.to.startsWith("/campaigns") ? "Open campaign" : "Open Polst", to: cause.to } }
-        : {}),
+      dateLabel: spanLabel(bounds[bucket]),
+      kind: primary.kind,
+      headline: `${primary.name} ${primary.kind === "launch" ? "launched" : "ended"}`,
+      detail: `${moveSentence(bucket)}${
+        rest.length ? ` ${rest.length} other ${rest.length === 1 ? "run" : "runs"} changed here too.` : ""
+      }`,
+      link: {
+        label: primary.to.startsWith("/campaigns") ? "Open campaign" : "Open Polst",
+        to: primary.to,
+      },
     };
   });
+
+  // A movement is explained by an event in its own or the previous bucket
+  // (a launch's traffic keeps climbing into the next stretch).
+  const floorPct = isRate ? MOVEMENT_FLOOR_PCT_RATE : MOVEMENT_FLOOR_PCT;
+  for (const { bucket, pct } of detectMovements(spark, floorPct)) {
+    if (byBucket.has(bucket) || byBucket.has(bucket - 1)) continue;
+    annotations.push({
+      bucket,
+      dateLabel: spanLabel(bounds[bucket]),
+      kind: "insight",
+      headline: `${subject} ${movePhrase(pct)}`,
+      detail: "No campaign or Polst launched or ended near this stretch — worth a look at sources.",
+    });
+  }
+
+  return annotations.sort((a, b) => a.bucket - b.bucket);
 };
 
 const buildStats = (

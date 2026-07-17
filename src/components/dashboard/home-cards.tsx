@@ -152,7 +152,7 @@ export function SuggestionGrid({
   if (!suggestions.length) return null;
   return (
     <section>
-      <h2 className="mb-3 font-display text-base font-semibold leading-6 text-text-primary">
+      <h2 className="mb-3 font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
         {title}
       </h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

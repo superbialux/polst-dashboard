@@ -2,9 +2,9 @@ import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
 // Teach tailwind-merge our custom font-size token; otherwise it treats
-// `text-ui` as a text-*color* and drops it when a real color class follows.
+// `text-micro` as a text-*color* and drops it when a real color class follows.
 const twMerge = extendTailwindMerge({
-  extend: { classGroups: { "font-size": [{ text: ["ui"] }] } },
+  extend: { classGroups: { "font-size": [{ text: ["micro"] }] } },
 });
 
 export function cn(...inputs: ClassValue[]) {

@@ -131,7 +131,7 @@ export function MenuItem({
         onClick?.();
       }}
       className={cn(
-        "flex w-full select-none items-center gap-2.5 rounded-sm px-2.5 py-2 text-left font-display text-ui font-semibold outline-none transition-colors",
+        "flex w-full select-none items-center gap-2.5 rounded-sm px-2.5 py-2 text-left font-display text-sm font-semibold outline-none transition-colors",
         danger
           ? "text-status-danger data-[highlighted]:bg-status-danger-soft"
           : "text-text-primary data-[highlighted]:bg-surface-subtle",

@@ -97,7 +97,7 @@ function useNavGroups() {
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "flex h-8 items-center gap-2 rounded-sm px-2 text-ui font-medium transition-colors",
+    "flex h-8 items-center gap-2 rounded-sm px-2 text-sm font-medium transition-colors",
     isActive
       ? "bg-white/10 text-sidenav-fg"
       : "text-sidenav-muted hover:bg-white/5 hover:text-sidenav-fg",
@@ -148,7 +148,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-app-content text-text-primary">
       <Sidebar onSearch={() => setSearchOpen(true)} />
-      <div className="lg:pl-60">
+      <div className="lg:pl-72">
         <Header onActionsSlot={setActionsSlot} onMenu={() => setNavOpen(true)} />
         <HeaderActionsContext.Provider value={actionsSlot}>
           <main id="main-content" className="px-4 pb-10 pt-6 sm:px-5">
@@ -173,7 +173,7 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
   const location = useLocation();
   const groups = useNavGroups();
   return (
-    <aside className="scroll-subtle fixed inset-y-0 left-0 z-30 hidden w-60 flex-col overflow-y-auto bg-sidenav pb-2 lg:flex">
+    <aside className="scroll-subtle fixed inset-y-0 left-0 z-30 hidden w-72 flex-col overflow-y-auto bg-sidenav pb-2 lg:flex">
       <div className="flex h-12 shrink-0 items-center px-2">
         <WorkspaceMenu />
       </div>
@@ -183,7 +183,7 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
           onClick={onSearch}
           aria-label="Search the workspace"
           aria-keyshortcuts="Meta+K Control+K"
-          className="flex h-8 w-full items-center gap-2 rounded-sm border border-white/10 px-2 text-left text-ui font-medium text-sidenav-muted transition-colors hover:bg-white/5 hover:text-sidenav-fg"
+          className="flex h-8 w-full items-center gap-2 rounded-sm border border-white/10 px-2 text-left text-sm font-medium text-sidenav-muted transition-colors hover:bg-white/5 hover:text-sidenav-fg"
         >
           <span className="grid h-4 w-4 shrink-0 place-items-center">
             <Icon name="search" size={16} />
@@ -230,7 +230,7 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
                               end={child.to === item.to}
                               className={({ isActive }) =>
                                 cn(
-                                  "flex h-7 items-center rounded-sm px-2 text-ui font-medium transition-colors",
+                                  "flex h-7 items-center rounded-sm px-2 text-sm font-medium transition-colors",
                                   isActive
                                     ? "text-sidenav-fg"
                                     : "text-sidenav-muted hover:bg-white/5 hover:text-sidenav-fg",
@@ -803,7 +803,7 @@ function WorkspaceMenu() {
           className="flex h-9 w-full items-center gap-2 rounded-sm px-2 text-left transition-colors hover:bg-white/5"
         >
           <WorkspaceMark initials={WORKSPACE.initials} size="xs" />
-          <span className="min-w-0 flex-1 truncate text-ui font-medium text-sidenav-fg">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidenav-fg">
             {WORKSPACE.brand}
           </span>
           <Icon name="unfold_more" size={16} className="shrink-0 text-sidenav-muted" />
@@ -852,7 +852,7 @@ function SidebarSuggestions() {
     >
       <p
         id="sidebar-suggestions-title"
-        className="text-ui font-semibold text-sidenav-fg"
+        className="text-sm font-semibold text-sidenav-fg"
       >
         {items.length} {items.length === 1 ? "item needs" : "items need"} attention
       </p>
@@ -903,7 +903,7 @@ function UserMenu() {
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-pill bg-accent-default font-display text-micro font-semibold text-text-on-accent">
             {initialsOf(WORKSPACE.owner)}
           </span>
-          <span className="min-w-0 flex-1 truncate text-ui font-medium text-sidenav-fg">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidenav-fg">
             {WORKSPACE.owner}
           </span>
           <Icon

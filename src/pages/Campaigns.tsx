@@ -441,7 +441,7 @@ export function CreateCampaignPage() {
                         Created {fmtDate(c.createdAt)}
                       </span>
                     </span>
-                    <span className="shrink-0 text-ui font-semibold text-text-accent">Open</span>
+                    <span className="shrink-0 text-sm font-semibold text-text-accent">Open</span>
                   </Link>
                 ))}
               </div>

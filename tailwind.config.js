@@ -167,8 +167,6 @@ export default {
         display: ["Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
-        // Unified control type — buttons, tabs, selectors, nav, menu rows.
-        ui: ["13px", "16px"],
         // Named micro size for the OR disc and similar 2-letter marks.
         micro: ["9px", "12px"],
       },

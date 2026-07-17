@@ -44,25 +44,27 @@ type TrendDatum = {
   mark: number | null;
 };
 
-/* Annotation markers: tone fills come from the status palette (reserved
-   for state, never a series), and the card restates direction in words
-   and an icon — colour never carries the reading alone. */
-const MARKER_FILL: Record<StatAnnotation["tone"], string> = {
-  success: "var(--status-success)",
-  danger: "var(--status-danger)",
-  neutral: "hsl(var(--muted-foreground))",
+/* Annotation markers: the dot is always the house accent — the event
+   KIND changes the glyph inside it (rocket for a launch, flag for an
+   end, an exclamation for an unexplained movement), so meaning never
+   rides on colour. */
+const MARKER_ICONS: Record<StatAnnotation["kind"], string> = {
+  launch: "rocket_launch",
+  end: "flag",
+  insight: "priority_high",
 };
 
-const MARKER_CHIP: Record<StatAnnotation["tone"], string> = {
-  success: "bg-status-success-soft text-status-success",
-  danger: "bg-status-danger-soft text-status-danger",
-  neutral: "bg-surface-subtle text-text-secondary",
+const MARKER_CHIP: Record<StatAnnotation["kind"], string> = {
+  launch: "bg-accent-soft text-accent-default",
+  end: "bg-accent-soft text-accent-default",
+  insight: "bg-status-warning-soft text-status-warning",
 };
 
 type ActiveMarker = { annotation: StatAnnotation; x: number; y: number };
 
-/** The dot itself: an 11px tone-filled circle on a 2px surface ring, riding
- *  a 28px invisible hit circle (targets larger than marks). */
+/** The dot: a 20px accent disc on a 2px surface ring with the kind's
+ *  glyph inside, riding a 32px invisible hit circle (targets larger
+ *  than marks). */
 function AnnotationDot({
   cx,
   cy,
@@ -92,22 +94,27 @@ function AnnotationDot({
         }
       }}
     >
-      <circle cx={cx} cy={cy} r={14} fill="transparent" />
+      <circle cx={cx} cy={cy} r={16} fill="transparent" />
       <circle
         cx={cx}
         cy={cy}
-        r={5.5}
-        fill={MARKER_FILL[annotation.tone]}
+        r={10}
+        fill="var(--accent-default)"
         stroke="var(--surface-raised)"
         strokeWidth={2}
         className="transition-all"
       />
+      <foreignObject x={cx - 7} y={cy - 7} width={14} height={14} className="pointer-events-none">
+        <span className="grid h-full w-full place-items-center">
+          <Icon name={MARKER_ICONS[annotation.kind]} size={12} filled className="text-white" />
+        </span>
+      </foreignObject>
     </g>
   );
 }
 
-/** The insight card a marker opens: date span, the movement with its
- *  number, one explaining sentence, and the drill-down to its cause. */
+/** The insight card a marker opens: date span, what happened, how the
+ *  metric moved through it, and the drill-down to its cause. */
 function AnnotationCard({ annotation }: { annotation: StatAnnotation }) {
   return (
     <>
@@ -116,10 +123,10 @@ function AnnotationCard({ annotation }: { annotation: StatAnnotation }) {
           aria-hidden
           className={cn(
             "grid h-6 w-6 shrink-0 place-items-center rounded-pill",
-            MARKER_CHIP[annotation.tone],
+            MARKER_CHIP[annotation.kind],
           )}
         >
-          <Icon name={annotation.direction === "rise" ? "trending_up" : "trending_down"} size={15} />
+          <Icon name={MARKER_ICONS[annotation.kind]} size={14} filled />
         </span>
         <span className="text-xs text-text-tertiary">{annotation.dateLabel}</span>
       </p>

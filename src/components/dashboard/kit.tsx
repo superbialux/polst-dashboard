@@ -89,7 +89,7 @@ export function DashboardCard({
         <div className="flex items-start justify-between gap-4 px-5 pb-0 pt-5">
           <div className="min-w-0">
             {title ? (
-              <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
+              <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
                 {title}
               </h2>
             ) : null}
@@ -317,7 +317,7 @@ export function SegmentedControl<T extends string>({
             aria-pressed={active === item.value}
             aria-label={item.icon ? name : undefined}
             className={cn(
-              "flex shrink-0 items-center justify-center whitespace-nowrap rounded-sm font-display text-ui font-semibold transition-colors",
+              "flex shrink-0 items-center justify-center whitespace-nowrap rounded-sm font-display text-sm font-semibold transition-colors",
               item.icon ? "w-8" : "px-3",
               size === "form" && "flex-1",
               active === item.value
@@ -473,7 +473,7 @@ export function SearchAndFilters({
             icon="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            className="h-9 text-ui"
+            className="h-9 text-sm"
             placeholder={placeholder}
           />
         </div>
@@ -515,7 +515,7 @@ export function CreatedRange({
         value={from}
         max={to || undefined}
         onChange={(e) => onFromChange(e.target.value)}
-        className="h-9 w-36 text-ui"
+        className="h-9 w-36 text-sm"
       />
       <span aria-hidden className="text-text-tertiary">
         –
@@ -526,7 +526,7 @@ export function CreatedRange({
         value={to}
         min={from || undefined}
         onChange={(e) => onToChange(e.target.value)}
-        className="h-9 w-36 text-ui"
+        className="h-9 w-36 text-sm"
       />
     </div>
   );
