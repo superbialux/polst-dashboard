@@ -397,7 +397,7 @@ function Breadcrumbs() {
       }
       case "polsts": {
         const list: Crumb[] = [{ label: "polsts", to: "/polsts" }];
-        if (seg[1] === "new") list.push({ label: "Create a polst" });
+        if (seg[1] === "new") list.push({ label: "Create polst" });
         else if (seg[1]) list.push({ label: polstById(seg[1])?.question ?? "polst" });
         return list;
       }

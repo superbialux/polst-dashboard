@@ -1422,7 +1422,7 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
             hint="Voters answer the chain in order — start with one polst."
             action={
               editable
-                ? { label: "Create a polst", onClick: () => setComposerOpen(true) }
+                ? { label: "Create polst", onClick: () => setComposerOpen(true) }
                 : undefined
             }
           />

@@ -298,10 +298,13 @@ export function CampaignCardGrid({ children }: { children: ReactNode }) {
 export function StatsListCard({
   title,
   rows,
+  viewAll,
   className,
 }: {
   title: string;
   rows: Array<[string, ReactNode]>;
+  /** Footer drill-down — "View all campaigns" → /campaigns. */
+  viewAll?: { label: string; to: string };
   className?: string;
 }) {
   return (
@@ -315,6 +318,11 @@ export function StatsListCard({
       <div className="mt-3">
         <DetailList items={rows} />
       </div>
+      {viewAll ? (
+        <Button variant="secondary" size="sm" asChild className="mt-3 w-full">
+          <Link to={viewAll.to}>{viewAll.label}</Link>
+        </Button>
+      ) : null}
     </section>
   );
 }

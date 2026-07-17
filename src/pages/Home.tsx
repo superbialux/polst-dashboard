@@ -205,15 +205,18 @@ export function HomePage() {
   return (
     <DashboardPage
       actions={
-        <Button variant="secondary" size="sm" asChild>
-          <Link to="/analytics">View analytics</Link>
+        <Button size="sm" asChild>
+          <Link to="/polsts/new">Create polst</Link>
         </Button>
       }
     >
       {/* 1 · Workspace health leads; every delta states its comparison window. */}
       <section className="space-y-2">
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <DateRangeMenu value={range} onChange={setRange} />
+          <Button variant="secondary" size="sm" asChild>
+            <Link to="/analytics">View analytics</Link>
+          </Button>
         </div>
         <StatsStrip
           stats={stats}
@@ -237,7 +240,7 @@ export function HomePage() {
           title: "Start with a single polst",
           description:
             "One question, two options — live in a minute and ready to share anywhere.",
-          cta: { label: "Create a polst", to: "/polsts/new" },
+          cta: { label: "Create polst", to: "/polsts/new" },
           image: "/polst.jpg",
         }}
       />
@@ -256,17 +259,12 @@ export function HomePage() {
           <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
             Campaigns
           </h2>
-          <div className="flex items-center gap-2">
-            <SegmentedControl
-              tabs={["Active", "Queued"]}
-              active={campaignView}
-              onChange={setCampaignView}
-              size="compact"
-            />
-            <Button variant="secondary" size="sm" asChild>
-              <Link to="/campaigns">View all</Link>
-            </Button>
-          </div>
+          <SegmentedControl
+            tabs={["Active", "Queued"]}
+            active={campaignView}
+            onChange={setCampaignView}
+            size="compact"
+          />
         </div>
         <div className="grid items-start gap-3 lg:grid-cols-4">
           <div className="lg:col-span-3">
@@ -291,8 +289,16 @@ export function HomePage() {
             )}
           </div>
           <div className="space-y-3">
-            <StatsListCard title="All campaigns" rows={campaignStats} />
-            <StatsListCard title="All polsts" rows={polstStats} />
+            <StatsListCard
+              title="All campaigns"
+              rows={campaignStats}
+              viewAll={{ label: "View all campaigns", to: "/campaigns" }}
+            />
+            <StatsListCard
+              title="All polsts"
+              rows={polstStats}
+              viewAll={{ label: "View all polsts", to: "/polsts" }}
+            />
           </div>
         </div>
       </section>

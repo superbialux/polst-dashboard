@@ -330,7 +330,7 @@ export function PolstsPage() {
       }
     : active === "Archived"
       ? { label: "View all polsts", onClick: () => setActive("All") }
-      : { label: "Create a polst", to: "/polsts/new" };
+      : { label: "Create polst", to: "/polsts/new" };
 
   const pager = (
     <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} noun="polsts" />
@@ -363,7 +363,7 @@ export function PolstsPage() {
     <DashboardPage
       actions={
         <Button asChild>
-          <Link to="/polsts/new">Create a polst</Link>
+          <Link to="/polsts/new">Create polst</Link>
         </Button>
       }
     >
