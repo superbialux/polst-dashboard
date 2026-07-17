@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
@@ -42,7 +42,7 @@ import {
   ReportPreview,
   ReviewModal,
   TableToolbar,
-  WizardShell,
+  ChecklistItem,
   TablePagination,
   StatusSelect,
   ViewToggle,
@@ -439,7 +439,15 @@ export function CampaignsPage() {
 /* ── Create campaign ─────────────────────────────────────────────── */
 
 export function CreateCampaignPage() {
-  const { campaigns, createCampaign } = useWorkspace();
+  const {
+    campaigns,
+    campaignById,
+    createCampaign,
+    updateCampaign,
+    publishCampaign,
+    reorderChain,
+    removeChainQuestion,
+  } = useWorkspace();
   const toast = useToast();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -460,51 +468,120 @@ export function CreateCampaignPage() {
     setEvent(KEY_DATES.some((k) => k.id === eventParam) ? eventParam : "");
   }, [eventParam]);
 
-  const [submitting, setSubmitting] = useState(false);
+  /* The page IS the draft: the first meaningful change mints it, every
+     change after patches it — nothing here can be lost by leaving. */
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [launching, setLaunching] = useState(false);
 
   const endAt = durationEnd(duration, startAt, customEnd);
   // Only a Custom duration can invert the range — refuse it at the source.
   const endBeforeStart = Boolean(endAt && startAt && endAt < startAt);
 
-  const drafts = campaigns.filter((c) => c.status === "Draft").slice(0, 3);
+  const draftInput = () => ({
+    name: name.trim() || "Untitled campaign",
+    decision: decision.trim() || undefined,
+    startAt: startAt || undefined,
+    endAt,
+    event: event || undefined,
+  });
 
-  const submit = () => {
-    if (submitting) return; // a double-click must not mint a duplicate draft
-    setSubmitting(true);
-    const id = createCampaign({
-      name,
-      decision: decision.trim() || undefined,
-      startAt: startAt || undefined,
-      endAt,
-      target: undefined,
-      event: event || undefined,
-    });
-    toast("Campaign created as a draft");
+  const draftIdRef = useRef<string | null>(null);
+  draftIdRef.current = draftId;
+  const ensureDraft = () => {
+    if (draftIdRef.current) return draftIdRef.current;
+    const id = createCampaign(draftInput());
+    setDraftId(id);
+    setSaved(true);
+    return id;
+  };
+
+  // Autosave: 600ms after the last keystroke the draft exists and is
+  // current — the footer says so.
+  useEffect(() => {
+    const dirty = name.trim() || decision.trim() || startAt || event;
+    if (!dirty && !draftIdRef.current) return;
+    const t = setTimeout(() => {
+      if (!draftIdRef.current) {
+        ensureDraft();
+      } else {
+        updateCampaign(draftIdRef.current, draftInput());
+        setSaved(true);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, decision, startAt, duration, customEnd, event]);
+
+  const draftCampaign = draftId ? campaignById(draftId) : undefined;
+  const chain = draftCampaign?.chain ?? [];
+
+  const launch = () => {
+    if (launching) return; // a double-click must not publish twice
+    const id = ensureDraft();
+    updateCampaign(id, draftInput());
+    const result = publishCampaign(id);
+    if (!result.ok) {
+      toast(result.reason);
+      return;
+    }
+    setLaunching(true);
+    toast(
+      result.status === "Scheduled"
+        ? `Campaign scheduled — starts ${fmtDate(startAt)}`
+        : result.status === "Ended"
+          ? "Campaign published — its dates are already past, so it's Ended"
+          : "Campaign launched — it's live",
+    );
     navigate(`/campaigns/${id}`);
   };
 
+  const otherDrafts = campaigns
+    .filter((c) => c.status === "Draft" && c.id !== draftId)
+    .slice(0, 3);
+
   return (
-    <DashboardPage>
-      <WizardShell
-        step={2}
-        title="Set up your campaign"
-        subtitle="Name the run and the decision it answers — polsts and sources come next, on the campaign itself."
-        footer={
-          <>
+    <DashboardPage
+      // The launch gate lives in the fixed footer: greyed until the
+      // chain has a polst, while "Saved to drafts" says nothing is lost.
+      footer={
+        <>
+          <p className="flex items-center gap-1.5 text-sm text-text-secondary">
+            {saved ? (
+              <>
+                <Icon name="check_circle" size={16} filled className="text-status-success" />
+                Saved to drafts
+              </>
+            ) : (
+              "Your draft saves as you type"
+            )}
+          </p>
+          <div className="flex items-center gap-2">
             <Button variant="ghost" asChild>
-              <Link to="/new">Back</Link>
+              <Link to="/campaigns">Cancel</Link>
             </Button>
             <Button
-              disabled={!name.trim() || endBeforeStart || submitting}
-              title={endBeforeStart ? "The end date is before the start." : undefined}
-              onClick={submit}
+              disabled={chain.length === 0 || endBeforeStart || launching}
+              title={
+                chain.length === 0
+                  ? "Add at least one polst to launch."
+                  : endBeforeStart
+                    ? "The end date is before the start."
+                    : undefined
+              }
+              onClick={launch}
             >
-              Create campaign
+              Launch campaign
             </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
+          </div>
+        </>
+      }
+    >
+      <SectionGrid>
+        <div className="space-y-4 lg:col-span-8">
           <DashboardCard title="Campaign details">
             <div className="space-y-5">
               <Field label="Campaign name" required>
@@ -579,10 +656,116 @@ export function CreateCampaignPage() {
               </Field>
             </div>
           </DashboardCard>
-          {drafts.length > 0 ? (
-            <DashboardCard title="Recent drafts">
+
+          {/* The chain builds RIGHT HERE — real polst cards, draggable
+              into order, minted in the composer or pulled from the
+              library, never leaving this screen. */}
+          <DashboardCard
+            title="Polsts"
+            description="Voters answer them in the order below — drag to rearrange."
+            action={
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    ensureDraft();
+                    setLibraryOpen(true);
+                  }}
+                >
+                  Add from library
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    ensureDraft();
+                    setComposerOpen(true);
+                  }}
+                >
+                  Create polst
+                </Button>
+              </div>
+            }
+          >
+            {chain.length ? (
+              <ul className="space-y-2">
+                {chain.map((q, i) => (
+                  <li
+                    key={q.id}
+                    draggable
+                    onDragStart={() => setDragIndex(i)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (dragIndex !== null && dragIndex !== i && draftId) {
+                        reorderChain(draftId, dragIndex, i);
+                      }
+                      setDragIndex(null);
+                    }}
+                    onDragEnd={() => setDragIndex(null)}
+                    className={cn(
+                      "flex cursor-grab items-center gap-2 rounded-md border border-border-default bg-surface-raised p-2 active:cursor-grabbing",
+                      dragIndex === i && "opacity-50",
+                    )}
+                  >
+                    <Icon name="drag_indicator" size={18} className="shrink-0 text-icon-tertiary" />
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-surface-subtle font-display text-xs font-semibold text-text-secondary">
+                      {i + 1}
+                    </span>
+                    <PolstListRow
+                      className="min-w-0 flex-1"
+                      question={q.question}
+                      options={polstOptions({
+                        id: q.id,
+                        optionA: q.optionA,
+                        optionB: q.optionB,
+                        splitA: q.splitA,
+                        votes: 0,
+                      })}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Remove ${q.question} from the chain`}
+                      onClick={() => draftId && removeChainQuestion(draftId, q.id)}
+                    >
+                      <Icon name="close" size={18} />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState
+                icon="ballot"
+                title="No polsts yet"
+                hint="Launch unlocks once the chain has at least one polst."
+              />
+            )}
+          </DashboardCard>
+        </div>
+
+        <div className="space-y-4 self-start lg:col-span-4">
+          <DashboardCard title="About campaigns">
+            <p className="text-sm leading-5 text-text-secondary">
+              A campaign bundles several polsts under one shareable link. Voters see them in
+              the order you set — use one per launch, event, or research round.
+            </p>
+            <ul className="mt-4 space-y-3">
+              {[
+                "Reorder polsts at any time before launch",
+                "Pull from your existing polst library",
+                "Share via link, QR, or embed code",
+                "End the campaign manually",
+              ].map((line) => (
+                <ChecklistItem key={line} tone="done">
+                  {line}
+                </ChecklistItem>
+              ))}
+            </ul>
+          </DashboardCard>
+          {otherDrafts.length > 0 ? (
+            <DashboardCard title="Drafts" description="Pick up where you left off.">
               <div className="-mx-2 space-y-0.5">
-                {drafts.map((c) => (
+                {otherDrafts.map((c) => (
                   <Link
                     key={c.id}
                     to={`/campaigns/${c.id}`}
@@ -603,7 +786,22 @@ export function CreateCampaignPage() {
             </DashboardCard>
           ) : null}
         </div>
-      </WizardShell>
+      </SectionGrid>
+
+      {draftCampaign ? (
+        <>
+          <PolstComposerModal
+            open={composerOpen}
+            onClose={() => setComposerOpen(false)}
+            campaign={{ id: draftCampaign.id, name: draftCampaign.name }}
+          />
+          <SelectFromLibraryModal
+            open={libraryOpen}
+            onClose={() => setLibraryOpen(false)}
+            campaign={draftCampaign}
+          />
+        </>
+      ) : null}
     </DashboardPage>
   );
 }

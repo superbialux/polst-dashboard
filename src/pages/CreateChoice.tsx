@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
-import { DashboardPage, WizardShell } from "@/components/dashboard";
+import { DashboardPage } from "@/components/dashboard";
 
 /* ══════════════════════════════════════════════════════════════════
    ADD NEW — the type chooser ("what do you want to create?").
@@ -129,23 +129,26 @@ function CreateTypeCard({ type }: { type: CreateType }) {
 export function CreateChoicePage() {
   return (
     <DashboardPage>
-      <WizardShell
-        step={1}
-        title="What do you want to create?"
-        subtitle="Start with one polst for a quick decision, or build a campaign when several polsts should answer one larger business question."
-      >
-        <div className="space-y-8">
-          <div className="grid items-stretch gap-3 md:grid-cols-2">
-            {TYPES.map((type) => (
-              <CreateTypeCard key={type.title} type={type} />
-            ))}
-          </div>
-          <p className="text-center text-sm text-text-secondary">
-            You can always start with one polst and add more later — a campaign chains up to five
-            in sequence.
+      <div className="mx-auto max-w-3xl space-y-8 pt-6">
+        <div className="space-y-2 text-center">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">
+            What do you want to create?
+          </h1>
+          <p className="mx-auto max-w-xl text-sm leading-5 text-text-secondary">
+            Start with one polst for a quick decision, or build a campaign when several polsts
+            should answer one larger business question.
           </p>
         </div>
-      </WizardShell>
+        <div className="grid items-stretch gap-3 md:grid-cols-2">
+          {TYPES.map((type) => (
+            <CreateTypeCard key={type.title} type={type} />
+          ))}
+        </div>
+        <p className="text-center text-sm text-text-secondary">
+          You can always start with one polst and add more later — a campaign chains up to five in
+          sequence.
+        </p>
+      </div>
     </DashboardPage>
   );
 }

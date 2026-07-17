@@ -57,6 +57,16 @@ const ACTION_ART: Record<string, string> = {
 
 const ATTENTION_TONES = { danger: "red", warning: "amber", neutral: "neutral" } as const;
 
+/** Each key date's own artwork for the Calendar bento. */
+const EVENT_ART: Record<string, string> = {
+  "world-cup": "/world-cup-final.png",
+  "product-launch": "/product-launch-week.png",
+  "back-to-school": "/back-to-school.png",
+  "labor-day": "/labor-day.png",
+  halloween: "/halloween.png",
+  thanksgiving: "/thanksgiving.png",
+};
+
 /** Evergreen discovery cards — they fill the row only when the workspace
  *  has nothing more urgent to suggest. */
 const DISCOVERY: Suggestion[] = [
@@ -212,7 +222,7 @@ export function HomePage() {
             description: `${range} — covered by ${campaign.name}.`,
             action: "Open campaign",
             to: `/campaigns/${campaign.id}`,
-            image: "/review-active-campaign.png",
+            image: EVENT_ART[k.id] ?? "/review-active-campaign.png",
           };
         return {
           id: `event-${k.id}`,
@@ -224,7 +234,7 @@ export function HomePage() {
           }.`,
           action: "Plan campaign",
           to: `/campaigns/new?event=${k.id}`,
-          image: "/edit-campaign.png",
+          image: EVENT_ART[k.id] ?? "/edit-campaign.png",
         };
       })
       .filter((s) => !dismissed.has(s.id));

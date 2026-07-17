@@ -33,7 +33,6 @@ import {
   PolstListRow,
   ReviewModal,
   TableToolbar,
-  WizardShell,
   TablePagination,
   StatusSelect,
   ViewToggle,
