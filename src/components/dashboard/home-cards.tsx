@@ -144,10 +144,12 @@ export function SuggestionCard({
             {suggestion.description}
           </span>
         </span>
-        <span className="relative mt-3 block flex-1">
+        {/* Fixed 2:1 media box pinned to the card's bottom — every card's
+            image lands at the same size no matter how the text wraps. */}
+        <span className="relative mt-auto block pt-3">
           <MediaFill
             media={{ tone: suggestion.tone, icon: suggestion.icon, src: suggestion.image, align: "right" }}
-            className="h-full min-h-32 w-full"
+            className="aspect-[2/1] w-full"
           />
           {/* The house secondary button, rendered inert — the card link
               carries the click. Pinned to the content's padding line. */}

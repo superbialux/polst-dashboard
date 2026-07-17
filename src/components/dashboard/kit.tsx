@@ -847,13 +847,13 @@ export type CardMedia = {
   align?: "center" | "right";
 };
 
-/** Fills its box with the image over the tone wash (transparent art shows
- *  the wash through), or the wash + glyph placeholder without a src. */
+/** Fills its box with the image on the card's own surface, or the
+ *  tone-wash + glyph placeholder when there's no src. */
 export function MediaFill({ media, className }: { media: CardMedia; className?: string }) {
   return (
     <div
       aria-hidden={!media.src}
-      className={cn("relative overflow-hidden", CARD_TONES[media.tone ?? "neutral"], className)}
+      className={cn("relative overflow-hidden", !media.src && CARD_TONES[media.tone ?? "neutral"], className)}
     >
       {media.src ? (
         <img
