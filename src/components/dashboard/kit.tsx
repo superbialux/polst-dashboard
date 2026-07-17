@@ -10,7 +10,7 @@ import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
 import { FieldHelper, SelectMenu, TextInput } from "@/components/Field";
-import { HeaderActions } from "./Shell";
+import { HeaderActions, HeaderTabsSlot } from "./Shell";
 import { STATUS_TONE, daysBetween, fmtDateRange, type StatusTone } from "@/lib/canon";
 import { addDays } from "@/lib/engine";
 import type { AnalyticsFilters } from "@/lib/analytics";
@@ -50,14 +50,9 @@ type PageProps = {
 export function DashboardPage({ actions, tabs, children }: PageProps) {
   return (
     <>
-      {tabs ? (
-        // Escapes main's padding to run edge to edge, and rises one extra
-        // pixel so its surface covers the header's hairline — header and
-        // band read as one block, ruled only underneath the tabs.
-        <div className="-mx-4 -mt-[25px] mb-5 border-b border-border-default bg-surface-raised px-4 sm:-mx-5 sm:px-5">
-          {tabs}
-        </div>
-      ) : null}
+      {/* Tabs teleport into the header block itself — part of the fixed
+          chrome, above the scroller. */}
+      {tabs ? <HeaderTabsSlot>{tabs}</HeaderTabsSlot> : null}
       <div className="mx-auto max-w-dashboard space-y-8">
         {actions ? <HeaderActions>{actions}</HeaderActions> : null}
         {children}

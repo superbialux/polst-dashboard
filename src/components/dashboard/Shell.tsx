@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -112,7 +113,7 @@ function NavIcon({ name, active }: { name: string; active: boolean }) {
   );
 }
 
-/* ── Header actions slot ─────────────────────────────────────────── */
+/* ── Header slots ────────────────────────────────────────────────── */
 
 /** The header's right side belongs to the current page. Pages teleport
  *  their actions (Create campaign, Export, View analytics…) into this
@@ -125,13 +126,27 @@ export function HeaderActions({ children }: { children: ReactNode }) {
   return createPortal(children, slot);
 }
 
+/** The header's second row: page tabs teleport here so they live INSIDE
+ *  the fixed header block — part of the chrome, never the scroll. */
+const HeaderTabsContext = createContext<HTMLElement | null>(null);
+
+export function HeaderTabsSlot({ children }: { children: ReactNode }) {
+  const slot = useContext(HeaderTabsContext);
+  if (!slot) return null;
+  return createPortal(children, slot);
+}
+
 /** The shell: one dark surface — the full-height sidebar rail — beside a
- *  light column that stacks a sticky 48px header over the working canvas.
- *  The page owns the document scroll; nothing nests a second scroller. */
+ *  light column: a fixed header block (48px row + optional tab row) over
+ *  the working canvas. MAIN is the one scroller — the chrome never
+ *  moves, and the scrollbar belongs to the content alone. */
 export function DashboardShell({ children }: { children: ReactNode }) {
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+  const [tabsSlot, setTabsSlot] = useState<HTMLElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement | null>(null);
 
   // Cmd/Ctrl-K opens the same workspace search as the sidebar control.
   useEffect(() => {
@@ -145,15 +160,30 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // main owns the scroll now, so route changes must reset it by hand —
+  // the router's document-level restoration can't see this scroller.
+  useEffect(() => {
+    mainRef.current?.scrollTo(0, 0);
+  }, [pathname]);
+
   return (
-    <div className="min-h-dvh bg-app-content text-text-primary">
+    <div className="h-dvh overflow-hidden bg-app-content text-text-primary">
       <Sidebar onSearch={() => setSearchOpen(true)} />
-      <div className="lg:pl-72">
-        <Header onActionsSlot={setActionsSlot} onMenu={() => setNavOpen(true)} />
+      <div className="flex h-full flex-col lg:pl-72">
+        <div className="shrink-0 border-b border-border-default bg-surface-raised">
+          <Header onActionsSlot={setActionsSlot} onMenu={() => setNavOpen(true)} />
+          <div ref={setTabsSlot} className="px-4 empty:hidden sm:px-5" />
+        </div>
         <HeaderActionsContext.Provider value={actionsSlot}>
-          <main id="main-content" className="px-4 pb-10 pt-6 sm:px-5">
-            {children}
-          </main>
+          <HeaderTabsContext.Provider value={tabsSlot}>
+            <main
+              id="main-content"
+              ref={mainRef}
+              className="flex-1 overflow-y-auto px-4 pb-10 pt-6 sm:px-5"
+            >
+              {children}
+            </main>
+          </HeaderTabsContext.Provider>
         </HeaderActionsContext.Provider>
       </div>
       <MobileNav
@@ -351,7 +381,7 @@ function Header({
   onMenu: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border-default bg-surface-raised px-4 sm:px-5">
+    <header className="flex h-12 shrink-0 items-center gap-3 bg-surface-raised px-4 sm:px-5">
       {/* Below lg the rail is hidden — a menu button opens the nav drawer
           and the wordmark rides the header. */}
       <IconButton onClick={onMenu} aria-label="Open navigation" className="-ml-1 lg:hidden">
