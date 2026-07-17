@@ -117,6 +117,7 @@ const blankPolst = (id: string, input: CreatePolstInput): SinglePolst => ({
   interactions: 0,
   views: 0,
   engagementRate: null,
+  interactionMix: { likes: 0, shares: 0, reposts: 0 },
   sources: [],
 });
 

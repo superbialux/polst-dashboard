@@ -127,10 +127,14 @@ export type SinglePolst = {
   category: Category;
   votes: number; // single question: votes = voters
   viewsFactor: number;
-  interactions: number; // shares/reposts
+  interactions: number; // likes + shares + reposts (canon METRIC_INFO)
   // Derived at module load:
   views: number;
   engagementRate: number | null; // votes/views*100, 1dp
+  /** Exact integer split of `interactions` (likes ≥ shares ≥ reposts,
+   *  deterministic per Polst) so the aggregate and its parts never
+   *  disagree in a table. */
+  interactionMix: { likes: number; shares: number; reposts: number };
   sources: Source[]; // back-refs
 };
 
@@ -495,7 +499,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
 
 /* ── Single Polst seeds ──────────────────────────────────────────── */
 
-type PolstSeed = Omit<SinglePolst, "views" | "engagementRate" | "sources">;
+type PolstSeed = Omit<SinglePolst, "views" | "engagementRate" | "interactionMix" | "sources">;
 
 const POLST_SEEDS: PolstSeed[] = [
   { id: "which-headline-wins", question: "Which headline wins?", optionA: "Fuel your morning", optionB: "Mornings, handled", splitA: 57, status: "Active", createdAt: "2026-06-03", startAt: "2026-06-05", endAt: "2026-06-19", category: "Food & drink", votes: 428, viewsFactor: 2.2, interactions: 17 },
@@ -582,12 +586,26 @@ const deriveCampaign = (seed: CampaignSeed): Campaign => {
   };
 };
 
+/** Split a Polst's interaction total into likes/shares/reposts without
+ *  inventing data: fixed shares (~58/26/16) hashed a step by the id so
+ *  rows differ, remainder assigned largest-first so parts sum exactly. */
+const deriveInteractionMix = (id: string, total: number) => {
+  if (total <= 0) return { likes: 0, shares: 0, reposts: 0 };
+  const nudge = (id.charCodeAt(0) + id.length) % 5; // deterministic ±2pts
+  const likeShare = (56 + nudge) / 100;
+  const shareShare = (28 - nudge) / 100;
+  const likes = Math.round(total * likeShare);
+  const shares = Math.round(total * shareShare);
+  return { likes, shares, reposts: Math.max(0, total - likes - shares) };
+};
+
 const derivePolst = (seed: PolstSeed): SinglePolst => {
   const views = Math.round(seed.votes * seed.viewsFactor);
   return {
     ...seed,
     views,
     engagementRate: views > 0 ? round1((seed.votes / views) * 100) : null,
+    interactionMix: deriveInteractionMix(seed.id, seed.interactions),
     sources: [],
   };
 };

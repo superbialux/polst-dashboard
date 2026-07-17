@@ -609,14 +609,27 @@ export function PolstDetailPage() {
           </p>
         </DashboardCard>
       ) : null}
-      {isScheduled && polst.startAt && polstSources.length === 0 ? (
-        <ActionCard
-          title={`Starts ${relativeToToday(polst.startAt)} with no sources`}
-          reason="Attach a QR code, share link, or embed so it collects votes from day one."
-          // The action completes right here — the same in-context assign
-          // flow the campaign Sources tab has, never a hop to Distribution.
-          primary={{ label: "Assign source", onClick: () => setAssignOpen(true) }}
-        />
+      {/* A scheduled run always leads with the big when-it-starts statement —
+          the schedule table below is the record, this is the headline. The
+          missing-sources cut keeps its urgent framing and in-context fix. */}
+      {isScheduled && polst.startAt ? (
+        polstSources.length === 0 ? (
+          <ActionCard
+            title={`Starts ${relativeToToday(polst.startAt)} with no sources`}
+            reason="Attach a QR code, share link, or embed so it collects votes from day one."
+            // The action completes right here — the same in-context assign
+            // flow the campaign Sources tab has, never a hop to Distribution.
+            primary={{ label: "Assign source", onClick: () => setAssignOpen(true) }}
+          />
+        ) : (
+          <ActionCard
+            title={`Starts ${relativeToToday(polst.startAt)}`}
+            reason={`${polstSources.length} ${
+              polstSources.length === 1 ? "source is" : "sources are"
+            } ready to collect votes the moment it goes live.`}
+            primary={{ label: "Review schedule", to: `/polsts/new?edit=${polst.id}` }}
+          />
+        )
       ) : null}
 
       {hasRun(polst) ? (
@@ -637,6 +650,15 @@ export function PolstDetailPage() {
             className="lg:col-span-3"
             label="Interactions"
             value={fmtInt(polst.interactions)}
+            // The aggregate opens into its parts right on the tile — the
+            // "two separate columns" ask without a second table.
+            detail={
+              polst.interactions > 0
+                ? `${fmtInt(polst.interactionMix.likes)} likes · ${fmtInt(
+                    polst.interactionMix.shares,
+                  )} shares · ${fmtInt(polst.interactionMix.reposts)} reposts`
+                : undefined
+            }
             info={METRIC_INFO.interactions}
           />
           <StatTile
