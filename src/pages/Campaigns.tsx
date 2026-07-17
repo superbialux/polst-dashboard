@@ -442,6 +442,58 @@ export function CampaignsPage() {
 
 /* ── Create campaign: the four-step builder ──────────────────────── */
 
+/** The source library: every free source from the Distribution table,
+ *  one Assign away. Creation lives in its own modal. */
+function SourceLibraryModal({
+  open,
+  onClose,
+  sources,
+  onAssign,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sources: Source[];
+  onAssign: (source: Source) => void;
+}) {
+  return (
+    <Modal open={open} onClose={onClose} label="Add source from library" title="Source library">
+      <div className="p-4">
+        {sources.length ? (
+          <ul className="space-y-2">
+            {sources.map((s) => (
+              <li
+                key={s.id}
+                className="flex items-center gap-2 rounded-md border border-border-default bg-surface-raised p-2"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-secondary">
+                  <Icon name="hub" size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-display text-sm font-semibold text-text-primary">
+                    {s.name}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-text-secondary">
+                    {s.kind} · {s.channel}
+                  </span>
+                </span>
+                <Button variant="secondary" size="sm" onClick={() => onAssign(s)}>
+                  Assign
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            icon="hub"
+            title="No free sources"
+            hint="Every source is already assigned — create a new one instead."
+          />
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 const BUILDER_STEPS = ["Decision", "Build chain", "Distribution", "Review"] as const;
 
 /** Steps dressed EXACTLY like header tabs — quiet labels, the active
@@ -605,6 +657,7 @@ export function CreateCampaignPage() {
     removeChainQuestion,
     addQuestionToCampaign,
     assignSource,
+    unassignSource,
     addSource,
   } = useWorkspace();
   const toast = useToast();
@@ -646,6 +699,7 @@ export function CreateCampaignPage() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [sourceLibraryOpen, setSourceLibraryOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [selectedChainId, setSelectedChainId] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
@@ -1102,22 +1156,40 @@ export function CreateCampaignPage() {
               title="Sources"
               description="Where voters will come from — QR codes, links, and embeds pointed at this campaign."
               action={
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    ensureDraft();
-                    setAssignOpen(true);
-                  }}
-                >
-                  Add source
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      ensureDraft();
+                      setSourceLibraryOpen(true);
+                    }}
+                  >
+                    Add from library
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      ensureDraft();
+                      setAssignOpen(true);
+                    }}
+                  >
+                    Create source
+                  </Button>
+                </div>
               }
             >
               {assigned.length ? (
-                <ul className="divide-y divide-border-default">
+                <ul className="space-y-2">
                   {assigned.map((s) => (
-                    <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <span className="min-w-0">
+                    <li
+                      key={s.id}
+                      className="flex items-center gap-2 rounded-md border border-border-default bg-surface-raised p-2"
+                    >
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-secondary">
+                        <Icon name="hub" size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
                         <span className="block truncate font-display text-sm font-semibold text-text-primary">
                           {s.name}
                         </span>
@@ -1125,7 +1197,18 @@ export function CreateCampaignPage() {
                           {s.kind} · {s.channel}
                         </span>
                       </span>
-                      <StatusBadge status={s.voters > 0 ? "Active" : "Scheduled"} />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove ${s.name} from this campaign`}
+                        onClick={() => {
+                          const result = unassignSource(s.id);
+                          if (result.ok) settleSave();
+                          toast(result.ok ? `${s.name} removed` : result.reason);
+                        }}
+                      >
+                        <Icon name="close" size={18} />
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -1170,19 +1253,19 @@ export function CreateCampaignPage() {
         </SectionGrid>
       ) : (
         <SectionGrid>
-          <div className="space-y-4 lg:col-span-8">
-            <DashboardCard title="Review">
+          {/* Everything the campaign carries, stated plainly. */}
+          <div className="space-y-4 lg:col-span-7">
+            <DashboardCard title="Details">
               <DetailList
                 items={[
                   ["Name", name.trim() || "Untitled campaign"],
                   ["Decision", decision.trim() || "—"],
                   ["Runs", fmtDateRange(startAt || undefined, endAt)],
-                  ["Polsts", fmtInt(chain.length)],
-                  ["Sources", fmtInt(assigned.length)],
+                  ["Key date", KEY_DATES.find((k) => k.id === event)?.title ?? "—"],
                 ]}
               />
             </DashboardCard>
-            <DashboardCard title="The chain, in order">
+            <DashboardCard title={`Polsts (${chain.length})`}>
               {chain.length ? (
                 <ul className="space-y-2">
                   {chain.map((q, i) => (
@@ -1208,17 +1291,75 @@ export function CreateCampaignPage() {
                 <EmptyState icon="ballot" title="No polsts yet" />
               )}
             </DashboardCard>
-          </div>
-          <div className="self-start lg:col-span-4">
-            <DashboardCard>
-              <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
-                What launching does
-              </h2>
-              <p className="mt-1.5 text-sm leading-5 text-text-secondary">
-                The chain and start date lock once the first vote arrives. Keep it as a draft
-                and everything stays editable — either way you land on the campaign page.
-              </p>
+            <DashboardCard title={`Sources (${assigned.length})`}>
+              {assigned.length ? (
+                <ul className="divide-y divide-border-default">
+                  {assigned.map((s) => (
+                    <li key={s.id} className="flex items-center gap-3 py-2.5">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle text-icon-secondary">
+                        <Icon name="hub" size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-display text-sm font-semibold text-text-primary">
+                          {s.name}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-text-secondary">
+                          {s.kind} · {s.channel}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-text-secondary">
+                  No sources — nothing collects voters until one exists.
+                </p>
+              )}
             </DashboardCard>
+          </div>
+          {/* The FULL experience, exactly as voters get it: the multi-step
+              card — answer, watch results fill, slide to the next. */}
+          <div className="self-start lg:sticky lg:top-4 lg:col-span-5">
+            {chain.length ? (
+              <PollCard
+                preview
+                author={WORKSPACE.brand}
+                authorBadge={WORKSPACE.initials}
+                authorColor="var(--color-purple-tint)"
+                isFollowing
+                categories={[]}
+                question={decision.trim() || name.trim() || "Untitled campaign"}
+                steps={chain.map((q) => ({
+                  question: q.question,
+                  options: polstOptions({
+                    id: q.id,
+                    optionA: q.optionA,
+                    optionB: q.optionB,
+                    splitA: q.splitA || 50,
+                    votes: 0,
+                  }),
+                }))}
+                options={polstOptions({
+                  id: chain[0].id,
+                  optionA: chain[0].optionA,
+                  optionB: chain[0].optionB,
+                  splitA: chain[0].splitA || 50,
+                  votes: 0,
+                })}
+                tags={[]}
+                likes={0}
+                reposts={0}
+                votes={0}
+              />
+            ) : (
+              <DashboardCard>
+                <EmptyState
+                  icon="visibility"
+                  title="Nothing to preview yet"
+                  hint="Add polsts on Build chain to see the full voter experience."
+                />
+              </DashboardCard>
+            )}
           </div>
         </SectionGrid>
       )}
@@ -1235,21 +1376,26 @@ export function CreateCampaignPage() {
             onClose={() => setLibraryOpen(false)}
             campaign={draftCampaign}
           />
+          {/* Create-only: the library path has its own picker. */}
           <AssignSourceModal
             open={assignOpen}
             onClose={() => setAssignOpen(false)}
-            unlinked={allSources.filter((s) => !s.linked)}
-            onAssign={(s) => {
-              assignSource(s.id, { type: "campaign", id: draftCampaign.id });
-              toast(`${s.name} assigned`);
-              settleSave();
-              setAssignOpen(false);
-            }}
+            title="New source"
             onCreate={(draft) => {
               addSource({ ...draft, linked: { type: "campaign", id: draftCampaign.id } });
               toast(`${draft.name} created and assigned`);
               settleSave();
               setAssignOpen(false);
+            }}
+          />
+          <SourceLibraryModal
+            open={sourceLibraryOpen}
+            onClose={() => setSourceLibraryOpen(false)}
+            sources={allSources.filter((s) => !s.linked)}
+            onAssign={(s) => {
+              assignSource(s.id, { type: "campaign", id: draftCampaign.id });
+              toast(`${s.name} assigned`);
+              settleSave();
             }}
           />
         </>
