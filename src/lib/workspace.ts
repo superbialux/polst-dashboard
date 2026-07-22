@@ -100,7 +100,6 @@ export type Campaign = {
   createdAt: string;
   startAt?: string;
   endAt?: string; // ISO
-  target?: number; // voter goal set at creation
   category: Category;
   chain: ChainQuestion[];
   decisionIndex: number; // which chain question answers `decision`
@@ -246,7 +245,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-05-20",
     startAt: "2026-05-28",
     endAt: "2026-06-10",
-    target: 1000,
     category: "Food & drink",
     viewsFactor: 2.1,
     voters: 1184,
@@ -261,7 +259,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "fl-price", question: "Which launch price feels right?", optionA: "$3.99", optionB: "$4.49", splitA: 58 },
     ],
     summary:
-      "Citrus Mint received 56% of responses on the lead question; Berry Basil received 44%. The run passed its 1,000-participant target with 79% completion.",
+      "Citrus Mint received 56% of responses on the lead question; Berry Basil received 44%. The run closed with 1,184 participants and 79% completion.",
     nextStep: "Export the report and share it with the retail team.",
     findings: [
       "Citrus Mint received 56% of responses on the shelf question; Berry Basil received 44%.",
@@ -269,7 +267,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       "Share Link — Newsletter delivered 41% of voters, the largest single source.",
     ],
     caveats: ["Launch-week traffic skewed toward existing subscribers."],
-    sampleNote: "1,184 voters across 3 sources — past the 1,000 target with consistent splits.",
+    sampleNote: "1,184 voters across 3 sources, with consistent splits.",
   },
   {
     id: "packaging-direction",
@@ -279,7 +277,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-05-30",
     startAt: "2026-06-03",
     endAt: "2026-06-17",
-    target: 1200,
     category: "Food & drink",
     viewsFactor: 2.3,
     voters: 1486,
@@ -292,7 +289,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "pd-premium", question: "Which pack feels more premium?", optionA: "Bold label", optionB: "Minimal label", splitA: 42 },
     ],
     summary:
-      "Minimal label received 58% of responses on the premium question; Bold label received 42%. The campaign has passed its 1,200-participant target, with two days remaining.",
+      "Minimal label received 58% of responses on the premium question; Bold label received 42%. The campaign has 1,486 participants with two days remaining.",
     nextStep: "Review the recommendation and lock the direction when the run ends Jun 17.",
     findings: [
       "Minimal label received 58% on premium feel, while Bold label received 59% on shelf readability.",
@@ -300,7 +297,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       "Website Embed — Packaging drives 42% of voters at 76% completion; QR — Shelf Talker completes highest at 78%.",
     ],
     caveats: ["Creator traffic completes at 60%; the campaign completes at 71%."],
-    sampleNote: "1,486 voters across 4 sources — past the 1,200 target.",
+    sampleNote: "1,486 voters across 4 sources.",
   },
   {
     id: "summer-flavor-lineup",
@@ -310,7 +307,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-05-26",
     startAt: "2026-06-01",
     endAt: "2026-06-30",
-    target: 2500,
     category: "Food & drink",
     viewsFactor: 2.2,
     voters: 2103,
@@ -325,7 +321,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "sf-size", question: "Which box size should we sell?", optionA: "6-pack", optionB: "10-pack", splitA: 55 },
     ],
     summary:
-      "Citrus Mint received 53% of responses for the headline slot; Peach Punch received 47%. The campaign has reached 2,103 of its 2,500-participant target, while the middle slots remain inconclusive.",
+      "Citrus Mint received 53% of responses for the headline slot; Peach Punch received 47%. The campaign has 2,103 participants so far, while the middle slots remain inconclusive.",
     nextStep: "Keep collecting through Jun 30 before calling the middle slots.",
     findings: [
       "Email delivers 45% of voters — the largest channel in the mix.",
@@ -336,7 +332,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       "Slots two and three remain close enough that no recommendation should be made yet.",
       "QR — Conference Booth completes at 41%; the campaign completes at 58%.",
     ],
-    sampleNote: "2,103 of 2,500 target voters; email carries 45% of the sample.",
+    sampleNote: "2,103 voters; email carries 45% of the sample.",
   },
   {
     id: "retail-shelf-layout",
@@ -346,7 +342,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-06-05",
     startAt: "2026-06-12",
     endAt: "2026-06-24",
-    target: 1200,
     category: "Shopping & deals",
     viewsFactor: 2.4,
     voters: 640,
@@ -359,14 +354,14 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "rs-find", question: "Which shelf helps you find flavors?", optionA: "Layout A", optionB: "Layout B", splitA: 51 },
     ],
     summary:
-      "Layout A received 51% and Layout B received 49% across 640 of the 1,200 target participants. The result is inconclusive, and completion is 47%.",
+      "Layout A received 51% and Layout B received 49% across 640 participants. The result is inconclusive, and completion is 47%.",
     nextStep: "Keep running and add a second source beyond the website embed.",
     findings: [
       "Both questions sit at 51 / 49 — no separation yet.",
       "The second question loses more than half of starters.",
     ],
     caveats: ["Website embed is the only source, so the sample skews to existing site visitors."],
-    sampleNote: "640 of 1,200 target voters from a single website source.",
+    sampleNote: "640 voters from a single website source.",
   },
   {
     id: "holiday-gifting-bundles",
@@ -376,7 +371,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-06-01",
     startAt: "2026-06-08",
     endAt: "2026-06-20",
-    target: 1200,
     category: "Shopping & deals",
     viewsFactor: 2.2,
     voters: 892,
@@ -398,7 +392,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       "Email delivers 55% of voters — one channel dominates the read.",
     ],
     caveats: ["Email dominance means the read reflects subscribers more than new shoppers."],
-    sampleNote: "892 of 1,200 target voters; email carries 55% of the sample.",
+    sampleNote: "892 voters; email carries 55% of the sample.",
   },
   {
     id: "spring-email-creative",
@@ -408,7 +402,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-04-12",
     startAt: "2026-04-19",
     endAt: "2026-04-29",
-    target: 1400,
     category: "Lifestyle",
     viewsFactor: 2.1,
     voters: 1637,
@@ -440,7 +433,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-04-18",
     startAt: "2026-04-25",
     endAt: "2026-05-07",
-    target: 1600,
     category: "Food & drink",
     viewsFactor: 2.2,
     voters: 1872,
@@ -455,7 +447,7 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
       { id: "sb-skip", question: "Which flexibility promise matters more?", optionA: "Skip anytime", optionB: "Swap any item", splitA: 54 },
     ],
     summary:
-      "Never run out of favorites received 61% of responses on the positioning question. The campaign passed its target and completed at 78%.",
+      "Never run out of favorites received 61% of responses on the positioning question. The campaign completed at 78% on 1,203 participants.",
     nextStep: "Lead the subscription page with reliable replenishment and support it with explicit savings.",
     findings: [
       "Never run out of favorites received 61% of responses; Discover something new received 39%.",
@@ -473,7 +465,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-04-25",
     startAt: "2026-05-01",
     endAt: "2026-05-12",
-    target: 1200,
     category: "Shopping & deals",
     viewsFactor: 2.2,
     voters: 1409,
@@ -506,7 +497,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-05-02",
     startAt: "2026-05-09",
     endAt: "2026-05-18",
-    target: 900,
     category: "Lifestyle",
     viewsFactor: 2.3,
     voters: 948,
@@ -538,7 +528,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-05-08",
     startAt: "2026-05-15",
     endAt: "2026-05-24",
-    target: 700,
     category: "Lifestyle",
     viewsFactor: 2.4,
     voters: 775,
@@ -570,7 +559,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-05-12",
     startAt: "2026-05-19",
     endAt: "2026-05-27",
-    target: 500,
     category: "Food & drink",
     viewsFactor: 2.1,
     voters: 526,
@@ -601,7 +589,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-06-08",
     startAt: "2026-06-17",
     endAt: "2026-06-26",
-    target: 1000,
     category: "Lifestyle",
     event: "world-cup",
     viewsFactor: 2.2,
@@ -629,7 +616,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-06-10",
     startAt: "2026-06-30",
     endAt: "2026-07-14",
-    target: 800,
     category: "Lifestyle",
     viewsFactor: 2.2,
     voters: 0,
@@ -654,7 +640,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     createdAt: "2026-06-12",
     startAt: "2026-07-20",
     endAt: "2026-08-03",
-    target: 1000,
     category: "Food & drink",
     viewsFactor: 2.2,
     voters: 0,
@@ -697,7 +682,6 @@ const CAMPAIGN_SEEDS: CampaignSeed[] = [
     decision: "Which brand direction resonates most?",
     status: "Draft",
     createdAt: "2026-06-04",
-    target: 1000,
     category: "Lifestyle",
     viewsFactor: 2.2,
     voters: 0,
@@ -821,7 +805,7 @@ const deriveCampaign = (seed: CampaignSeed): Campaign => {
     votes,
     views,
     winner,
-    signal: signalFor({ status: seed.status, voters: seed.voters, target: seed.target, marginPts: winner?.marginPts ?? 0 }),
+    signal: signalFor({ status: seed.status, voters: seed.voters, marginPts: winner?.marginPts ?? 0 }),
     confidence: "—", // finalized once sources are attached (needs sourceCount)
     completionRate: seed.voters > 0 ? round1((seed.completed / seed.voters) * 100) : null,
     sources: [],
@@ -1087,7 +1071,6 @@ for (const campaign of CAMPAIGNS) {
   campaign.confidence = confidenceFor({
     status: campaign.status,
     voters: campaign.voters,
-    target: campaign.target,
     sourceCount: campaign.sources.length,
   });
 }
@@ -1777,7 +1760,7 @@ const byMostRecent = <T extends { at: string }>(items: T[]): T[] =>
    cross 1,200 (Packaging) on Jun 13 and 2,000 (Summer) on Jun 15 — checked
    by scripts/verify-model.ts. */
 export const WHAT_CHANGED: WhatChanged[] = byMostRecent(shiftSeed([
-  { id: "wc-packaging-target", text: "Packaging Direction Test passed its 1,200-voter target", at: "2026-06-13", to: "/campaigns/packaging-direction" },
+  { id: "wc-packaging-target", text: "Packaging Direction Test passed 1,200 voters", at: "2026-06-13", to: "/campaigns/packaging-direction" },
   { id: "wc-conference", text: "QR — Conference Booth completion fell to 41%", at: "2026-06-14", to: "/distribution" },
   { id: "wc-flavor-report", text: "Flavor Launch Recap report is ready", at: "2026-06-11", to: "/analytics/reports" },
   { id: "wc-summer-2k", text: "Summer Flavor Lineup passed 2,000 voters", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup" },
@@ -1810,13 +1793,13 @@ export type WorkspaceNotification = {
 
 /* Stamps agree with the derived series: Summer crosses 2,000 voters on
    Jun 15 (2,103 is today's total), and Holiday first clears the Leading
-   threshold (≥70% of its 1,200 target: 892 voters = 74%) on Jun 15. */
+   threshold (892 voters across two sources) on Jun 15. */
 export const WORKSPACE_NOTIFICATIONS: WorkspaceNotification[] = byMostRecent(shiftSeed([
-  { id: "nt-packaging-target", title: "Packaging Direction Test passed its target", body: "1,486 of 1,200 voters — the recommendation is ready to review.", at: "2026-06-13", to: "/campaigns/packaging-direction", read: false },
+  { id: "nt-packaging-target", title: "Packaging Direction Test passed 1,200 voters", body: "1,486 voters so far — the recommendation is ready to review.", at: "2026-06-13", to: "/campaigns/packaging-direction", read: false },
   { id: "nt-conference", title: "QR — Conference Booth completion fell to 41%", body: "Scans keep coming, but most voters stop before the last question.", at: "2026-06-14", to: "/distribution", read: false },
   { id: "nt-flavor-report", title: "Flavor Launch Recap report is ready", body: "The decision report for the ended run is ready to preview.", at: "2026-06-11", to: "/analytics/reports", read: true },
-  { id: "nt-summer-2k", title: "Summer Flavor Lineup passed 2,000 voters", body: "2,103 voters so far, against a 2,500 target.", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup", read: false },
-  { id: "nt-holiday-leading", title: "Holiday Gifting Bundles moved to Leading", body: "Trio Box has 55% of responses and Pantry Sampler has 45%, with 74% of the participant target reached.", at: "2026-06-15", to: "/campaigns/holiday-gifting-bundles", read: false },
+  { id: "nt-summer-2k", title: "Summer Flavor Lineup passed 2,000 voters", body: "2,103 voters so far and still collecting.", at: "2026-06-15", to: "/campaigns/summer-flavor-lineup", read: false },
+  { id: "nt-holiday-leading", title: "Holiday Gifting Bundles moved to Leading", body: "Trio Box has 55% of responses and Pantry Sampler has 45% across 892 participants.", at: "2026-06-15", to: "/campaigns/holiday-gifting-bundles", read: false },
 ]));
 
 /* ── Reports ─────────────────────────────────────────────────────── */
@@ -2164,18 +2147,13 @@ export const headlineLabel = (c: {
 
 /** The short ready-state title every ready surface speaks. "Ready to decide"
  *  on a still-collecting run read as "campaign ended, results ready" — it
- *  wasn't. Ended runs say so; live runs state the evidence fact instead:
- *  the target is reached, or the lead is strong on volume short of it. */
-export const readyTitle = (c: { status: Status; voters: number; target?: number }) =>
-  c.status === "Ended"
-    ? "Results ready"
-    : c.target && c.voters >= c.target
-      ? "Target reached"
-      : "Strong lead";
+ *  wasn't. Ended runs say so; live runs state the evidence fact instead. */
+export const readyTitle = (c: { status: Status; voters: number }) =>
+  c.status === "Ended" ? "Results ready" : "Strong lead";
 
 /** The one status-aware eyebrow above `headlineLabel`. The DecisionBrief and
  *  the decision report both speak it — "Results ready · High confidence" once
- *  a run has ended, "Target reached · … — collecting until …" while a live
+ *  a run has ended, "Strong lead · … — collecting until …" while a live
  *  run's evidence supports the call, otherwise the plain verdict with its
  *  evidence volume — so the two surfaces can never drift, and the report
  *  never opens with the raw lead label directly above the headline. */
@@ -2185,7 +2163,6 @@ export const decisionEyebrow = (c: {
   confidence: Confidence;
   winner: CampaignWinner | null;
   voters: number;
-  target?: number;
   endAt?: string;
 }): { label: string; ready: boolean } =>
   isReadyToDecide(c)
@@ -2197,9 +2174,7 @@ export const decisionEyebrow = (c: {
       }
     : {
         ready: false,
-        label: `${verdictLabel(c)} — ${fmtInt(c.voters)}${
-          c.target ? ` of ${fmtInt(c.target)}` : ""
-        } voters`,
+        label: `${verdictLabel(c)} — ${fmtInt(c.voters)} voters`,
       };
 
 /* ── Team (Settings) ─────────────────────────────────────────────────

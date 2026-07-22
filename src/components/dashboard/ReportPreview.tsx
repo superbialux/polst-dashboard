@@ -33,7 +33,7 @@ const campaignSummary = (c: Campaign, sources: Source[]): string => {
     ...(c.decision ? [c.decision] : []),
     // A run that ended without a single voter has no verdict to state.
     `Result: ${c.voters === 0 ? "Ended without votes" : verdictLabel(c)}${c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}`,
-    `Voters: ${fmtInt(c.voters)}${c.target ? ` of ${fmtInt(c.target)} target` : ""} · Completion: ${pct(c.completed, c.voters)}`,
+    `Voters: ${fmtInt(c.voters)} · Completion: ${pct(c.completed, c.voters)}`,
     ...(topSource && topSource.voters > 0 ? [`Top source: ${topSource.name}`] : []),
     ...(c.findings.length ? ["", "Findings:", ...c.findings.map((f) => `- ${f}`)] : []),
     ...(c.caveats.length ? ["", "Caveats:", ...c.caveats.map((x) => `- ${x}`)] : []),
@@ -101,14 +101,7 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
       </header>
       <DetailList
         items={[
-          [
-            "Participants",
-            campaign.target
-              ? campaign.voters >= campaign.target
-                ? `${fmtInt(campaign.voters)} — goal of ${fmtInt(campaign.target)} reached`
-                : `${fmtInt(campaign.voters)} toward the ${fmtInt(campaign.target)} goal`
-              : fmtInt(campaign.voters),
-          ],
+          ["Participants", fmtInt(campaign.voters)],
           ["Completion", pct(campaign.completed, campaign.voters)],
           ["Top source", topSource && topSource.voters > 0 ? topSource.name : "—"],
           ["Run dates", fmtDateRange(campaign.startAt, campaign.endAt)],

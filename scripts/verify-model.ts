@@ -3,6 +3,7 @@
    "the same entity is consistent everywhere" true by construction. */
 
 import {
+  SAMPLE_SOLID,
   STATUSES,
   TODAY,
   confidenceFor,
@@ -294,12 +295,13 @@ for (const [id, campaignId, threshold] of [
     `feed ${id}: stamped ${stampOf(id)} but the series crosses ${threshold} voters on ${cross}`,
   );
 }
-// "Moved to Leading" is stamped on the day 70% of the voter target is reached.
+// "Moved to Leading" is stamped on the day the Leading sample floor is
+// crossed — the same canon constant signalFor reads.
 const holiday = CAMPAIGNS.find((c) => c.id === "holiday-gifting-bundles")!;
-const leadingDate = voterCrossDate(holiday.id, Math.ceil(0.7 * holiday.target!));
+const leadingDate = voterCrossDate(holiday.id, SAMPLE_SOLID);
 check(
   stampOf("nt-holiday-leading") === leadingDate,
-  `feed nt-holiday-leading: stamped ${stampOf("nt-holiday-leading")} but 70% of target is reached on ${leadingDate}`,
+  `feed nt-holiday-leading: stamped ${stampOf("nt-holiday-leading")} but the series crosses ${SAMPLE_SOLID} voters on ${leadingDate}`,
 );
 
 /* ── 17. Schedule edits on published runs stay truthful (store rule) ──

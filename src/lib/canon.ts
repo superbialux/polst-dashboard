@@ -67,38 +67,41 @@ export type DecisionSignal =
 
 export type Confidence = "High" | "Medium" | "Low" | "—";
 
+/* Evidence-volume floors — targets don't exist as a product concept, so
+   signal and confidence read absolute sample size, never progress toward
+   a goal. Exported so the invariant suite pins feed dates to the same
+   thresholds the verdicts use. */
+export const SAMPLE_READABLE = 250;
+export const SAMPLE_SOLID = 800;
+
 /** The one place signal thresholds live. Margin is in percentage points on
- *  the decision question; voters/target measure evidence volume. */
+ *  the decision question; voters measure evidence volume. */
 export function signalFor(input: {
   status: Status;
   voters: number;
-  target?: number;
   marginPts: number;
 }): DecisionSignal {
-  const { status, voters, target, marginPts } = input;
+  const { status, voters, marginPts } = input;
   if (status === "Draft" || status === "Scheduled" || voters === 0) return "Not started";
-  const progress = target && target > 0 ? voters / target : 1;
   if (status === "Ended") {
     return marginPts >= 8 ? "Decisive" : marginPts >= 4 ? "Directional" : "Inconclusive";
   }
-  if (progress < 0.25 || voters < 100) return "Collecting";
+  if (voters < SAMPLE_READABLE) return "Collecting";
   if (marginPts < 4) return "Too close";
-  if (marginPts >= 10 && progress >= 0.7) return "Leading";
+  if (marginPts >= 10 && voters >= SAMPLE_SOLID) return "Leading";
   return "Directional";
 }
 
-/** Evidence strength: volume vs target and source diversity. */
+/** Evidence strength: sample volume and source diversity. */
 export function confidenceFor(input: {
   status: Status;
   voters: number;
-  target?: number;
   sourceCount: number;
 }): Confidence {
-  const { status, voters, target, sourceCount } = input;
+  const { status, voters, sourceCount } = input;
   if (voters === 0 || status === "Draft" || status === "Scheduled") return "—";
-  const progress = target && target > 0 ? voters / target : 0;
-  if (progress >= 1 && sourceCount >= 2) return "High";
-  if (progress >= 0.7 || sourceCount >= 2) return "Medium";
+  if (voters >= SAMPLE_SOLID && sourceCount >= 2) return "High";
+  if (voters >= SAMPLE_READABLE * 2 || sourceCount >= 2) return "Medium";
   return "Low";
 }
 
@@ -130,9 +133,7 @@ export const METRIC_INFO = {
   voteVelocity:
     "Average votes per hour over the trailing window, from this polst's daily votes.",
   confidence:
-    "Evidence volume, not statistics. High: voter target reached with 2+ sources. Medium: 70% of target, or 2+ sources. Low: below both. No significance test is run.",
-  participantGoal:
-    "An optional planning target set by the workspace. It never caps collection — the campaign keeps collecting until its scheduled or manual end, and may exceed the goal.",
+    "Evidence volume, not statistics. High: 800+ voters with 2+ sources. Medium: 500+ voters, or 2+ sources. Low: below both. No significance test is run.",
 } as const;
 
 /* ── Formatters (the only number/date renderers) ──────────────────── */

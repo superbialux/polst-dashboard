@@ -161,7 +161,7 @@ const listColumns: Array<DataColumn<Campaign>> = [
     cell: (row) => <ThumbStrip ids={row.chain.map((q) => q.id)} />,
   },
   /* The index speaks the card line's vocabulary: total votes across the
-     chain, and the finish rate. The participant goal lives on the
+     chain, and the finish rate. Detail facts live on the
      detail, never as a "1,486 / 1,200" shorthand. */
   {
     header: "Total votes",
@@ -1631,9 +1631,6 @@ export function CampaignDetailPage() {
           ["Public URL", shareUrl("campaign", campaign.id)],
           ["Runs", fmtDateRange(campaign.startAt, campaign.endAt)],
           ...(campaign.decision ? [["Decision", campaign.decision] as [string, ReactNode]] : []),
-          ...(campaign.target
-            ? [["Voter target", fmtInt(campaign.target)] as [string, ReactNode]]
-            : []),
         ]}
         lockText="Once the first vote arrives, the polst chain, its order, and the start date lock, and the campaign can no longer be unpublished — only ended. Until then you can still unpublish it back to a draft."
         confirmLabel="Confirm & publish"
@@ -2376,13 +2373,7 @@ function CampaignInsights({
     campaign.status === "Ended"
       ? `Ended ${fmtDate(campaign.endAt!)}`
       : `Collecting until ${campaign.endAt ? fmtDate(campaign.endAt) : "ended manually"}`,
-    `${fmtInt(campaign.voters)} participants${
-      campaign.target
-        ? campaign.voters >= campaign.target
-          ? ` — goal of ${fmtInt(campaign.target)} reached`
-          : ` toward the ${fmtInt(campaign.target)} goal`
-        : ""
-    }`,
+    `${fmtInt(campaign.voters)} participants`,
     `${finishRate} finish rate`,
   ];
 
@@ -2562,7 +2553,6 @@ function AboutCampaignCard({ campaign }: { campaign: Campaign }) {
         items={[
           ["Decision", campaign.decision || "Not set"],
           ["Dates", fmtDateRange(campaign.startAt, campaign.endAt)],
-          ["Voter target", campaign.target ? fmtInt(campaign.target) : "—"],
           ["Key date", eventTitle(campaign.event)],
           ["Created", fmtDate(campaign.createdAt)],
         ]}
@@ -3185,7 +3175,6 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
     durationPresetFor(campaign.startAt, campaign.endAt),
   );
   const [customEnd, setCustomEnd] = useState(campaign.endAt ?? "");
-  const [target, setTarget] = useState(campaign.target ? String(campaign.target) : "");
   const [event, setEvent] = useState(campaign.event ?? "");
   const [confirm, setConfirm] = useState<"unpublish" | "archive" | null>(null);
 
@@ -3196,7 +3185,6 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
     decision !== campaign.decision ||
     startAt !== (campaign.startAt ?? "") ||
     (endAt ?? "") !== (campaign.endAt ?? "") ||
-    target !== (campaign.target ? String(campaign.target) : "") ||
     event !== (campaign.event ?? "");
 
   // Only a Custom duration can invert the range — refuse it at the source.
@@ -3208,7 +3196,6 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
       decision,
       startAt,
       endAt: endAt ?? "",
-      target: target.trim() ? Number(target) : 0,
       event,
     });
     if (!result.ok) {
@@ -3245,7 +3232,6 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
               ["Decision", campaign.decision || "Not set"],
               ["Start date", campaign.startAt ? fmtDate(campaign.startAt) : "—"],
               ["End date", campaign.endAt ? fmtDate(campaign.endAt) : "—"],
-              ["Voter target", campaign.target ? fmtInt(campaign.target) : "—"],
               ["Key date", eventTitle(campaign.event)],
             ]}
           />
@@ -3303,19 +3289,6 @@ function CampaignSettings({ campaign }: { campaign: Campaign }) {
                   value={startAt}
                   disabled={startLocked}
                   onChange={(e) => setStartAt(e.target.value)}
-                />
-              )}
-            </Field>
-            <Field label="Voter target">
-              {(id) => (
-                <TextInput
-                  id={id}
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value)}
-                  placeholder="1,000"
                 />
               )}
             </Field>

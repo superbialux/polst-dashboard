@@ -349,7 +349,7 @@ export function campaignReadout(c: Campaign): string {
     case "Too close":
       return `The decision question is too close to call at ${q.splitA}% / ${100 - q.splitA}%.`;
     case "Collecting":
-      return `Still collecting — ${fmtInt(c.voters)}${c.target ? ` of ${fmtInt(c.target)}` : ""} participants so far; the decision question sits at ${q.splitA}% / ${100 - q.splitA}%.`;
+      return `Still collecting — ${fmtInt(c.voters)} participants so far; the decision question sits at ${q.splitA}% / ${100 - q.splitA}%.`;
     case "Inconclusive":
       return `Ended without a clear winner: ${q.splitA}% / ${100 - q.splitA}% on the decision question.`;
     default:

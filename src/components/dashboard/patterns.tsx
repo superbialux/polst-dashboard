@@ -704,7 +704,7 @@ export function ReadyDecisionRow({
   className,
 }: {
   layout?: "card" | "row";
-  /** The ready-state verdict ("Results ready", "Target reached"). */
+  /** The ready-state verdict ("Results ready", "Strong lead"). */
   eyebrow: string;
   /** The campaign's name — always a link to it. */
   title: string;

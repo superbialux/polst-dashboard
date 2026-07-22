@@ -420,7 +420,7 @@ const categoryColumns: Array<DataColumn<CategoryRow>> = [
 
 /** The Home ready-state vocabulary, windowless: entity truth per row. An
  *  Ended run's results are in ("Results ready" → report); a live run states
- *  its evidence fact ("Target reached" / "Strong lead"), never a claim its
+ *  its evidence fact ("Strong lead"), never a claim its
  *  lifecycle contradicts. */
 function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
   return (
@@ -432,9 +432,7 @@ function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
           eyebrow={readyTitle(campaign)}
           title={campaign.name}
           to={`/campaigns/${campaign.id}`}
-          sublabel={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters${
-            campaign.target ? ` of ${fmtInt(campaign.target)} target` : ""
-          } · run to date`}
+          sublabel={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters · run to date`}
           confidence={campaign.confidence !== "—" ? campaign.confidence : undefined}
           confidenceInfo={METRIC_INFO.confidence}
           cta={{

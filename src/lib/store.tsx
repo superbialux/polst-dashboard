@@ -80,7 +80,6 @@ const blankCampaign = (
   createdAt: TODAY,
   startAt: input.startAt,
   endAt: input.endAt,
-  target: input.target,
   category: input.category ?? "Food & drink",
   chain: [],
   decisionIndex: 0,
@@ -163,7 +162,6 @@ export type CreateCampaignInput = {
   decision?: string;
   startAt?: string;
   endAt?: string;
-  target?: number;
   event?: string;
   category?: Campaign["category"];
 };
@@ -344,38 +342,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         // and published-run date changes re-resolve the status honestly.
         const result = scheduleEdit(c, nextStart, nextEnd);
         if (!result.ok) return result;
-        patchCampaign(id, (x) => {
-          const target = patch.target !== undefined ? patch.target : x.target;
-          return {
-            ...x,
-            name: patch.name?.trim() || x.name,
-            decision: patch.decision !== undefined ? patch.decision.trim() : x.decision,
-            startAt: nextStart,
-            endAt: nextEnd,
-            target,
-            event: patch.event !== undefined ? patch.event : x.event,
-            category: patch.category ?? x.category,
+        patchCampaign(id, (x) => ({
+          ...x,
+          name: patch.name?.trim() || x.name,
+          decision: patch.decision !== undefined ? patch.decision.trim() : x.decision,
+          startAt: nextStart,
+          endAt: nextEnd,
+          event: patch.event !== undefined ? patch.event : x.event,
+          category: patch.category ?? x.category,
+          status: result.status,
+          // The signal always re-derives (the status may have moved),
+          // mirroring publishCampaign/endCampaign — never a stale verdict.
+          signal: signalFor({
             status: result.status,
-            // The signal always re-derives (status or target may have moved),
-            // mirroring publishCampaign/endCampaign — never a stale verdict.
-            signal: signalFor({
-              status: result.status,
-              voters: x.voters,
-              target,
-              marginPts: x.winner?.marginPts ?? 0,
-            }),
-            // An edit that lands a voted run in the past ends it for real —
-            // the mid-run narrative flips to ended-voice, like endCampaign.
-            ...(result.status === "Ended" && x.status !== "Ended" && x.voters > 0
-              ? {
-                  summary: `Voting closed ${fmtDate(nextEnd!)} with ${fmtInt(x.voters)} voters${
-                    x.target ? ` of the ${fmtInt(x.target)} target` : ""
-                  }.`,
-                  nextStep: "Review the recommendation and lock the direction.",
-                }
-              : {}),
-          };
-        });
+            voters: x.voters,
+            marginPts: x.winner?.marginPts ?? 0,
+          }),
+          // An edit that lands a voted run in the past ends it for real —
+          // the mid-run narrative flips to ended-voice, like endCampaign.
+          ...(result.status === "Ended" && x.status !== "Ended" && x.voters > 0
+            ? {
+                summary: `Voting closed ${fmtDate(nextEnd!)} with ${fmtInt(x.voters)} voters.`,
+                nextStep: "Review the recommendation and lock the direction.",
+              }
+            : {}),
+        }));
         return result;
       },
       addQuestionToCampaign: (campaignId, q) =>
@@ -439,7 +430,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         patchCampaign(id, (x) => ({
           ...x,
           status,
-          signal: signalFor({ status, voters: x.voters, target: x.target, marginPts: 0 }),
+          signal: signalFor({ status, voters: x.voters, marginPts: 0 }),
         }));
         return { ok: true as const, status };
       },
@@ -469,7 +460,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
                 signal: signalFor({
                   status: "Ended",
                   voters: x.voters,
-                  target: x.target,
                   marginPts: x.winner?.marginPts ?? 0,
                 }),
               }
@@ -494,15 +484,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           signal: signalFor({
             status: "Ended",
             voters: c.voters,
-            target: c.target,
             marginPts: c.winner?.marginPts ?? 0,
           }),
           // The authored summary/next step speak in mid-run voice ("two days
           // remain…"), which turns false the moment the run ends in-session.
           // The brief and report switch to ended-voice facts instead.
-          summary: `Voting closed ${fmtDate(TODAY)} with ${fmtInt(c.voters)} voters${
-            c.target ? ` of the ${fmtInt(c.target)} target` : ""
-          }.`,
+          summary: `Voting closed ${fmtDate(TODAY)} with ${fmtInt(c.voters)} voters.`,
           nextStep: "Review the recommendation and lock the direction.",
         })),
       archiveCampaign: (id) => patchCampaign(id, (c) => ({ ...c, status: "Archived" })),

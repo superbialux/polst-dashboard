@@ -272,7 +272,7 @@ export function DecisionBrief({
   secondary,
   className,
 }: {
-  /** The plain-language read above the headline — "Target reached · High
+  /** The plain-language read above the headline — "Strong lead · High
    *  confidence — collecting until Jun 17", or verdict + progress
    *  ("Collecting votes — 640 of 1,200 voters"). Never a raw
    *  DecisionSignal taxonomy label. */
