@@ -30,13 +30,13 @@ import {
   DurationField,
   EmptyState,
   Funnel,
+  HeaderTabs,
   InfoHint,
   durationEnd,
   durationPresetFor,
   ModalFooter,
   NextStepsCard,
   NotFoundCard,
-  PageTabs,
   PollResults,
   PolstListRow,
   RateCell,
@@ -53,11 +53,11 @@ import {
   type SortState,
   SectionGrid,
   SectionTitle,
+  StatsStrip,
   filterByCreated,
   SnippetCard,
   StatusBadge,
   ThumbStrip,
-  UnassignButton,
   filterByStatus,
   type DataColumn,
   type DurationPreset,
@@ -78,6 +78,7 @@ import {
 import {
   KEY_DATES,
   WHAT_CHANGED,
+  campaignSeries,
   clipToRun,
   decisionEyebrow,
   embedIframe,
@@ -89,8 +90,10 @@ import {
   type CampaignReviewState,
   type ChainQuestion,
   type Source,
+  type Stat,
   WORKSPACE,
 } from "@/lib/workspace";
+import { SourceDetailModal, type LinkedMeta } from "@/components/SourceDetail";
 import {
   INSIGHT_STATE_TONE,
   campaignReadout,
@@ -1517,17 +1520,16 @@ export function CampaignDetailPage() {
           ) : null}
         </>
       }
-    >
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="min-w-0 font-display text-xl font-semibold leading-7 text-text-primary">
-            {campaign.name}
-          </h1>
+      // The breadcrumb already names the campaign; the header band holds
+      // the section tabs with the run's status on the trailing edge —
+      // the same chrome Home, Settings, and Distribution wear.
+      tabs={
+        <div className="flex w-full items-center justify-between gap-3">
+          <HeaderTabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />
           <StatusBadge status={campaign.status} />
         </div>
-        <PageTabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />
-      </div>
-
+      }
+    >
       {tab === "Overview" ? (
         <CampaignOverview
           campaign={campaign}
@@ -1686,6 +1688,60 @@ function CampaignOverview({
     { label: "Completed", count: campaign.completed },
   ];
 
+  /* The run's reach on the Home stat-strip anatomy, folded by default —
+     every series is this campaign's own daily record (campaignSeries),
+     so the chart never borrows workspace traffic. Run totals have no
+     previous period, so the delta chips stay quiet. */
+  const runSeries = {
+    views: campaignSeries(campaign, "views"),
+    votes: campaignSeries(campaign, "votes"),
+    voters: campaignSeries(campaign, "voters"),
+    completed: campaignSeries(campaign, "completed"),
+  };
+  const runDates = runSeries.views.dates;
+  const runTicks =
+    runDates.length > 0
+      ? [
+          runDates[0],
+          runDates[Math.floor(runDates.length / 2)],
+          runDates[runDates.length - 1],
+        ].map((d) => fmtDate(d))
+      : [];
+  const runStats: Stat[] = [
+    {
+      label: "Views",
+      value: fmtInt(campaign.views),
+      delta: "—",
+      trend: "flat",
+      info: METRIC_INFO.views,
+      spark: runSeries.views.values,
+    },
+    {
+      label: "Votes",
+      value: fmtInt(campaign.votes),
+      delta: "—",
+      trend: "flat",
+      info: METRIC_INFO.votes,
+      spark: runSeries.votes.values,
+    },
+    {
+      label: "Started",
+      value: fmtInt(campaign.voters),
+      delta: "—",
+      trend: "flat",
+      info: METRIC_INFO.started,
+      spark: runSeries.voters.values,
+    },
+    {
+      label: "Completed",
+      value: fmtInt(campaign.completed),
+      delta: "—",
+      trend: "flat",
+      info: METRIC_INFO.completed,
+      spark: runSeries.completed.values,
+    },
+  ];
+
   // Milestones clip to the run's current end (clipToRun): an in-session
   // schedule edit or ending retires entries the record now contradicts.
   const changed = clipToRun(WHAT_CHANGED, [campaign]).filter(
@@ -1755,6 +1811,12 @@ function CampaignOverview({
             ? { label: "View polst results", onClick: () => onGoTo("Polsts") }
             : undefined
         }
+      />
+      <StatsStrip
+        stats={runStats}
+        xTicks={runTicks}
+        scopeLabel={fmtDateRange(campaign.startAt, campaign.endAt)}
+        collapsible
       />
       {/* items-start, like this page's other grids — the journey card keeps
           its own height instead of stretching to the right column's. */}
@@ -2513,12 +2575,27 @@ function CampaignSources({
   const { unassignSource, assignSource, addSource, sources: allSources } = useWorkspace();
   const toast = useToast();
   const [assignOpen, setAssignOpen] = useState(false);
+  /* The detail modal tracks the ID, not the object — an unassign inside
+     it drops the source from this campaign's list and the modal closes
+     with it (Distribution's contract). */
+  const [detailId, setDetailId] = useState<string | null>(null);
   const assignable = campaign.status !== "Ended" && campaign.status !== "Archived";
   const url = shareUrl("campaign", campaign.id);
+
+  const detail = detailId ? sources.find((s) => s.id === detailId) ?? null : null;
+  // Every source here feeds THIS campaign — the linked meta is the page.
+  const linkedMeta: LinkedMeta = {
+    type: "campaign",
+    id: campaign.id,
+    name: campaign.name,
+    status: campaign.status,
+    to: `/campaigns/${campaign.id}`,
+  };
 
   const columns: Array<DataColumn<Source>> = [
     {
       header: "Source",
+      sort: (s) => s.name.toLowerCase(),
       cell: (s) => (
         <div className="min-w-0">
           <p className="font-semibold text-text-primary">{s.name}</p>
@@ -2528,31 +2605,15 @@ function CampaignSources({
         </div>
       ),
     },
-    { header: "Format", cell: (s) => <Chip>{s.kind}</Chip> },
-    { header: "Channel", cell: (s) => s.channel },
-    { header: "Voters", align: "right", cell: (s) => fmtInt(s.voters) },
-    { header: "Completion", align: "right", cell: (s) => RateCell(s.completionRate) },
-    // A mis-assigned source can be freed while its wiring is still clean;
-    // once it delivered voters its attribution is part of the record, so
-    // the action is disabled with the store's reason (and the store refuses
-    // regardless). Read-only runs (Ended/Archived) manage nothing here.
-    ...(assignable
-      ? [
-          {
-            header: "",
-            align: "right" as const,
-            cell: (s: Source) => (
-              <UnassignButton
-                voters={s.voters}
-                onClick={() => {
-                  const result = unassignSource(s.id);
-                  toast(result.ok ? `${s.name} unassigned` : result.reason);
-                }}
-              />
-            ),
-          },
-        ]
-      : []),
+    { header: "Format", sort: (s) => s.kind, cell: (s) => <Chip>{s.kind}</Chip> },
+    { header: "Channel", sort: (s) => s.channel, cell: (s) => s.channel },
+    { header: "Voters", align: "right", sort: (s) => s.voters, cell: (s) => fmtInt(s.voters) },
+    {
+      header: "Completion",
+      align: "right",
+      sort: (s) => s.completionRate ?? -1,
+      cell: (s) => RateCell(s.completionRate),
+    },
   ];
 
   return (
@@ -2570,7 +2631,10 @@ function CampaignSources({
         }
       >
         {sources.length > 0 ? (
-          <DataTable rows={sources} columns={columns} />
+          /* A row IS the way in — click opens the source's detail (stats,
+             its working asset, unassign with the attribution guard), so
+             no per-row buttons crowd the table. */
+          <DataTable rows={sources} columns={columns} onRowClick={(s) => setDetailId(s.id)} />
         ) : (
           <EmptyState
             icon="hub"
@@ -2584,6 +2648,19 @@ function CampaignSources({
           />
         )}
       </DashboardCard>
+
+      <SourceDetailModal
+        source={detail}
+        linked={detail ? linkedMeta : null}
+        onClose={() => setDetailId(null)}
+        // Already on the campaign's own page — no circular "Open campaign".
+        showOpenLink={false}
+        onAssign={() => setAssignOpen(true)}
+        onUnassign={(s) => {
+          const result = unassignSource(s.id);
+          toast(result.ok ? `${s.name} unassigned` : result.reason);
+        }}
+      />
 
       {campaign.status !== "Draft" ? (
         <DashboardCard

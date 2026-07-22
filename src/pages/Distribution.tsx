@@ -5,7 +5,14 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/Modal";
 import { useCopyToClipboard, useToast } from "@/components/Toast";
-import { QrCodeModal, QrPanel } from "@/components/DistributionActions";
+import { QrCodeModal } from "@/components/DistributionActions";
+import {
+  FORMAT_META,
+  SourceDetailModal,
+  attributedUrl,
+  sourceStatItems,
+  type LinkedMeta,
+} from "@/components/SourceDetail";
 import {
   AssignSourceModal,
   AssignTargetModal,
@@ -58,22 +65,10 @@ import {
    Distribution owns the concrete assets that collect voters — share
    links, QR codes, embeds. "Source" is the tracked asset Polst mints;
    "channel" is where it gets placed. Content itself lives on /polsts
-   and /campaigns. */
-
-/** What a source feeds, resolved through the store so renames follow. */
-type LinkedMeta = {
-  type: "campaign" | "polst";
-  id: string;
-  name: string;
-  status: Status;
-  to: string;
-};
+   and /campaigns. The source detail modal and its vocabulary are the
+   shared components/SourceDetail module — campaign Sources reuses them. */
 
 const LIVE_STATUSES: Status[] = ["Active", "Scheduled"];
-
-/** Share links get the source id appended so every visit stays attributed. */
-const attributedUrl = (meta: LinkedMeta, sourceId: string) =>
-  `${shareUrl(meta.type, meta.id)}?src=${sourceId}`;
 
 /* Overview leads; each format gets its own tab with format stats and
    asset cards. Tab state lives in `?tab=` (Home's pattern). */
@@ -96,27 +91,6 @@ function useDistTab(): [DistTab, (t: DistTab) => void] {
   };
   return [active, set];
 }
-
-/** Per-format vocabulary: the glyph, what its volume metric is called
- *  (a QR is scanned, a link or embed is viewed), and the tab's one-line
- *  description. */
-const FORMAT_META: Record<Source["kind"], { icon: string; volume: string; blurb: string }> = {
-  "Share link": {
-    icon: "link",
-    volume: "Views",
-    blurb: "Tracked URLs for email, social posts, and creators — every click stays attributed.",
-  },
-  "QR code": {
-    icon: "qr_code_2",
-    volume: "Scans",
-    blurb: "Print one per placement so every scan stays attributed.",
-  },
-  Embed: {
-    icon: "code",
-    volume: "Views",
-    blurb: "Drop the iframe on any page and its votes stay attributed.",
-  },
-};
 
 const TAB_FORMAT: Record<Exclude<DistTab, "Overview">, Source["kind"]> = {
   "Share links": "Share link",
@@ -146,23 +120,6 @@ const formatTotals = (list: Source[]) => {
     unassigned: list.filter((s) => !s.linked).length,
   };
 };
-
-/** The card/modal stat trio, shared so every surface reads the same:
- *  volume (scans or views), voters, and completion — or scan→vote
- *  conversion when the source feeds a single-question polst. */
-const sourceStatItems = (source: Source, linked: LinkedMeta | null) => [
-  {
-    label: FORMAT_META[source.kind].volume,
-    value: source.views > 0 ? fmtInt(source.views) : "—",
-  },
-  { label: "Voters", value: source.voters > 0 ? fmtInt(source.voters) : "—" },
-  linked?.type === "polst"
-    ? { label: "Conversion", value: pct(source.voters, source.views) }
-    : {
-        label: "Completion",
-        value: source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—",
-      },
-];
 
 export function DistributionPage() {
   const toast = useToast();
@@ -723,115 +680,6 @@ function AssetCard({
         </Button>
       </div>
     </div>
-  );
-}
-
-/* ── Source detail ───────────────────────────────────────────────────
-   Clicking a source anywhere opens this: what it is, what it feeds,
-   its numbers, and its working asset — the QR to download, the URL or
-   embed code to copy. Assign/unassign lives here too, so the table
-   carries no row buttons. */
-
-function SourceDetailModal({
-  source,
-  linked,
-  onClose,
-  onAssign,
-  onUnassign,
-}: {
-  source: Source | null;
-  linked: LinkedMeta | null;
-  onClose: () => void;
-  onAssign: (source: Source) => void;
-  onUnassign: (source: Source) => void;
-}) {
-  /* A linked QR opens two-up: the story on the left, the working QR —
-     live preview, options, download — on the right, no extra click. */
-  const twoUp = Boolean(source && linked && source.kind === "QR code");
-  return (
-    <Modal
-      open={Boolean(source)}
-      onClose={onClose}
-      label="Source"
-      title={source?.name ?? "Source"}
-      className={twoUp ? "lg:max-w-2xl" : undefined}
-      footer={
-        source ? (
-          <ModalFooter
-            start={
-              source.lastActivity
-                ? `Last activity ${relativeToToday(source.lastActivity)}`
-                : "No activity yet"
-            }
-          >
-            {linked ? (
-              <>
-                <UnassignButton voters={source.voters} onClick={() => onUnassign(source)} />
-                <Button asChild>
-                  <Link to={linked.to}>
-                    Open {linked.type === "campaign" ? "campaign" : "polst"}
-                  </Link>
-                </Button>
-              </>
-            ) : (
-              <Button onClick={() => onAssign(source)}>Assign to a run</Button>
-            )}
-          </ModalFooter>
-        ) : undefined
-      }
-    >
-      {source ? (
-        <div className={cn("p-4", twoUp && "grid gap-6 lg:grid-cols-2")}>
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Chip>{source.kind}</Chip>
-              <Chip>{source.channel}</Chip>
-              {source.placement ? (
-                <span className="text-xs text-text-secondary">{source.placement}</span>
-              ) : null}
-            </div>
-
-            {linked ? (
-              <p className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
-                Feeds{" "}
-                <Link
-                  to={linked.to}
-                  className="font-semibold text-text-primary hover:text-text-accent"
-                >
-                  {linked.name}
-                </Link>
-                <StatusBadge status={linked.status} />
-              </p>
-            ) : (
-              <p className="text-sm leading-5 text-text-secondary">
-                Unassigned — this source has no working asset and collects no voters until it
-                feeds a campaign or polst.
-              </p>
-            )}
-
-            <MiniStatGrid cols={3} tone="subtle" items={sourceStatItems(source, linked)} />
-
-            {linked && source.kind === "Share link" ? (
-              <SnippetCard title="Share link" code={attributedUrl(linked, source.id)} />
-            ) : null}
-            {linked && source.kind === "Embed" ? (
-              <SnippetCard title="Embed code" code={embedIframe(linked.id)} />
-            ) : null}
-          </div>
-
-          {twoUp && linked ? (
-            // Keyed per source so options reset between sources.
-            <QrPanel
-              key={source.id}
-              objectName={linked.name}
-              url={attributedUrl(linked, source.id)}
-            />
-          ) : null}
-        </div>
-      ) : (
-        <div className="p-4" />
-      )}
-    </Modal>
   );
 }
 
