@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/Toast";
+import { Modal } from "@/components/Modal";
+import { useCopyToClipboard, useToast } from "@/components/Toast";
 import { QrCodeModal } from "@/components/DistributionActions";
 import {
   AssignSourceModal,
@@ -19,11 +20,14 @@ import {
   IconTile,
   LockedCard,
   MiniStatGrid,
+  ModalFooter,
   RateCell,
+  SOURCE_KINDS,
   SectionGrid,
   SectionHeader,
   SnippetCard,
   StatTile,
+  StatusBadge,
   StatusSelect,
   TablePagination,
   TableToolbar,
@@ -67,24 +71,98 @@ const LIVE_STATUSES: Status[] = ["Active", "Scheduled"];
 const attributedUrl = (meta: LinkedMeta, sourceId: string) =>
   `${shareUrl(meta.type, meta.id)}?src=${sourceId}`;
 
-const DIST_TABS = ["Sources", "Assets"] as const;
-type DistTab = (typeof DIST_TABS)[number];
+/* Overview leads; each format gets its own tab with format stats and
+   asset cards. Tab state lives in `?tab=` (Home's pattern). */
+const DIST_TABS = [
+  { key: "Overview", slug: "overview" },
+  { key: "Share links", slug: "links" },
+  { key: "QR codes", slug: "qr" },
+  { key: "Embeds", slug: "embeds" },
+] as const;
+type DistTab = (typeof DIST_TABS)[number]["key"];
+const DIST_TAB_KEYS = DIST_TABS.map((t) => t.key) as DistTab[];
 
-/** Tab state lives in `?tab=` (Home's pattern) so Assets deep-links. */
 function useDistTab(): [DistTab, (t: DistTab) => void] {
   const [params, setParams] = useSearchParams();
   const raw = params.get("tab");
-  const active = DIST_TABS.find((t) => t.toLowerCase() === raw) ?? "Sources";
-  const set = (t: DistTab) =>
-    setParams(t === "Sources" ? {} : { tab: t.toLowerCase() }, { replace: true });
+  const active = DIST_TABS.find((t) => t.slug === raw)?.key ?? "Overview";
+  const set = (key: DistTab) => {
+    const slug = DIST_TABS.find((t) => t.key === key)!.slug;
+    setParams(key === "Overview" ? {} : { tab: slug }, { replace: true });
+  };
   return [active, set];
 }
 
+/** Per-format vocabulary: the glyph, what its volume metric is called
+ *  (a QR is scanned, a link or embed is viewed), and the tab's one-line
+ *  description. */
+const FORMAT_META: Record<Source["kind"], { icon: string; volume: string; blurb: string }> = {
+  "Share link": {
+    icon: "link",
+    volume: "Views",
+    blurb: "Tracked URLs for email, social posts, and creators — every click stays attributed.",
+  },
+  "QR code": {
+    icon: "qr_code_2",
+    volume: "Scans",
+    blurb: "Print one per placement so every scan stays attributed.",
+  },
+  Embed: {
+    icon: "code",
+    volume: "Views",
+    blurb: "Drop the iframe on any page and its votes stay attributed.",
+  },
+};
+
+const TAB_FORMAT: Record<Exclude<DistTab, "Overview">, Source["kind"]> = {
+  "Share links": "Share link",
+  "QR codes": "QR code",
+  Embeds: "Embed",
+};
+
+const FORMAT_FILTERS = ["All formats", ...SOURCE_KINDS] as const;
 const CHANNEL_FILTERS = ["All channels", ...CHANNELS] as const;
 const PAGE_SIZE = 25;
 
+const COMPLETION_SCOPE = `${METRIC_INFO.completionRate} Ranked across campaign sources — a single-question polst always completes.`;
+
+/** A format's honest totals: volume and voters over every source, but
+ *  completion only over campaign-fed ones (a single-question polst
+ *  completes by definition). */
+const formatTotals = (list: Source[]) => {
+  const views = list.reduce((sum, s) => sum + s.views, 0);
+  const voters = list.reduce((sum, s) => sum + s.voters, 0);
+  const campaignFed = list.filter((s) => s.linked?.type === "campaign");
+  const completed = campaignFed.reduce((sum, s) => sum + s.completed, 0);
+  const campaignVoters = campaignFed.reduce((sum, s) => sum + s.voters, 0);
+  return {
+    views,
+    voters,
+    completion: campaignVoters > 0 ? (completed / campaignVoters) * 100 : null,
+    unassigned: list.filter((s) => !s.linked).length,
+  };
+};
+
+/** The card/modal stat trio, shared so every surface reads the same:
+ *  volume (scans or views), voters, and completion — or scan→vote
+ *  conversion when the source feeds a single-question polst. */
+const sourceStatItems = (source: Source, linked: LinkedMeta | null) => [
+  {
+    label: FORMAT_META[source.kind].volume,
+    value: source.views > 0 ? fmtInt(source.views) : "—",
+  },
+  { label: "Voters", value: source.voters > 0 ? fmtInt(source.voters) : "—" },
+  linked?.type === "polst"
+    ? { label: "Conversion", value: pct(source.voters, source.views) }
+    : {
+        label: "Completion",
+        value: source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—",
+      },
+];
+
 export function DistributionPage() {
   const toast = useToast();
+  const copy = useCopyToClipboard();
   const {
     campaigns,
     polsts,
@@ -99,7 +177,11 @@ export function DistributionPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<Source | null>(null);
   const [qrTarget, setQrTarget] = useState<{ source: Source; linked: LinkedMeta } | null>(null);
+  /* The detail modal tracks the ID, not the object — assign/unassign
+     inside the modal re-renders it against the live store row. */
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [format, setFormat] = useState<string>("All formats");
   const [channel, setChannel] = useState<string>("All channels");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
@@ -118,6 +200,30 @@ export function DistributionPage() {
     return p
       ? { type: "polst", id: p.id, name: p.question, status: p.status, to: `/polsts/${p.id}` }
       : null;
+  };
+
+  /** The format-appropriate quick action for a linked source: a QR
+   *  previews and downloads, a link or embed copies its snippet. */
+  const quickAction = (s: Source, m: LinkedMeta) => {
+    if (s.kind === "QR code") {
+      return {
+        icon: "qr_code_2",
+        label: "QR code",
+        onClick: () => setQrTarget({ source: s, linked: m }),
+      };
+    }
+    if (s.kind === "Share link") {
+      return {
+        icon: "content_copy",
+        label: "Copy link",
+        onClick: () => void copy(attributedUrl(m, s.id), "Link copied to clipboard"),
+      };
+    }
+    return {
+      icon: "content_copy",
+      label: "Copy embed",
+      onClick: () => void copy(embedIframe(m.id), "Embed code copied to clipboard"),
+    };
   };
 
   /* Campaign sources worst-completion first (the eroding source Home
@@ -153,7 +259,6 @@ export function DistributionPage() {
   );
   const worst = rankable[0];
   const best = rankable[rankable.length - 1];
-  const completionScope = `${METRIC_INFO.completionRate} Ranked across campaign sources — a single-question polst always completes.`;
 
   const columns: Array<DataColumn<Source>> = [
     {
@@ -181,9 +286,7 @@ export function DistributionPage() {
         const m = metaFor(s);
         return m ? (
           <span className="block min-w-0">
-            <Link to={m.to} className="block truncate text-text-primary hover:text-text-accent">
-              {m.name}
-            </Link>
+            <span className="block truncate text-text-primary">{m.name}</span>
             <span className="block text-xs text-text-tertiary">
               {m.type === "campaign" ? "Campaign" : "polst"}
             </span>
@@ -219,37 +322,8 @@ export function DistributionPage() {
         </span>
       ),
     },
-    {
-      header: "",
-      align: "right",
-      // Assign is one click — so is undoing it while the wiring is still
-      // clean. Once a source delivered voters its attribution is part of
-      // the record: the action disables with the store's reason (and the
-      // store refuses regardless).
-      cell: (s) =>
-        s.linked ? (
-          <UnassignButton
-            voters={s.voters}
-            onClick={() => {
-              const result = unassignSource(s.id);
-              toast(result.ok ? `${s.name} unassigned` : result.reason);
-            }}
-          />
-        ) : (
-          <Button variant="secondary" size="sm" onClick={() => setAssignTarget(s)}>
-            Assign
-          </Button>
-        ),
-    },
   ];
 
-  const qrSources = sources.filter((s) => s.kind === "QR code");
-  const liveMeta = (s: Source) => {
-    const m = metaFor(s);
-    return m && LIVE_STATUSES.includes(m.status) ? m : null;
-  };
-  const linkAssets = sources.filter((s) => s.kind === "Share link" && liveMeta(s));
-  const embedAssets = sources.filter((s) => s.kind === "Embed" && liveMeta(s));
   const klaviyo = INTEGRATIONS.find((i) => i.id === "int-klaviyo");
 
   /* The list pipeline (the Polsts/Campaigns contract): filter, sort the
@@ -257,6 +331,7 @@ export function DistributionPage() {
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const filtered = filterByCreated(ordered, createdFrom, createdTo)
+      .filter((s) => format === "All formats" || s.kind === format)
       .filter((s) => channel === "All channels" || s.channel === channel)
       .filter(
         (s) =>
@@ -267,7 +342,7 @@ export function DistributionPage() {
       );
     return sortRows(filtered, columns, sort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ordered, query, channel, createdFrom, createdTo, sort]);
+  }, [ordered, query, format, channel, createdFrom, createdTo, sort]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
@@ -277,13 +352,20 @@ export function DistributionPage() {
     setPage(0);
   };
 
-  const filtering = Boolean(query.trim() || channel !== "All channels" || createdFrom || createdTo);
+  const filtering = Boolean(
+    query.trim() ||
+      format !== "All formats" ||
+      channel !== "All channels" ||
+      createdFrom ||
+      createdTo,
+  );
   const emptyTitle = filtering ? "No sources match these filters" : "No sources yet";
   const emptyAction = filtering
     ? {
         label: "Clear filters",
         onClick: () => {
           setQuery("");
+          setFormat("All formats");
           setChannel("All channels");
           setCreatedFrom("");
           setCreatedTo("");
@@ -292,40 +374,12 @@ export function DistributionPage() {
       }
     : { label: "Add source", onClick: () => setAddOpen(true) };
 
-  const toolbar = (
-    <TableToolbar
-      placeholder="Search sources"
-      query={query}
-      onQueryChange={setFilterAndResetPage(setQuery)}
-    >
-      <StatusSelect
-        options={CHANNEL_FILTERS}
-        value={channel}
-        onChange={setFilterAndResetPage(setChannel)}
-        className="w-40"
-      />
-      <DateRangePicker
-        from={createdFrom}
-        to={createdTo}
-        placeholder="Created date"
-        onChange={(f, t) => {
-          setCreatedFrom(f);
-          setCreatedTo(t);
-          setPage(0);
-        }}
-      />
-    </TableToolbar>
-  );
+  const detail = detailId ? sources.find((s) => s.id === detailId) ?? null : null;
 
-  const pager = (
-    <TablePagination
-      page={safePage}
-      pageSize={PAGE_SIZE}
-      total={rows.length}
-      onPage={setPage}
-      noun="sources"
-    />
-  );
+  /* The current format tab's slice and totals (Overview skips this). */
+  const tabFormat = tab === "Overview" ? null : TAB_FORMAT[tab];
+  const tabSources = tabFormat ? ordered.filter((s) => s.kind === tabFormat) : [];
+  const tabTotals = formatTotals(tabSources);
 
   return (
     <DashboardPage
@@ -335,11 +389,19 @@ export function DistributionPage() {
           Add source
         </Button>
       }
-      tabs={<HeaderTabs tabs={DIST_TABS} active={tab} onChange={setTab} />}
+      tabs={<HeaderTabs tabs={DIST_TAB_KEYS} active={tab} onChange={setTab} />}
       // The pager rides the fixed footer band — but only under the list.
-      footer={tab === "Sources" && rows.length ? pager : null}
+      footer={tab === "Overview" && rows.length ? (
+        <TablePagination
+          page={safePage}
+          pageSize={PAGE_SIZE}
+          total={rows.length}
+          onPage={setPage}
+          noun="sources"
+        />
+      ) : null}
     >
-      {tab === "Sources" ? (
+      {tab === "Overview" ? (
         <>
           <SectionGrid>
             <StatTile
@@ -362,25 +424,56 @@ export function DistributionPage() {
               label="Best completion"
               value={best?.completionRate != null ? fmtPct(best.completionRate, 0) : "—"}
               detail={best?.name}
-              info={completionScope}
+              info={COMPLETION_SCOPE}
             />
             <StatTile
               className="lg:col-span-3"
               label="Lowest completion"
               value={worst?.completionRate != null ? fmtPct(worst.completionRate, 0) : "—"}
               detail={worst?.name}
-              info={completionScope}
+              info={COMPLETION_SCOPE}
             />
           </SectionGrid>
 
           {/* The action row rides ABOVE the card (the list-page altitude). */}
           <section className="space-y-2">
-            {toolbar}
+            <TableToolbar
+              placeholder="Search sources"
+              query={query}
+              onQueryChange={setFilterAndResetPage(setQuery)}
+            >
+              <StatusSelect
+                options={FORMAT_FILTERS}
+                value={format}
+                onChange={setFilterAndResetPage(setFormat)}
+                className="w-40"
+              />
+              <StatusSelect
+                options={CHANNEL_FILTERS}
+                value={channel}
+                onChange={setFilterAndResetPage(setChannel)}
+                className="w-40"
+              />
+              <DateRangePicker
+                from={createdFrom}
+                to={createdTo}
+                placeholder="Created date"
+                onChange={(f, t) => {
+                  setCreatedFrom(f);
+                  setCreatedTo(t);
+                  setPage(0);
+                }}
+              />
+            </TableToolbar>
             {rows.length ? (
               <DashboardCard padded={false}>
+                {/* A row IS the way in — click opens the source's detail
+                    (stats, its asset, assign/unassign), so no per-row
+                    action buttons crowd the table. */}
                 <DataTable
                   rows={pageRows}
                   columns={columns}
+                  onRowClick={(s) => setDetailId(s.id)}
                   sort={sort}
                   onSortChange={setFilterAndResetPage(setSort)}
                 />
@@ -388,94 +481,6 @@ export function DistributionPage() {
             ) : (
               <DashboardCard padded={false}>
                 <EmptyState icon="hub" title={emptyTitle} action={emptyAction} />
-              </DashboardCard>
-            )}
-          </section>
-        </>
-      ) : (
-        <>
-          {/* Assets sit directly on the page under section headers —
-              cards never nest inside cards. */}
-          <section className="space-y-3">
-            <SectionHeader
-              title="QR codes"
-              description="Print one per placement so every scan stays attributed."
-            />
-            {qrSources.length ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {qrSources.map((s) => {
-                  const m = metaFor(s);
-                  return (
-                    <QrTile
-                      key={s.id}
-                      source={s}
-                      linked={m}
-                      onOpen={m ? () => setQrTarget({ source: s, linked: m }) : undefined}
-                      onAssign={() => setAssignTarget(s)}
-                    />
-                  );
-                })}
-              </div>
-            ) : (
-              <DashboardCard padded={false}>
-                <EmptyState
-                  icon="qr_code_2"
-                  title="No QR codes yet"
-                  hint="Print one per placement so every scan stays attributed."
-                  action={{ label: "Add source", onClick: () => setAddOpen(true) }}
-                />
-              </DashboardCard>
-            )}
-          </section>
-
-          <section className="space-y-3">
-            <SectionHeader
-              title="Links & embeds"
-              description="Copy-ready assets for runs that are live or scheduled."
-            />
-            {linkAssets.length + embedAssets.length ? (
-              <div className="space-y-4">
-                {linkAssets.length ? (
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    {linkAssets.map((s) => {
-                      const m = liveMeta(s)!;
-                      return (
-                        <SnippetCard
-                          key={s.id}
-                          className="rounded-card bg-surface-raised shadow-sm"
-                          title={s.name}
-                          description={`Feeds ${m.name}`}
-                          code={attributedUrl(m, s.id)}
-                        />
-                      );
-                    })}
-                  </div>
-                ) : null}
-                {embedAssets.length ? (
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    {embedAssets.map((s) => {
-                      const m = liveMeta(s)!;
-                      return (
-                        <SnippetCard
-                          key={s.id}
-                          className="rounded-card bg-surface-raised shadow-sm"
-                          title={s.name}
-                          description={`Feeds ${m.name}`}
-                          code={embedIframe(m.id)}
-                        />
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <DashboardCard padded={false}>
-                <EmptyState
-                  icon="link"
-                  title="No live links yet"
-                  hint="Share links and embeds appear here while their campaign or polst is live."
-                  action={{ label: "Add source", onClick: () => setAddOpen(true) }}
-                />
               </DashboardCard>
             )}
           </section>
@@ -492,7 +497,80 @@ export function DistributionPage() {
             </div>
           </section>
         </>
+      ) : (
+        <>
+          <SectionGrid>
+            <StatTile
+              className="lg:col-span-3"
+              label={tab}
+              value={fmtInt(tabSources.length)}
+              detail={
+                tabTotals.unassigned > 0
+                  ? `${fmtInt(tabTotals.unassigned)} unassigned`
+                  : undefined
+              }
+              info={FORMAT_META[tabFormat!].blurb}
+            />
+            <StatTile
+              className="lg:col-span-3"
+              label={FORMAT_META[tabFormat!].volume}
+              value={tabTotals.views > 0 ? fmtInt(tabTotals.views) : "—"}
+              info={METRIC_INFO.views}
+            />
+            <StatTile
+              className="lg:col-span-3"
+              label="Voters"
+              value={tabTotals.voters > 0 ? fmtInt(tabTotals.voters) : "—"}
+              info={METRIC_INFO.voters}
+            />
+            <StatTile
+              className="lg:col-span-3"
+              label="Completion"
+              value={tabTotals.completion !== null ? fmtPct(tabTotals.completion, 0) : "—"}
+              detail="across campaign sources"
+              info={COMPLETION_SCOPE}
+            />
+          </SectionGrid>
+
+          {tabSources.length ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {tabSources.map((s) => {
+                const m = metaFor(s);
+                return (
+                  <AssetCard
+                    key={s.id}
+                    source={s}
+                    linked={m}
+                    onOpen={() => setDetailId(s.id)}
+                    action={m ? quickAction(s, m) : { label: "Assign", onClick: () => setAssignTarget(s) }}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <DashboardCard padded={false}>
+              <EmptyState
+                icon={FORMAT_META[tabFormat!].icon}
+                title={`No ${tab.toLowerCase()} yet`}
+                hint={FORMAT_META[tabFormat!].blurb}
+                action={{ label: "Add source", onClick: () => setAddOpen(true) }}
+              />
+            </DashboardCard>
+          )}
+        </>
       )}
+
+      <SourceDetailModal
+        source={detail}
+        linked={detail ? metaFor(detail) : null}
+        onClose={() => setDetailId(null)}
+        onAssign={(s) => setAssignTarget(s)}
+        onUnassign={(s) => {
+          const result = unassignSource(s.id);
+          toast(result.ok ? `${s.name} unassigned` : result.reason);
+        }}
+        onQr={(s, m) => setQrTarget({ source: s, linked: m })}
+      />
 
       <AssignSourceModal
         open={addOpen}
@@ -535,25 +613,39 @@ export function DistributionPage() {
   );
 }
 
-/* ── QR tile ─────────────────────────────────────────────────────── */
+/* ── Asset card ──────────────────────────────────────────────────────
+   One source as one card, any format: glyph, identity, the shared stat
+   trio, and the format's quick action. The card itself opens the source
+   detail — inner controls stop the bubble. */
 
-function QrTile({
+function AssetCard({
   source,
   linked,
   onOpen,
-  onAssign,
+  action,
 }: {
   source: Source;
   linked: LinkedMeta | null;
-  onOpen?: () => void;
-  onAssign: () => void;
+  /** Open the source detail modal. */
+  onOpen: () => void;
+  action: { icon?: string; label: string; onClick: () => void };
 }) {
   return (
-    // Card chrome — QR tiles sit directly on the page now, not inside a card.
-    <div className="flex flex-col rounded-card border border-border-default bg-surface-raised p-4 shadow-sm">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="flex cursor-pointer flex-col rounded-card border border-border-default bg-surface-raised p-4 text-left shadow-sm outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring"
+    >
       <div className="flex items-start gap-3">
         <IconTile size={12} className="text-icon-primary">
-          <Icon name="qr_code_2" size={32} />
+          <Icon name={FORMAT_META[source.kind].icon} size={32} />
         </IconTile>
         <div className="min-w-0 flex-1">
           <p className="font-display text-sm font-semibold text-text-primary">{source.name}</p>
@@ -562,9 +654,7 @@ function QrTile({
           ) : null}
           <p className="mt-0.5 truncate text-xs">
             {linked ? (
-              <Link to={linked.to} className="text-text-secondary hover:text-text-accent">
-                Feeds {linked.name}
-              </Link>
+              <span className="text-text-secondary">Feeds {linked.name}</span>
             ) : (
               <span className="text-text-tertiary">Unassigned</span>
             )}
@@ -575,32 +665,127 @@ function QrTile({
         className="mt-3"
         cols={3}
         tone="subtle"
-        items={[
-          { label: "Scans", value: source.views > 0 ? fmtInt(source.views) : "—" },
-          { label: "Voters", value: source.voters > 0 ? fmtInt(source.voters) : "—" },
-          // A single-question polst always "completes" — its honest QR
-          // stat is scan → vote conversion instead.
-          linked?.type === "polst"
-            ? { label: "Conversion", value: pct(source.voters, source.views) }
-            : {
-                label: "Completion",
-                value: source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—",
-              },
-        ]}
+        items={sourceStatItems(source, linked)}
       />
-      <div className="mt-3 flex gap-2">
-        {onOpen ? (
-          <Button variant="secondary" size="sm" onClick={onOpen}>
-            <Icon name="qr_code_2" size={18} />
-            QR code
-          </Button>
-        ) : (
-          <Button variant="secondary" size="sm" onClick={onAssign}>
-            Assign
-          </Button>
-        )}
+      <div className="mt-auto flex gap-2 pt-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            action.onClick();
+          }}
+        >
+          {action.icon ? <Icon name={action.icon} size={18} /> : null}
+          {action.label}
+        </Button>
       </div>
     </div>
+  );
+}
+
+/* ── Source detail ───────────────────────────────────────────────────
+   Clicking a source anywhere opens this: what it is, what it feeds,
+   its numbers, and its working asset — the QR to download, the URL or
+   embed code to copy. Assign/unassign lives here too, so the table
+   carries no row buttons. */
+
+function SourceDetailModal({
+  source,
+  linked,
+  onClose,
+  onAssign,
+  onUnassign,
+  onQr,
+}: {
+  source: Source | null;
+  linked: LinkedMeta | null;
+  onClose: () => void;
+  onAssign: (source: Source) => void;
+  onUnassign: (source: Source) => void;
+  onQr: (source: Source, linked: LinkedMeta) => void;
+}) {
+  return (
+    <Modal
+      open={Boolean(source)}
+      onClose={onClose}
+      label="Source"
+      title={source?.name ?? "Source"}
+      footer={
+        source ? (
+          <ModalFooter
+            start={
+              source.lastActivity
+                ? `Last activity ${relativeToToday(source.lastActivity)}`
+                : "No activity yet"
+            }
+          >
+            {linked ? (
+              <>
+                <UnassignButton voters={source.voters} onClick={() => onUnassign(source)} />
+                <Button asChild>
+                  <Link to={linked.to}>
+                    Open {linked.type === "campaign" ? "campaign" : "polst"}
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => onAssign(source)}>Assign to a run</Button>
+            )}
+          </ModalFooter>
+        ) : undefined
+      }
+    >
+      {source ? (
+        <div className="space-y-4 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Chip>{source.kind}</Chip>
+            <Chip>{source.channel}</Chip>
+            {source.placement ? (
+              <span className="text-xs text-text-secondary">{source.placement}</span>
+            ) : null}
+          </div>
+
+          {linked ? (
+            <p className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+              Feeds{" "}
+              <Link
+                to={linked.to}
+                className="font-semibold text-text-primary hover:text-text-accent"
+              >
+                {linked.name}
+              </Link>
+              <StatusBadge status={linked.status} />
+            </p>
+          ) : (
+            <p className="text-sm leading-5 text-text-secondary">
+              Unassigned — this source has no working asset and collects no voters until it
+              feeds a campaign or polst.
+            </p>
+          )}
+
+          <MiniStatGrid cols={3} tone="subtle" items={sourceStatItems(source, linked)} />
+
+          {linked ? (
+            source.kind === "QR code" ? (
+              <div className="space-y-3">
+                <SnippetCard title="Scan URL" code={attributedUrl(linked, source.id)} />
+                <Button variant="secondary" className="w-full" onClick={() => onQr(source, linked)}>
+                  <Icon name="qr_code_2" size={18} />
+                  QR code — preview & download
+                </Button>
+              </div>
+            ) : source.kind === "Share link" ? (
+              <SnippetCard title="Share link" code={attributedUrl(linked, source.id)} />
+            ) : (
+              <SnippetCard title="Embed code" code={embedIframe(linked.id)} />
+            )
+          ) : null}
+        </div>
+      ) : (
+        <div className="p-4" />
+      )}
+    </Modal>
   );
 }
 
