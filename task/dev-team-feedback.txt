@@ -1,0 +1,131 @@
+Page: HOME
+Top of the page stats
+"тут визуально не понятно что график относится к метрике слева, обьединить бы как то" -- this is about mini charts 
+"по функционалу то мб сделать это цифрой в карент окне, как сверху выбрано 30 дней и добавить еще тренд вверх пошло или вниз за это время"
+
+Ready to decide
+тут полностью по смыслу не подходит блок? если это типа результаты кампании то надо упростить виджет и сформулировать типа «кампания завершилась результаты готовы»
+
+5 need attention
+заебумба наверно ток крумпнее все
+
+campaigns
+как то бы подсветить цветами или хз как типа она уже долго идет или дохуя резалтов или еще какие-то информативные состояния
+ну и крупнее мб все
+
+2 of 3 tasks complete
+"get game day creative test ready to launch"
+"чоб у нас была ета хуйня нужно понимать сценарий в рамках которого чел оперирует, из воздуха сложно реализвовать"
+
+Page: CAMPAIGNS
+я не думаю шо есть смысл в количестве воутов? можно поменять на абстрактный ”confidence”
+Polsts column: если все укрупнить то и превьюшки будут больше. со слов емана одновременно будет не дохуя кампаний мб сделать не таблицей а просто строчками и превьюшки в ней пустить второй строкой
+what s points? is it votes? % ? there are polst cards within campaign, how can separate polsts get more votes than others? we have completion rate, this means some campaigns can be uncompleted, this way first polsts will always have more impressions than the last ones, what is the point of Results so far column on the first place
+
+Page: CAMPAIGNS > Back-to-School Snacks
+как-то непонятно куда идти с етого екрана
+
+Page: POLSTS
+Interactions is what? is it likes + reposts? if so, how bout two separate columns instead
+grid view ? how should it look like
+
+Page: ANALYTICS
+Subpage: Overview
+
+Notifications
+what kind of notifications are expected to be here? someone voted? campaign ended? 🤔
+мммммммм хз как ето сделать
+
+Verticals
+тут хуй пойми как полсты разбиваются на вертикали, у нас есть механизм их анализа на фронте но хз наскок ето в таком виде нужно кастомеру
+
+Voter journey
+ето типа фанел но какой-то бесполезный фанел
+
+Campaign performance
+"Citrus mint sligthly ahead" - как мы будем получать етот резалт из цепочки в 3-5 бинарних вопросов.
+
+Standalone posts
+ето не важная хуйня но и вреда от нее нет? пох
+но наверно везде где в дешбордже выводятся полсты над выводить превьюшку и слаг из линки чтоб была понятна разница между полстами
+
+Subpage: Reports
+репорт ето типа по одной кампании?
+export button should be somewhere here as well
+
+Subpage: Insights
+Needs attention - по наполнению вроде норм а вроде и недостаточно хуйни
+
+Page: Polsts => "Best hero image for the ad"
+points again, how does it work?
+Vote Velocity - та же хуйня, в таблице все теряется
+Schedule - хз бесполезно в таком виде
+
+Page: Campaigns > Summer Flavor Lineup
+че за поинты
+
+Page: Settings > Workspace
+What s behind workspace? will Team & access be configurable here instead of admin ?
+
+Developer Platform - не думаю чо у нас будет такая хуйня с планами
+
+Page: Settings > Embed appearance
+у нас вроде больше хендлов для настройки ну ландно
+
+Page: Settings > Modules & integrations
+
+Modules: а ето вообще хз че за хуйня
+TikTok Ads: ебать как мы ету хуйню подключим
+
+Page: Campaigns > Create campaign
+required fields should be marked
+достаточно ли ето ретард пруф
+
+Page: Campaigns > Summer Launch 
+About: бля челы будут теряться когда данные в таком виде и нихуя не поймут
+
+Page: Campaigns > Packaging Direction Test
+шо означает key date в терминах кампании?
+
+Page: Polsts > Which mascot do people like?
+норм ток улучшить бы ету таблицу чтобы тупо вместо нее на пол ебала было чо начнется 3 июля и чо счас скедьюлд
+
+Decision Report: самая важная хуйня по етой хуйне ето когда оно выдает кучу всяких блоков как ща типа че делать с цифрами над чоб оно с самого верху было на юайке а не хуй пойми где-то под катом
+
+Page: Home > Calendar:
+is is hovered or clicked? if clicked what is the view on hover? all active campaigns?
+what is going to happen when "today" is clicked? do we need view switch - day, week, month for more detailed ongoing campaigns view ?
+
+Page: Menu
+vpivovarov
+2 days ago
+может лучше аккордион?
+vpivovarov
+2 days ago
+вижу на следующей странице так и подразумевается, но визуально не ясно, что меню может расширяться
+
+Page: Polsts > Which tagline should we use
+непонятно хз ок
+
+Page: Campaigns > Holiday Gifting Bundles
+наверно норм хз ток поймут ли ретарды чо значат таби
+
+QR code popup:
+над еще типа урлу картинки (for qr code?)
+what is going to be downloaded on click?
+
+Page: Audience > Geography
+need a map here
+
+Page: Polsts > Create a Polst
+Ready to publish : как здесь должна виглядеть интерактивность? в реальном времени, на протяжении того как пользователь заполняет форму? или по нажатию на публикацию?
+character limits are missing for options and Polst title
+
+Page: Distribution
+бля наверн норм ток хз как ето билдить
+
+Polst > Which season badge feels clearer (Archived)
+залупа какаят
+
+Search: 
+бля слишком прождвинуто

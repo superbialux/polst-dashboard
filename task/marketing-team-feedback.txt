@@ -1,0 +1,9 @@
+When you click in to view a polst, the polst displays were "too big," leading to a "waste of real estate."
+The current design lacks a clear information hierarchy or sense of urgency. He compared it to what can be found in his draft where information looked clearly different and some things popped out more than others: https://v0.app/realradius/chat/polst-brand-dashboard-utgO5vRd07C?ref=N5WWDH
+Remove placeholder "Coming Soon" tags from the audience analytics boxes at the bottom (we don't want to promise or commit to anything)
+Hide "Custom" and "No End" campaign duration options to better guide users for now; give only fixed duration, with users choosing from set options like three, five, or seven days
+Provide a robust review page because once a campaign is launched (or once the first vote comes in?), it cannot be edited.
+Revise the social media preview graphic; the question text is currently too small and lacks sufficient spacing from the answer choices (separate issue previously tagged by Emanuel in Slack)
+
+
+Alex's feedback was valid: we need to focus on decisioning and creating a dashboard that effectively communicates a story to the user. Please check out Emanuel's version of the dashboard. He specifically calls out the information hierarchy and the moment at campaign creation where it feels more interactive. (edited)
