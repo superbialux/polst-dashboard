@@ -1507,58 +1507,121 @@ export function PollResults({
 
 export type FunnelStep = { label: string; count: number };
 
-/** The campaign journey: Started → each question → Completed. Bars scale
- *  to the first step; the step that loses the most voters carries the
- *  "Biggest drop" tag. Reads top to bottom like the voter experienced it. */
-export function Funnel({ steps }: { steps: FunnelStep[] }) {
-  const max = steps[0]?.count || 1;
-  // Largest absolute loss between consecutive steps (ties go to the earliest).
-  let biggestDropIndex = -1;
-  let biggestDrop = 0;
+/** The largest absolute loss between consecutive steps (ties go to the
+ *  earliest) — exported so a caller can speak the drop in prose. */
+export function biggestFunnelDrop(
+  steps: FunnelStep[],
+): { index: number; lost: number; pct: number } | null {
+  let index = -1;
+  let lost = 0;
   steps.forEach((step, i) => {
     if (i === 0) return;
     const drop = steps[i - 1].count - step.count;
-    if (drop > biggestDrop) {
-      biggestDrop = drop;
-      biggestDropIndex = i;
+    if (drop > lost) {
+      lost = drop;
+      index = i;
     }
   });
+  if (index === -1) return null;
+  const prev = steps[index - 1].count;
+  return { index, lost, pct: prev > 0 ? Math.round((lost / prev) * 100) : 0 };
+}
+
+/** The campaign journey as a REAL conversion funnel: label · bar · share
+ *  of starters, with the between-step loss spoken on its own line and
+ *  the biggest drop flagged. First step is the neutral baseline, middle
+ *  steps accent, the finish success — read top to bottom like the voter
+ *  experienced it. */
+export function Funnel({ steps }: { steps: FunnelStep[] }) {
+  const max = steps[0]?.count || 1;
+  const biggest = biggestFunnelDrop(steps);
   return (
-    <ol className="space-y-3">
+    <ol>
       {steps.map((step, i) => {
         const prev = i > 0 ? steps[i - 1].count : step.count;
-        const dropPct = prev > 0 ? Math.round(((prev - step.count) / prev) * 100) : 0;
-        const isBiggest = i === biggestDropIndex && biggestDrop > 0;
+        const lost = prev - step.count;
+        const dropPct = prev > 0 ? Math.round((lost / prev) * 100) : 0;
+        const isBiggest = biggest?.index === i;
         const isLast = i === steps.length - 1;
+        const width = Math.max(2, Math.round((step.count / max) * 100));
+        // The count rides inside the bar when it fits, outside when not.
+        const countInside = width >= 18;
         return (
-          <li key={step.label}>
-            <div className="mb-1 flex items-baseline justify-between gap-3">
-              <span className="min-w-0 truncate text-sm font-semibold text-text-primary">
-                {step.label}
+          <li key={step.label} className="grid grid-cols-[minmax(96px,180px)_1fr_auto] items-center gap-x-3">
+            {/* Between-step loss row — the funnel's story lives here. */}
+            {i > 0 ? (
+              <span
+                className={cn(
+                  "col-start-2 flex items-center gap-1.5 py-1 text-xs tabular-nums",
+                  isBiggest && lost > 0
+                    ? "font-semibold text-status-danger"
+                    : "text-text-tertiary",
+                )}
+              >
+                {lost > 0 ? (
+                  <>
+                    <Icon name="south" size={12} />−{formatNumber(lost)} · −{dropPct}%
+                    {isBiggest ? (
+                      <Chip tone="danger" className="ml-1">
+                        Biggest drop
+                      </Chip>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <Icon name="east" size={12} />
+                    held every voter
+                  </>
+                )}
               </span>
-              <span className="flex shrink-0 items-baseline gap-2 text-sm tabular-nums">
-                {i > 0 && dropPct > 0 ? (
+            ) : null}
+            <span
+              className={cn(
+                "min-w-0 truncate text-right text-sm text-text-secondary",
+                i > 0 && "row-start-2",
+              )}
+              title={step.label}
+            >
+              {step.label}
+            </span>
+            <span className={cn("flex min-w-0 items-center gap-2", i > 0 && "row-start-2")}>
+              <span
+                className={cn(
+                  "flex h-7 items-center overflow-hidden rounded-md",
+                  i === 0
+                    ? "bg-surface-strong"
+                    : isLast
+                      ? "bg-status-success"
+                      : "bg-accent-default",
+                )}
+                style={{ width: `${width}%` }}
+              >
+                {countInside ? (
                   <span
                     className={cn(
-                      "text-xs font-medium",
-                      isBiggest ? "font-semibold text-status-danger" : "text-text-tertiary",
+                      "px-2.5 text-xs font-semibold tabular-nums",
+                      i === 0 ? "text-text-primary" : "text-text-inverse",
                     )}
                   >
-                    −{dropPct}%{isBiggest ? " · biggest drop" : ""}
+                    {formatNumber(step.count)}
                   </span>
                 ) : null}
-                <span className="font-semibold text-text-primary">{formatNumber(step.count)}</span>
               </span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-pill bg-surface-strong">
-              <div
-                className={cn(
-                  "h-full rounded-pill",
-                  isLast ? "bg-status-success" : "bg-accent-default",
-                )}
-                style={{ width: `${Math.max(2, Math.round((step.count / max) * 100))}%` }}
-              />
-            </div>
+              {!countInside ? (
+                <span className="shrink-0 text-xs font-semibold tabular-nums text-text-primary">
+                  {formatNumber(step.count)}
+                </span>
+              ) : null}
+            </span>
+            <span
+              className={cn(
+                "shrink-0 text-right text-xs font-medium tabular-nums",
+                i > 0 && "row-start-2",
+                isLast ? "text-status-success" : "text-text-secondary",
+              )}
+            >
+              {Math.round((step.count / max) * 100)}%
+            </span>
           </li>
         );
       })}

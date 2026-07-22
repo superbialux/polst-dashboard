@@ -32,6 +32,9 @@ import {
   Funnel,
   HeaderTabs,
   InfoHint,
+  MixBars,
+  StatTile,
+  biggestFunnelDrop,
   durationEnd,
   durationPresetFor,
   ModalFooter,
@@ -78,6 +81,8 @@ import {
 import {
   KEY_DATES,
   WHAT_CHANGED,
+  campaignCountryMix,
+  campaignDeviceMix,
   campaignSeries,
   clipToRun,
   decisionEyebrow,
@@ -1410,8 +1415,63 @@ export function CreateCampaignPage() {
 
 /* ── Campaign detail ─────────────────────────────────────────────── */
 
-const DETAIL_TABS = ["Overview", "Insights", "Polsts", "Sources", "Settings"] as const;
+const DETAIL_TABS = [
+  "Overview",
+  "Analytics",
+  "Polsts",
+  "Sources",
+  "Insights",
+  "Settings",
+] as const;
 type DetailTab = (typeof DETAIL_TABS)[number];
+
+/** The run's reach for the stat strip — Views / Votes / Started /
+ *  Completed, each cell charting the campaign's OWN daily series
+ *  (campaignSeries), ticks from the run's real dates. A single run has
+ *  no previous period, so the delta chips stay quiet. */
+function campaignRunStats(campaign: Campaign): { stats: Stat[]; ticks: string[] } {
+  const series = {
+    views: campaignSeries(campaign, "views"),
+    votes: campaignSeries(campaign, "votes"),
+    voters: campaignSeries(campaign, "voters"),
+    completed: campaignSeries(campaign, "completed"),
+  };
+  const dates = series.views.dates;
+  const ticks =
+    dates.length > 0
+      ? [dates[0], dates[Math.floor(dates.length / 2)], dates[dates.length - 1]].map((d) =>
+          fmtDate(d),
+        )
+      : [];
+  const stat = (label: string, value: number, info: string, spark: number[]): Stat => ({
+    label,
+    value: fmtInt(value),
+    delta: "—",
+    trend: "flat",
+    info,
+    spark,
+  });
+  return {
+    ticks,
+    stats: [
+      stat("Views", campaign.views, METRIC_INFO.views, series.views.values),
+      stat("Votes", campaign.votes, METRIC_INFO.votes, series.votes.values),
+      stat("Started", campaign.voters, METRIC_INFO.started, series.voters.values),
+      stat("Completed", campaign.completed, METRIC_INFO.completed, series.completed.values),
+    ],
+  };
+}
+
+/** The journey steps every funnel surface shares: Started → each
+ *  question → Completed. */
+const journeySteps = (campaign: Campaign): FunnelStep[] => [
+  { label: "Started", count: campaign.voters },
+  ...campaign.chain.map((q, i) => ({
+    label: `Q${i + 1}: ${q.question}`,
+    count: campaign.votesByQuestion[i] ?? 0,
+  })),
+  { label: "Completed", count: campaign.completed },
+];
 
 /** Tab state lives in `?tab=` so other pages can deep-link (e.g. Home's
  *  "Add sources" → /campaigns/{id}?tab=sources). Overview is the default. */
@@ -1539,6 +1599,7 @@ export function CampaignDetailPage() {
           onReport={() => setReportOpen(true)}
         />
       ) : null}
+      {tab === "Analytics" ? <CampaignAnalytics campaign={campaign} sources={sources} /> : null}
       {tab === "Insights" ? (
         <CampaignInsights campaign={campaign} sources={sources} onGoTo={setTab} />
       ) : null}
@@ -1679,68 +1740,8 @@ function CampaignOverview({
     campaign.status === "Active" && campaign.endAt ? daysBetween(TODAY, campaign.endAt) : null;
   const ready = campaign.status === "Active" && isReadyToDecide(campaign);
 
-  const funnelSteps: FunnelStep[] = [
-    { label: "Started", count: campaign.voters },
-    ...campaign.chain.map((q, i) => ({
-      label: `Q${i + 1}: ${q.question}`,
-      count: campaign.votesByQuestion[i] ?? 0,
-    })),
-    { label: "Completed", count: campaign.completed },
-  ];
-
-  /* The run's reach on the Home stat-strip anatomy, folded by default —
-     every series is this campaign's own daily record (campaignSeries),
-     so the chart never borrows workspace traffic. Run totals have no
-     previous period, so the delta chips stay quiet. */
-  const runSeries = {
-    views: campaignSeries(campaign, "views"),
-    votes: campaignSeries(campaign, "votes"),
-    voters: campaignSeries(campaign, "voters"),
-    completed: campaignSeries(campaign, "completed"),
-  };
-  const runDates = runSeries.views.dates;
-  const runTicks =
-    runDates.length > 0
-      ? [
-          runDates[0],
-          runDates[Math.floor(runDates.length / 2)],
-          runDates[runDates.length - 1],
-        ].map((d) => fmtDate(d))
-      : [];
-  const runStats: Stat[] = [
-    {
-      label: "Views",
-      value: fmtInt(campaign.views),
-      delta: "—",
-      trend: "flat",
-      info: METRIC_INFO.views,
-      spark: runSeries.views.values,
-    },
-    {
-      label: "Votes",
-      value: fmtInt(campaign.votes),
-      delta: "—",
-      trend: "flat",
-      info: METRIC_INFO.votes,
-      spark: runSeries.votes.values,
-    },
-    {
-      label: "Started",
-      value: fmtInt(campaign.voters),
-      delta: "—",
-      trend: "flat",
-      info: METRIC_INFO.started,
-      spark: runSeries.voters.values,
-    },
-    {
-      label: "Completed",
-      value: fmtInt(campaign.completed),
-      delta: "—",
-      trend: "flat",
-      info: METRIC_INFO.completed,
-      spark: runSeries.completed.values,
-    },
-  ];
+  const funnelSteps = journeySteps(campaign);
+  const { stats: runStats, ticks: runTicks } = campaignRunStats(campaign);
 
   // Milestones clip to the run's current end (clipToRun): an in-session
   // schedule edit or ending retires entries the record now contradicts.
@@ -1821,7 +1822,15 @@ function CampaignOverview({
       {/* items-start, like this page's other grids — the journey card keeps
           its own height instead of stretching to the right column's. */}
       <SectionGrid className="items-start">
-        <DashboardCard title="Voter journey" className="lg:col-span-6">
+        <DashboardCard
+          title="Voter journey"
+          className="lg:col-span-6"
+          action={
+            <Button variant="secondary" size="sm" onClick={() => onGoTo("Analytics")}>
+              Full analytics
+            </Button>
+          }
+        >
           <Funnel steps={funnelSteps} />
         </DashboardCard>
         <div className="space-y-4 lg:col-span-6">
@@ -1845,6 +1854,306 @@ function CampaignOverview({
               </ul>
             </DashboardCard>
           ) : null}
+        </div>
+      </SectionGrid>
+    </>
+  );
+}
+
+/* ── Analytics tab ───────────────────────────────────────────────────
+   The audit's "major missing staging view", built honest: reach (the
+   run's own daily series), the conversion funnel with its drop-off
+   table, per-question results, source efficiency, and the campaign's
+   audience cuts — every count the campaign's own record, reconciled by
+   exact allocation. */
+
+type StepRow = {
+  id: string;
+  label: string;
+  reached: number;
+  dropped: number;
+  dropRate: number | null;
+  biggest: boolean;
+};
+
+function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources: Source[] }) {
+  if (campaign.voters === 0) {
+    return (
+      <DashboardCard padded={false}>
+        <EmptyState
+          icon="monitoring"
+          title="No analytics yet"
+          hint={
+            campaign.status === "Draft" || campaign.status === "Scheduled"
+              ? "Analytics appear with the first voter. Publish the campaign and point a source at it."
+              : "This run collected no voters, so there is nothing to analyze."
+          }
+        />
+      </DashboardCard>
+    );
+  }
+
+  const { stats, ticks } = campaignRunStats(campaign);
+  const steps = journeySteps(campaign);
+  const biggest = biggestFunnelDrop(steps);
+
+  const stepRows: StepRow[] = steps.map((s, i) => {
+    const prev = i > 0 ? steps[i - 1].count : null;
+    const dropped = prev !== null ? Math.max(0, prev - s.count) : 0;
+    return {
+      id: `step-${i}`,
+      label: s.label,
+      reached: s.count,
+      dropped,
+      dropRate: prev !== null && prev > 0 ? Math.round((dropped / prev) * 100) : null,
+      biggest: Boolean(biggest && biggest.index === i && biggest.lost > 0),
+    };
+  });
+  const stepColumns: Array<DataColumn<StepRow>> = [
+    {
+      header: "Step",
+      cell: (r) => (
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="min-w-0 truncate font-semibold text-text-primary">{r.label}</span>
+          {r.biggest ? <Chip tone="danger">Biggest drop</Chip> : null}
+        </span>
+      ),
+    },
+    {
+      header: "Reached",
+      align: "right",
+      sort: (r) => r.reached,
+      cell: (r) => <span className="tabular-nums">{fmtInt(r.reached)}</span>,
+    },
+    {
+      header: "Dropped",
+      align: "right",
+      sort: (r) => r.dropped,
+      cell: (r) =>
+        r.dropped > 0 ? (
+          <span className="tabular-nums text-text-secondary">−{fmtInt(r.dropped)}</span>
+        ) : (
+          <span className="text-text-tertiary">—</span>
+        ),
+    },
+    {
+      header: "Drop rate",
+      align: "right",
+      sort: (r) => r.dropRate ?? -1,
+      cell: (r) =>
+        r.dropRate !== null && r.dropRate > 0 ? (
+          <span className={cn("tabular-nums", r.biggest && "font-semibold text-status-danger")}>
+            {r.dropRate}%
+          </span>
+        ) : (
+          <span className="text-text-tertiary">—</span>
+        ),
+    },
+  ];
+
+  const sourceColumns: Array<DataColumn<Source>> = [
+    {
+      header: "Source",
+      sort: (s) => s.name.toLowerCase(),
+      cell: (s) => (
+        <div className="min-w-0">
+          <p className="font-semibold text-text-primary">{s.name}</p>
+          {s.placement ? (
+            <p className="mt-0.5 truncate text-xs text-text-secondary">{s.placement}</p>
+          ) : null}
+        </div>
+      ),
+    },
+    { header: "Channel", sort: (s) => s.channel, cell: (s) => s.channel },
+    {
+      header: "Views",
+      align: "right",
+      sort: (s) => s.views,
+      cell: (s) => <span className="tabular-nums">{fmtInt(s.views)}</span>,
+    },
+    {
+      header: "Voters",
+      align: "right",
+      sort: (s) => s.voters,
+      cell: (s) => <span className="tabular-nums">{fmtInt(s.voters)}</span>,
+    },
+    {
+      // View → start, per source — where reach converts, not just lands.
+      header: "Conversion",
+      info: "Share of the source's views that became a started run.",
+      align: "right",
+      sort: (s) => (s.views > 0 ? s.voters / s.views : -1),
+      cell: (s) => <span className="tabular-nums">{pct(s.voters, s.views)}</span>,
+    },
+    {
+      header: "Completion",
+      align: "right",
+      sort: (s) => s.completionRate ?? -1,
+      cell: (s) => RateCell(s.completionRate),
+    },
+  ];
+
+  const devices = campaignDeviceMix(campaign);
+  const countries = campaignCountryMix(campaign);
+  const countryColumns: Array<DataColumn<(typeof countries)[number]>> = [
+    {
+      header: "Country",
+      sort: (r) => r.country,
+      cell: (r) => <span className="font-semibold text-text-primary">{r.country}</span>,
+    },
+    {
+      header: "Voters",
+      align: "right",
+      sort: (r) => r.voters,
+      cell: (r) => (
+        <span className="tabular-nums">{r.voters > 0 ? fmtInt(r.voters) : "—"}</span>
+      ),
+    },
+    {
+      header: "Completion",
+      align: "right",
+      sort: (r) => r.completionRate ?? -1,
+      cell: (r) => RateCell(r.completionRate),
+    },
+  ];
+
+  /* The funnel's one-line reading — plain words, both numbers stated. */
+  const finishRate = pct(campaign.completed, campaign.voters);
+  const reading = biggest
+    ? `${finishRate} of starters finish. The biggest loss is ${steps[biggest.index - 1].label} → ${steps[biggest.index].label}: −${fmtInt(biggest.lost)} voters (−${biggest.pct}%).`
+    : `${finishRate} of starters finish — no step lost voters.`;
+
+  return (
+    <>
+      {/* Reach first: the run's own daily series, chart always on. */}
+      <StatsStrip
+        stats={stats}
+        xTicks={ticks}
+        scopeLabel={fmtDateRange(campaign.startAt, campaign.endAt)}
+      />
+
+      <SectionGrid className="items-start">
+        <DashboardCard title="Conversion funnel" className="lg:col-span-7" bodyClassName="pb-2">
+          <Funnel steps={steps} />
+          <p className="mt-4 border-t border-border-default pt-3 text-xs leading-4 text-text-secondary">
+            {reading}
+          </p>
+        </DashboardCard>
+        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-5">
+          <StatTile
+            label="Finish rate"
+            value={finishRate}
+            detail={`${fmtInt(campaign.completed)} of ${fmtInt(campaign.voters)} starters`}
+            info={METRIC_INFO.finishRate}
+          />
+          <StatTile
+            label="View → start"
+            value={pct(campaign.voters, campaign.views)}
+            detail={`${fmtInt(campaign.views)} views`}
+            info="Share of the campaign's views that became a started run."
+          />
+          <StatTile
+            label="Votes per starter"
+            value={campaign.voters > 0 ? (campaign.votes / campaign.voters).toFixed(1) : "—"}
+            detail={`across ${campaign.chain.length} ${campaign.chain.length === 1 ? "polst" : "polsts"}`}
+            info={METRIC_INFO.votesPerVoter}
+          />
+          <StatTile
+            label="Top source"
+            value={
+              sources.length
+                ? [...sources].sort((a, b) => b.voters - a.voters)[0].name
+                : "—"
+            }
+            detail={
+              sources.length
+                ? `${fmtInt([...sources].sort((a, b) => b.voters - a.voters)[0].voters)} voters`
+                : "no sources assigned"
+            }
+          />
+        </div>
+      </SectionGrid>
+
+      <DashboardCard title="Step-by-step drop-off" padded={false}>
+        <DataTable rows={stepRows} columns={stepColumns} />
+      </DashboardCard>
+
+      <DashboardCard title="Results by question">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {campaign.chain.map((q, i) => {
+            const votes = campaign.votesByQuestion[i] ?? 0;
+            const leadPts = Math.abs(2 * q.splitA - 100);
+            const leader = q.splitA >= 50 ? q.optionA : q.optionB;
+            const prevVotes = i > 0 ? campaign.votesByQuestion[i - 1] ?? 0 : campaign.voters;
+            const dropPct =
+              prevVotes > 0 ? Math.round(((prevVotes - votes) / prevVotes) * 100) : 0;
+            return (
+              <div key={q.id} className="rounded-md border border-border-default p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-surface-subtle font-display text-xs font-semibold text-text-secondary">
+                      {i + 1}
+                    </span>
+                    <h3 className="min-w-0 font-display text-base font-semibold leading-6 text-text-primary">
+                      {q.question}
+                    </h3>
+                  </div>
+                  <span className="shrink-0 text-sm tabular-nums text-text-secondary">
+                    {fmtInt(votes)} responses
+                  </span>
+                </div>
+                <PollResults
+                  className="mt-4"
+                  options={polstOptions({
+                    id: q.id,
+                    optionA: q.optionA,
+                    optionB: q.optionB,
+                    splitA: q.splitA,
+                    votes,
+                  })}
+                  dense
+                />
+                <p className="mt-3 text-xs leading-4 text-text-secondary">
+                  {leadPts === 0 ? "Dead even" : `${leader} leads by ${leadPts} points`}
+                  {dropPct > 0
+                    ? ` · −${dropPct}% participation vs ${i === 0 ? "starters" : `Q${i}`}`
+                    : ""}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </DashboardCard>
+
+      <SectionGrid className="items-start">
+        <DashboardCard title="Source efficiency" padded={false} className="lg:col-span-7">
+          <DataTable
+            rows={sources}
+            columns={sourceColumns}
+            emptyLabel="No sources assigned — nothing to attribute"
+          />
+          {sources.length ? (
+            <p className="border-t border-border-default px-4 py-3 text-xs leading-4 text-text-tertiary">
+              Sources recruit different audiences — a gap describes the traffic, it does not
+              prove the source caused it.
+            </p>
+          ) : null}
+        </DashboardCard>
+        <div className="space-y-4 lg:col-span-5">
+          <DashboardCard
+            title="Devices"
+            action={
+              <InfoHint
+                label="Devices"
+                text="The campaign's voters split across device types, allocated exactly from its own totals."
+              />
+            }
+          >
+            <MixBars slices={devices} />
+          </DashboardCard>
+          <DashboardCard title="Countries" padded={false}>
+            <DataTable rows={countries} columns={countryColumns} />
+          </DashboardCard>
         </div>
       </SectionGrid>
     </>
@@ -2324,124 +2633,188 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
   // Removal always confirms first (staging removed instantly — the audit's
   // one destructive-workflow defect; never copy it).
   const [removeTarget, setRemoveTarget] = useState<ChainQuestion | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   // The chain is evidence once voters exist — editable only before launch.
   const editable = campaign.status === "Draft" || campaign.status === "Scheduled";
 
+  const chain = campaign.chain;
+  const selected = chain.find((q) => q.id === selectedId) ?? chain[0];
+  const selectedIndex = selected ? chain.findIndex((q) => q.id === selected.id) : -1;
+  const selectedVotes = selectedIndex >= 0 ? campaign.votesByQuestion[selectedIndex] ?? 0 : 0;
+
   return (
     <>
-      {/* Same anatomy as the Sources tab: one titled card whose header
-          action slot owns the tab's primary action — never a detached menu. */}
-      <DashboardCard
-        title="Polsts"
-        padded={campaign.chain.length > 0}
-        action={
-          editable ? (
-            <Menu
-              label="Add polst"
-              trigger={({ toggle }) => (
-                <Button variant="secondary" size="sm" onClick={toggle}>
-                  <Icon name="add" size={18} />
-                  Add polst
-                  <Icon name="arrow_drop_down" size={18} />
-                </Button>
-              )}
-            >
-              <MenuItem
-                icon="edit_square"
-                label="Create new polst"
-                onClick={() => setComposerOpen(true)}
-              />
-              <MenuItem
-                icon="library_add"
-                label="Select from library"
-                onClick={() => setLibraryOpen(true)}
-              />
-            </Menu>
-          ) : null
-        }
-      >
-        {campaign.chain.length > 0 ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {campaign.chain.map((q, index) => {
-              const votes = campaign.votesByQuestion[index] ?? 0;
-              return (
-                <div key={q.id} className="rounded-md border border-border-default p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-text-secondary">
-                        Question {index + 1} of {campaign.chain.length}
-                      </p>
-                      <h3 className="mt-1 font-display text-base font-semibold leading-6 text-text-primary">
-                        {q.question}
-                      </h3>
-                    </div>
-                    {editable ? (
-                      <div className="flex shrink-0 items-center">
+      {/* The create flow's Build-chain anatomy, verbatim: rows on the
+          left (drag to rearrange, click to preview), the REAL surface on
+          the right — the voter card before launch, the result after. */}
+      <SectionGrid className="items-start">
+        <div className="lg:col-span-7">
+          <DashboardCard
+            title="Polsts"
+            description={
+              editable
+                ? "Voters answer in order — drag to rearrange, click a row to preview."
+                : "Voters answer in order — click a row to inspect its result. The chain locked with the first vote."
+            }
+            action={
+              editable ? (
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setLibraryOpen(true)}>
+                    Add from library
+                  </Button>
+                  <Button size="sm" onClick={() => setComposerOpen(true)}>
+                    <Icon name="add" size={18} />
+                    Create polst
+                  </Button>
+                </div>
+              ) : null
+            }
+          >
+            {chain.length ? (
+              <ul className="space-y-2">
+                {chain.map((q, i) => {
+                  const isSelected = (selected?.id ?? null) === q.id;
+                  const votes = campaign.votesByQuestion[i] ?? 0;
+                  return (
+                    <li
+                      key={q.id}
+                      {...(editable
+                        ? {
+                            draggable: true,
+                            onDragStart: () => setDragIndex(i),
+                            onDragOver: (e: React.DragEvent) => e.preventDefault(),
+                            onDrop: () => {
+                              if (dragIndex !== null && dragIndex !== i) {
+                                reorderChain(campaign.id, dragIndex, i);
+                              }
+                              setDragIndex(null);
+                            },
+                            onDragEnd: () => setDragIndex(null),
+                          }
+                        : {})}
+                      onClick={() => setSelectedId(q.id)}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-2 rounded-md border p-2 transition-colors",
+                        isSelected
+                          ? "border-accent-default ring-1 ring-accent-default"
+                          : "border-border-default bg-surface-raised hover:border-border-strong",
+                        dragIndex === i && "opacity-50",
+                      )}
+                    >
+                      {editable ? (
+                        <Icon
+                          name="drag_indicator"
+                          size={18}
+                          className="shrink-0 cursor-grab text-icon-tertiary"
+                        />
+                      ) : null}
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-surface-subtle font-display text-xs font-semibold text-text-secondary">
+                        {i + 1}
+                      </span>
+                      <PolstListRow
+                        className="pointer-events-none min-w-0 flex-1"
+                        question={q.question}
+                        options={polstOptions({
+                          id: q.id,
+                          optionA: q.optionA,
+                          optionB: q.optionB,
+                          splitA: q.splitA,
+                          votes,
+                        })}
+                      />
+                      {editable ? (
+                        // A mistyped or double-added question can leave the
+                        // chain while it's still editable — behind a
+                        // confirmation, and the store's voters-guard keeps
+                        // live evidence untouchable.
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`Move question ${index + 1} up`}
-                          disabled={index === 0}
-                          onClick={() => reorderChain(campaign.id, index, index - 1)}
-                        >
-                          <Icon name="arrow_upward" size={18} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Move question ${index + 1} down`}
-                          disabled={index === campaign.chain.length - 1}
-                          onClick={() => reorderChain(campaign.id, index, index + 1)}
-                        >
-                          <Icon name="arrow_downward" size={18} />
-                        </Button>
-                        {/* A mistyped or double-added question can leave the
-                            chain while it's still editable — behind a
-                            confirmation, and the store's voters-guard keeps
-                            live evidence untouchable. */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remove question ${index + 1} from the chain`}
-                          onClick={() => setRemoveTarget(q)}
+                          aria-label={`Remove ${q.question} from the chain`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRemoveTarget(q);
+                          }}
                         >
                           <Icon name="close" size={18} />
                         </Button>
-                      </div>
-                    ) : (
-                      <span className="shrink-0 text-sm font-semibold tabular-nums text-text-secondary">
-                        {votes > 0 ? `${fmtInt(votes)} votes` : "No votes yet"}
-                      </span>
-                    )}
-                  </div>
-                  <PollResults
-                    className="mt-4"
-                    options={polstOptions({
-                      id: q.id,
-                      optionA: q.optionA,
-                      optionB: q.optionB,
-                      splitA: q.splitA,
-                      votes,
-                    })}
-                    dense
-                  />
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState
-            icon="ballot"
-            title="No polsts yet"
-            hint="Voters answer the chain in order — start with one polst."
-            action={
-              editable
-                ? { label: "Create polst", onClick: () => setComposerOpen(true) }
-                : undefined
-            }
-          />
-        )}
-      </DashboardCard>
+                      ) : (
+                        <span className="shrink-0 pr-1 text-xs tabular-nums text-text-secondary">
+                          {votes > 0 ? `${fmtInt(votes)} votes` : "no votes"}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <EmptyState
+                icon="ballot"
+                title="No polsts yet"
+                hint="Voters answer the chain in order — start with one polst."
+                action={
+                  editable
+                    ? { label: "Create polst", onClick: () => setComposerOpen(true) }
+                    : undefined
+                }
+              />
+            )}
+          </DashboardCard>
+        </div>
+
+        <div className="self-start lg:sticky lg:top-4 lg:col-span-5">
+          {selected ? (
+            editable ? (
+              <PollCard
+                preview
+                author={WORKSPACE.brand}
+                authorBadge={WORKSPACE.initials}
+                authorColor="var(--color-purple-tint)"
+                isFollowing
+                categories={[]}
+                question={selected.question}
+                options={polstOptions({
+                  id: selected.id,
+                  optionA: selected.optionA,
+                  optionB: selected.optionB,
+                  splitA: selected.splitA,
+                  votes: 0,
+                })}
+                tags={[]}
+                likes={0}
+                reposts={0}
+                votes={0}
+              />
+            ) : (
+              <DashboardCard title={`Q${selectedIndex + 1} · ${fmtInt(selectedVotes)} responses`}>
+                <h3 className="font-display text-base font-semibold leading-6 text-text-primary">
+                  {selected.question}
+                </h3>
+                <PollResults
+                  className="mt-4"
+                  options={polstOptions({
+                    id: selected.id,
+                    optionA: selected.optionA,
+                    optionB: selected.optionB,
+                    splitA: selected.splitA,
+                    votes: selectedVotes,
+                  })}
+                />
+              </DashboardCard>
+            )
+          ) : (
+            <DashboardCard>
+              <EmptyState
+                icon="visibility"
+                title="Nothing to preview yet"
+                hint="Add a polst and click its row to see the card voters will get."
+              />
+            </DashboardCard>
+          )}
+        </div>
+      </SectionGrid>
+
       {/* The sibling-product composer as a modal — stack as many polsts
           as the chain needs without ever leaving the campaign. */}
       <PolstComposerModal

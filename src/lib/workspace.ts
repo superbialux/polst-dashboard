@@ -1940,6 +1940,35 @@ export const deviceMix = (range: WindowRange): MixSlice[] => mixFor(DEVICE_SHARE
 export const platformMix = (range: WindowRange): MixSlice[] => mixFor(PLATFORM_SHARES, range);
 export const browserMix = (range: WindowRange): MixSlice[] => mixFor(BROWSER_SHARES, range);
 
+/* ── Per-campaign audience (device & geography) ──────────────────────
+   The campaign's REAL voter and completed totals allocated across the
+   workspace's authored shares, tilted deterministically per campaign
+   (mulberry32 seeded by its id) so each run reads a little differently
+   while its counts always sum back to the campaign's own totals. */
+
+const audienceSeed = (id: string) =>
+  id.split("").reduce((a, ch) => (Math.imul(a, 31) + ch.charCodeAt(0)) >>> 0, 7);
+
+const tiltedShares = <T extends { label: string; value: number }>(
+  shares: T[],
+  id: string,
+): T[] => {
+  const rand = mulberry32(audienceSeed(id));
+  return shares.map((s) => ({ ...s, value: Math.max(1, s.value * (0.65 + rand() * 0.7)) }));
+};
+
+/** Device mix for ONE campaign — its voters, exactly allocated. */
+export const campaignDeviceMix = (c: { id: string; voters: number }): MixSlice[] => {
+  const shares = tiltedShares(DEVICE_SHARES, c.id);
+  const counts = allocate(c.voters, shares.map((s) => s.value));
+  const pcts = allocate(100, counts.map((n) => Math.max(n, 0.0001)));
+  return shares.map((s, i) => ({
+    label: s.label,
+    value: pcts[i],
+    detail: `${fmtInt(counts[i])} voters`,
+  }));
+};
+
 /* ── Geography (country mix) ─────────────────────────────────────────
    Authored share-of-voters weights (US-heavy, like the real audience)
    plus a completion delta per country — the window's REAL voter and
@@ -1987,6 +2016,33 @@ export function countryMix(range: WindowRange): CountryRow[] {
   countryCache.set(range, rows);
   return rows;
 }
+
+/** Country mix for ONE campaign — the same reconciling allocation the
+ *  workspace table uses, over the campaign's own voters and completions. */
+export const campaignCountryMix = (c: {
+  id: string;
+  voters: number;
+  completed: number;
+  completionRate: number | null;
+}): CountryRow[] => {
+  const shares = tiltedShares(COUNTRY_SHARES, c.id);
+  const voters = allocate(c.voters, shares.map((s) => s.value));
+  const completed = allocate(
+    c.completed,
+    shares.map((s) => s.value * Math.max(0, (c.completionRate ?? 0) + s.completionDelta)),
+  );
+  return shares
+    .map((s, i) => ({
+      id: s.label,
+      country: s.label,
+      share: c.voters > 0 ? Math.round((voters[i] / c.voters) * 100) : 0,
+      voters: voters[i],
+      completed: Math.min(completed[i], voters[i]),
+      completionRate:
+        voters[i] > 0 ? round1((Math.min(completed[i], voters[i]) / voters[i]) * 100) : null,
+    }))
+    .sort((a, b) => b.voters - a.voters);
+};
 
 /* ── Share links & embed snippets (per object) ───────────────────── */
 
