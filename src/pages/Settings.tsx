@@ -1192,12 +1192,7 @@ export function SettingsPage() {
     <DashboardPage
       tabs={<HeaderTabs tabs={SETTINGS_TAB_KEYS} active={section} onChange={setSection} />}
     >
-      {/* Forms cap their line length; tables and grids run full width. */}
-      {section === "Workspace" ? (
-        <div className="max-w-3xl">
-          <BrandProfileCard />
-        </div>
-      ) : null}
+      {section === "Workspace" ? <BrandProfileCard /> : null}
       {section === "Team & access" ? <TeamSection /> : null}
       {section === "Embed appearance" ? <EmbedAppearanceCard /> : null}
       {section === "Modules & integrations" ? <ModulesSection /> : null}
