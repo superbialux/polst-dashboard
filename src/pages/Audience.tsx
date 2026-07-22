@@ -56,6 +56,7 @@ const peakLabel = (heat: number[][]): string => {
 const countryColumns: Array<DataColumn<CountryRow>> = [
   {
     header: "Country",
+    sort: (row) => row.country,
     cell: (row) => (
       <span className="font-display font-semibold text-text-primary">{row.country}</span>
     ),
@@ -63,11 +64,13 @@ const countryColumns: Array<DataColumn<CountryRow>> = [
   {
     header: "Share",
     align: "right",
+    sort: (row) => row.share,
     cell: (row) => <span className="tabular-nums">{fmtPct(row.share, 0)}</span>,
   },
   {
     header: "Voters",
     align: "right",
+    sort: (row) => row.voters,
     cell: (row) => (
       <span className="tabular-nums">{row.voters > 0 ? fmtInt(row.voters) : "—"}</span>
     ),
@@ -75,6 +78,7 @@ const countryColumns: Array<DataColumn<CountryRow>> = [
   {
     header: "Completion",
     align: "right",
+    sort: (row) => row.completionRate ?? -1,
     cell: (row) => RateCell(row.completionRate),
   },
 ];

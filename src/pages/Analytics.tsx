@@ -16,16 +16,18 @@ import {
   InsightGrid,
   LockedCard,
   MixBars,
-  Pager,
   PolstListRow,
   RateCell,
   ReadyDecisionRow,
   ReportPreview,
-  SearchAndFilters,
   SectionGrid,
+  SectionHeader,
   SectionTitle,
   StatsStrip,
   StatusBadge,
+  StatusSelect,
+  TablePagination,
+  TableToolbar,
   ThumbStrip,
   TrendGrid,
   type DataColumn,
@@ -284,6 +286,7 @@ function buildCampaignPerf(rows: SegmentRow[], campaigns: Campaign[]): CampaignP
 const campaignPerfColumns: Array<DataColumn<CampaignPerfRow>> = [
   {
     header: "Campaign",
+    sort: (row) => row.name.toLowerCase(),
     cell: (row) => (
       <span className="flex min-w-0 items-center gap-3">
         <ThumbStrip ids={row.chainIds} className="shrink-0" />
@@ -296,25 +299,28 @@ const campaignPerfColumns: Array<DataColumn<CampaignPerfRow>> = [
       </span>
     ),
   },
-  { header: "Status", cell: (row) => <StatusBadge status={row.status} /> },
+  { header: "Status", sort: (row) => row.status, cell: (row) => <StatusBadge status={row.status} /> },
   /* Funnel facts only — the same Started/Completed/Finish-rate contract
      as the Campaigns index. Interpretation lives in campaign Insights. */
   {
     header: "Started",
     info: METRIC_INFO.started,
     align: "right",
+    sort: (row) => row.voters,
     cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
   },
   {
     header: "Completed",
     info: METRIC_INFO.completed,
     align: "right",
+    sort: (row) => row.completed,
     cell: (row) => <span className="tabular-nums">{fmtInt(row.completed)}</span>,
   },
   {
     header: "Finish rate",
     info: METRIC_INFO.finishRate,
     align: "right",
+    sort: (row) => (row.voters > 0 ? row.completed / row.voters : -1),
     cell: (row) => <span className="tabular-nums">{pct(row.completed, row.voters)}</span>,
   },
 ];
@@ -351,6 +357,7 @@ function buildPolstPerf(rows: SegmentRow[], polsts: SinglePolst[]): PolstPerfRow
 const polstPerfColumns: Array<DataColumn<PolstPerfRow>> = [
   {
     header: "Polst",
+    sort: (row) => row.question.toLowerCase(),
     cell: (row) => (
       <PolstListRow options={row.options} question={row.question} to={`/polsts/${row.id}`} />
     ),
@@ -358,16 +365,19 @@ const polstPerfColumns: Array<DataColumn<PolstPerfRow>> = [
   {
     header: "Views",
     align: "right",
+    sort: (row) => row.views,
     cell: (row) => <span className="tabular-nums">{fmtInt(row.views)}</span>,
   },
   {
     header: "Votes",
     align: "right",
+    sort: (row) => row.votes,
     cell: (row) => <span className="tabular-nums">{fmtInt(row.votes)}</span>,
   },
   {
     header: "Votes / view",
     align: "right",
+    sort: (row) => (row.views > 0 ? row.votes / row.views : -1),
     cell: (row) => <span className="tabular-nums">{pct(row.votes, row.views, 1)}</span>,
   },
 ];
@@ -375,6 +385,7 @@ const polstPerfColumns: Array<DataColumn<PolstPerfRow>> = [
 const categoryColumns: Array<DataColumn<CategoryRow>> = [
   {
     header: "Category",
+    sort: (row) => row.category,
     cell: (row) => (
       <span className="font-display font-semibold text-text-primary">{row.category}</span>
     ),
@@ -382,6 +393,7 @@ const categoryColumns: Array<DataColumn<CategoryRow>> = [
   {
     header: "Voters",
     align: "right",
+    sort: (row) => row.voters,
     cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
   },
   {
@@ -389,6 +401,7 @@ const categoryColumns: Array<DataColumn<CategoryRow>> = [
     // Distribution); one decimal is reserved for the rate stat tiles.
     header: "Completion",
     align: "right",
+    sort: (row) => row.completionRate ?? -1,
     cell: (row) => RateCell(row.completionRate),
   },
   {
@@ -396,6 +409,7 @@ const categoryColumns: Array<DataColumn<CategoryRow>> = [
     // "engagement rate", not the per-content "votes / view".
     header: "Engagement",
     align: "right",
+    sort: (row) => row.engagementRate ?? -1,
     cell: (row) => (
       <span className="tabular-nums">
         {row.engagementRate !== null ? fmtPct(row.engagementRate, 1) : "—"}
@@ -734,13 +748,15 @@ function ModuleConnectPage({
   return (
     <DashboardPage>
       <LockedCard title={locked.title} description={locked.description} chip="Not connected" />
-      <DashboardCard title="Connect a platform">
-        <div className="grid gap-3 lg:grid-cols-2">
+      {/* Connect cards sit directly on the page — no wrapper card. */}
+      <section className="space-y-3">
+        <SectionHeader title="Connect a platform" />
+        <div className="grid gap-4 lg:grid-cols-2">
           {integrations.map((integration) => (
             <ConnectCard key={integration.id} integration={integration} />
           ))}
         </div>
-      </DashboardCard>
+      </section>
     </DashboardPage>
   );
 }
@@ -880,8 +896,8 @@ export function AnalyticsInsightsPage() {
       });
   }, [eligible, sources, reviewFor, stateFilter, query]);
 
-  /* Filter and search changes land the user on page one; Pager clamps
-     when the result set shrinks under the current page. */
+  /* Filter and search changes land the user on page one; the pager
+     clamps when the result set shrinks under the current page. */
   const changeFilter = (next: string) => {
     setStateFilter(next);
     setPage(0);
@@ -910,35 +926,45 @@ export function AnalyticsInsightsPage() {
     ].join("\n");
 
   return (
-    <DashboardPage actions={<ExportMenu summary={summary} />}>
+    <DashboardPage
+      actions={<ExportMenu summary={summary} />}
+      // The pager rides the fixed footer band, never the card.
+      footer={
+        rows.length ? (
+          <TablePagination
+            page={safePage}
+            pageSize={INSIGHT_PAGE_SIZE}
+            total={rows.length}
+            onPage={setPage}
+            noun="campaigns"
+          />
+        ) : null
+      }
+    >
       <p className="max-w-3xl text-sm leading-6 text-text-secondary">
         What each campaign learned, which polsts shaped that learning, and what to do next.
         Standalone polsts keep their factual detail pages — they never appear here.
       </p>
-      <DashboardCard padded={false}>
-        <SearchAndFilters
-          tabs={INSIGHT_STATE_FILTERS}
-          active={stateFilter}
-          onChange={changeFilter}
+      {/* The action row rides ABOVE the card (the list-page altitude). */}
+      <section className="space-y-2">
+        <TableToolbar
           placeholder="Search campaigns"
           query={query}
           onQueryChange={changeQuery}
-        />
+        >
+          <StatusSelect
+            options={INSIGHT_STATE_FILTERS}
+            value={stateFilter}
+            onChange={changeFilter}
+          />
+        </TableToolbar>
+        <DashboardCard padded={false}>
         {visible.length > 0 ? (
-          <>
-            <ul className="divide-y divide-border-default">
-              {visible.map((row) => (
-                <CampaignInsightIndexRow key={row.id} row={row} />
-              ))}
-            </ul>
-            <Pager
-              page={safePage}
-              pageSize={INSIGHT_PAGE_SIZE}
-              total={rows.length}
-              onPage={setPage}
-              noun="campaigns"
-            />
-          </>
+          <ul className="divide-y divide-border-default">
+            {visible.map((row) => (
+              <CampaignInsightIndexRow key={row.id} row={row} />
+            ))}
+          </ul>
         ) : searching || filtered ? (
           <EmptyState
             icon="search"
@@ -971,7 +997,8 @@ export function AnalyticsInsightsPage() {
             Scheduled and Draft runs have no responses to learn from yet.
           </p>
         ) : null}
-      </DashboardCard>
+        </DashboardCard>
+      </section>
     </DashboardPage>
   );
 }
@@ -1042,12 +1069,14 @@ export function AnalyticsReportsPage() {
   const reportColumns: Array<DataColumn<WorkspaceReport>> = [
     {
       header: "Report",
+      sort: (row) => row.name.toLowerCase(),
       cell: (row) => (
         <span className="font-display font-semibold text-text-primary">{row.name}</span>
       ),
     },
     {
       header: "Scope",
+      sort: (row) => linkedName(row).toLowerCase(),
       cell: (row) => (
         <Link to={reportPath(row)} className="text-text-secondary hover:text-text-accent">
           {linkedName(row)}
@@ -1056,12 +1085,14 @@ export function AnalyticsReportsPage() {
     },
     {
       header: "State",
+      sort: (row) => row.state,
       cell: (row) => (
         <Chip tone={row.state === "Ready" ? "success" : "neutral"}>{row.state}</Chip>
       ),
     },
     {
       header: "Created",
+      sort: (row) => row.createdAt,
       cell: (row) => <span className="text-text-secondary">{fmtDate(row.createdAt)}</span>,
     },
     {

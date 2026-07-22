@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
 import { Modal } from "@/components/Modal";
@@ -12,13 +13,14 @@ import {
   DashboardCard,
   DashboardPage,
   DataTable,
+  HeaderTabs,
   IconTile,
   ModalFooter,
   NotFoundCard,
   PollResults,
   RevealSecretModal,
   SectionGrid,
-  SectionNav,
+  SectionHeader,
   SegmentedControl,
   StatTile,
   Switch,
@@ -201,6 +203,7 @@ function TeamSection() {
   const memberColumns: Array<DataColumn<TeamMember>> = [
     {
       header: "Member",
+      sort: (row) => row.name.toLowerCase(),
       cell: (row) => (
         <div className="flex items-center gap-3">
           {/* The shared Avatar, on the same accent tone as the rail's
@@ -220,6 +223,7 @@ function TeamSection() {
     },
     {
       header: "Role",
+      sort: (row) => row.role,
       cell: (row) => (
         <span
           className={
@@ -234,6 +238,7 @@ function TeamSection() {
     },
     {
       header: "Joined",
+      sort: (row) => row.joined ?? "",
       cell: (row) =>
         row.joined ? (
           <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.joined)}</span>
@@ -696,15 +701,17 @@ function ModulesCard() {
 
 function ModulesSection() {
   return (
-    <SectionGrid>
+    <SectionGrid className="items-start">
       <ModulesCard />
-      <DashboardCard title="Integrations" className="lg:col-span-7">
-        <div className="grid gap-3">
+      {/* Connect cards sit directly on the page — no wrapper card. */}
+      <section className="space-y-3 lg:col-span-7">
+        <SectionHeader title="Integrations" />
+        <div className="grid gap-4">
           {INTEGRATIONS.map((integration) => (
             <ConnectCard key={integration.id} integration={integration} />
           ))}
         </div>
-      </DashboardCard>
+      </section>
     </SectionGrid>
   );
 }
@@ -724,6 +731,7 @@ function ApiKeysSection() {
   const keyColumns: Array<DataColumn<ApiKey>> = [
     {
       header: "Key",
+      sort: (row) => row.name.toLowerCase(),
       cell: (row) => (
         <div className="min-w-0">
           <p className="font-display font-semibold text-text-primary">{row.name}</p>
@@ -737,12 +745,14 @@ function ApiKeysSection() {
     },
     {
       header: "Created",
+      sort: (row) => row.createdAt,
       cell: (row) => (
         <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.createdAt)}</span>
       ),
     },
     {
       header: "Last used",
+      sort: (row) => row.lastUsed ?? "",
       cell: (row) =>
         row.lastUsed ? (
           <span className="whitespace-nowrap text-text-secondary">{fmtDate(row.lastUsed)}</span>
@@ -918,6 +928,7 @@ function WebhooksSection() {
   const webhookColumns: Array<DataColumn<Webhook>> = [
     {
       header: "Endpoint",
+      sort: (row) => row.url,
       cell: (row) => (
         <span className="break-all font-mono text-xs text-text-primary">{row.url}</span>
       ),
@@ -1152,38 +1163,46 @@ function PlanUsageSection() {
 /* ── Page ────────────────────────────────────────────────────────── */
 
 const SETTINGS_SECTIONS = [
-  { key: "Workspace", icon: "storefront" },
-  { key: "Team & access", icon: "group" },
-  { key: "Embed appearance", icon: "palette" },
-  { key: "Modules & integrations", icon: "extension" },
-  { key: "Developer", icon: "code" },
-  { key: "Plan & usage", icon: "credit_card" },
+  { key: "Workspace", slug: "workspace" },
+  { key: "Team & access", slug: "team" },
+  { key: "Embed appearance", slug: "embed" },
+  { key: "Modules & integrations", slug: "modules" },
+  { key: "Developer", slug: "developer" },
+  { key: "Plan & usage", slug: "plan" },
 ] as const;
 type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["key"];
+const SETTINGS_TAB_KEYS = SETTINGS_SECTIONS.map((s) => s.key) as SettingsSection[];
+
+/** Section state lives in `?tab=` (Home's pattern) so every settings
+ *  section deep-links; the header tab band replaces the old side nav. */
+function useSettingsSection(): [SettingsSection, (s: SettingsSection) => void] {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get("tab");
+  const active = SETTINGS_SECTIONS.find((s) => s.slug === raw)?.key ?? "Workspace";
+  const set = (key: SettingsSection) => {
+    const slug = SETTINGS_SECTIONS.find((s) => s.key === key)!.slug;
+    setParams(key === "Workspace" ? {} : { tab: slug }, { replace: true });
+  };
+  return [active, set];
+}
 
 export function SettingsPage() {
-  const [section, setSection] = useState<SettingsSection>("Workspace");
+  const [section, setSection] = useSettingsSection();
   return (
-    <DashboardPage>
-      <SectionGrid>
-        {/* Local settings navigation — settings are a map, not one scroll. */}
-        <SectionNav
-          label="Settings sections"
-          className="self-start lg:sticky lg:top-16 lg:col-span-3"
-          items={SETTINGS_SECTIONS.map((s) => ({ id: s.key, label: s.key, icon: s.icon }))}
-          active={section}
-          onSelect={(id) => setSection(id as SettingsSection)}
-        />
-
-        <div className="space-y-4 lg:col-span-9">
-          {section === "Workspace" ? <BrandProfileCard /> : null}
-          {section === "Team & access" ? <TeamSection /> : null}
-          {section === "Embed appearance" ? <EmbedAppearanceCard /> : null}
-          {section === "Modules & integrations" ? <ModulesSection /> : null}
-          {section === "Developer" ? <DeveloperSection /> : null}
-          {section === "Plan & usage" ? <PlanUsageSection /> : null}
+    <DashboardPage
+      tabs={<HeaderTabs tabs={SETTINGS_TAB_KEYS} active={section} onChange={setSection} />}
+    >
+      {/* Forms cap their line length; tables and grids run full width. */}
+      {section === "Workspace" ? (
+        <div className="max-w-3xl">
+          <BrandProfileCard />
         </div>
-      </SectionGrid>
+      ) : null}
+      {section === "Team & access" ? <TeamSection /> : null}
+      {section === "Embed appearance" ? <EmbedAppearanceCard /> : null}
+      {section === "Modules & integrations" ? <ModulesSection /> : null}
+      {section === "Developer" ? <DeveloperSection /> : null}
+      {section === "Plan & usage" ? <PlanUsageSection /> : null}
     </DashboardPage>
   );
 }

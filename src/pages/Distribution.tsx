@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
@@ -7,21 +7,31 @@ import { QrCodeModal } from "@/components/DistributionActions";
 import {
   AssignSourceModal,
   AssignTargetModal,
+  CHANNELS,
   Chip,
   ConnectCard,
   DashboardCard,
   DashboardPage,
   DataTable,
+  DateRangePicker,
   EmptyState,
+  HeaderTabs,
   IconTile,
   LockedCard,
   MiniStatGrid,
   RateCell,
   SectionGrid,
+  SectionHeader,
   SnippetCard,
   StatTile,
+  StatusSelect,
+  TablePagination,
+  TableToolbar,
   UnassignButton,
+  filterByCreated,
+  sortRows,
   type DataColumn,
+  type SortState,
   type SourceTargetOption,
 } from "@/components/dashboard";
 import { useWorkspace } from "@/lib/store";
@@ -57,6 +67,22 @@ const LIVE_STATUSES: Status[] = ["Active", "Scheduled"];
 const attributedUrl = (meta: LinkedMeta, sourceId: string) =>
   `${shareUrl(meta.type, meta.id)}?src=${sourceId}`;
 
+const DIST_TABS = ["Sources", "Assets"] as const;
+type DistTab = (typeof DIST_TABS)[number];
+
+/** Tab state lives in `?tab=` (Home's pattern) so Assets deep-links. */
+function useDistTab(): [DistTab, (t: DistTab) => void] {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get("tab");
+  const active = DIST_TABS.find((t) => t.toLowerCase() === raw) ?? "Sources";
+  const set = (t: DistTab) =>
+    setParams(t === "Sources" ? {} : { tab: t.toLowerCase() }, { replace: true });
+  return [active, set];
+}
+
+const CHANNEL_FILTERS = ["All channels", ...CHANNELS] as const;
+const PAGE_SIZE = 25;
+
 export function DistributionPage() {
   const toast = useToast();
   const {
@@ -69,9 +95,16 @@ export function DistributionPage() {
     campaignById,
     polstById,
   } = useWorkspace();
+  const [tab, setTab] = useDistTab();
   const [addOpen, setAddOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<Source | null>(null);
   const [qrTarget, setQrTarget] = useState<{ source: Source; linked: LinkedMeta } | null>(null);
+  const [query, setQuery] = useState("");
+  const [channel, setChannel] = useState<string>("All channels");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<SortState | null>(null);
 
   const metaFor = (s: Source): LinkedMeta | null => {
     if (!s.linked) return null;
@@ -91,7 +124,7 @@ export function DistributionPage() {
      points at), then polst sources by volume — a single question has no
      completion to rank — then the silent sources, newest on top so a
      just-created one is visible. */
-  const rows = useMemo(() => {
+  const ordered = useMemo(() => {
     const measured = sources
       .filter((s) => s.completionRate !== null && s.linked?.type === "campaign")
       .sort((a, b) => a.completionRate! - b.completionRate!);
@@ -115,7 +148,7 @@ export function DistributionPage() {
   const unassignedCount = sources.filter((s) => !s.linked).length;
   /* Single-question polsts complete by definition (100%), so only sources
      feeding multi-question campaigns can be ranked on completion. */
-  const rankable = rows.filter(
+  const rankable = ordered.filter(
     (s) => s.completionRate !== null && s.linked?.type === "campaign",
   );
   const worst = rankable[0];
@@ -125,6 +158,7 @@ export function DistributionPage() {
   const columns: Array<DataColumn<Source>> = [
     {
       header: "Source",
+      sort: (s) => s.name.toLowerCase(),
       cell: (s) => (
         <div className="min-w-0">
           <p className="font-display font-semibold text-text-primary">{s.name}</p>
@@ -134,10 +168,15 @@ export function DistributionPage() {
         </div>
       ),
     },
-    { header: "Format", cell: (s) => <Chip>{s.kind}</Chip> },
-    { header: "Channel", cell: (s) => <span className="text-text-secondary">{s.channel}</span> },
+    { header: "Format", sort: (s) => s.kind, cell: (s) => <Chip>{s.kind}</Chip> },
+    {
+      header: "Channel",
+      sort: (s) => s.channel,
+      cell: (s) => <span className="text-text-secondary">{s.channel}</span>,
+    },
     {
       header: "Linked to",
+      sort: (s) => metaFor(s)?.name.toLowerCase() ?? "",
       cell: (s) => {
         const m = metaFor(s);
         return m ? (
@@ -157,6 +196,7 @@ export function DistributionPage() {
     {
       header: "Voters",
       align: "right",
+      sort: (s) => s.voters,
       cell: (s) => (
         <span className="tabular-nums">{s.voters > 0 ? fmtInt(s.voters) : "—"}</span>
       ),
@@ -164,6 +204,7 @@ export function DistributionPage() {
     {
       header: "Completion",
       align: "right",
+      sort: (s) => (s.linked?.type === "campaign" ? s.completionRate ?? -1 : -1),
       /* Only campaign sources have a real completion story — a single-
          question polst completes the moment it votes, so "100%" would be
          a degenerate stat, not information. */
@@ -171,6 +212,7 @@ export function DistributionPage() {
     },
     {
       header: "Last activity",
+      sort: (s) => s.lastActivity ?? "",
       cell: (s) => (
         <span className="text-text-secondary">
           {s.lastActivity ? relativeToToday(s.lastActivity) : "—"}
@@ -210,6 +252,81 @@ export function DistributionPage() {
   const embedAssets = sources.filter((s) => s.kind === "Embed" && liveMeta(s));
   const klaviyo = INTEGRATIONS.find((i) => i.id === "int-klaviyo");
 
+  /* The list pipeline (the Polsts/Campaigns contract): filter, sort the
+     FULL list, then slice a page — page 2 continues page 1's order. */
+  const rows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    const filtered = filterByCreated(ordered, createdFrom, createdTo)
+      .filter((s) => channel === "All channels" || s.channel === channel)
+      .filter(
+        (s) =>
+          !normalized ||
+          [s.name, s.placement ?? "", metaFor(s)?.name ?? ""].some((v) =>
+            v.toLowerCase().includes(normalized),
+          ),
+      );
+    return sortRows(filtered, columns, sort);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordered, query, channel, createdFrom, createdTo, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = rows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const setFilterAndResetPage = <T,>(setter: (v: T) => void) => (value: T) => {
+    setter(value);
+    setPage(0);
+  };
+
+  const filtering = Boolean(query.trim() || channel !== "All channels" || createdFrom || createdTo);
+  const emptyTitle = filtering ? "No sources match these filters" : "No sources yet";
+  const emptyAction = filtering
+    ? {
+        label: "Clear filters",
+        onClick: () => {
+          setQuery("");
+          setChannel("All channels");
+          setCreatedFrom("");
+          setCreatedTo("");
+          setPage(0);
+        },
+      }
+    : { label: "Add source", onClick: () => setAddOpen(true) };
+
+  const toolbar = (
+    <TableToolbar
+      placeholder="Search sources"
+      query={query}
+      onQueryChange={setFilterAndResetPage(setQuery)}
+    >
+      <StatusSelect
+        options={CHANNEL_FILTERS}
+        value={channel}
+        onChange={setFilterAndResetPage(setChannel)}
+        className="w-40"
+      />
+      <DateRangePicker
+        from={createdFrom}
+        to={createdTo}
+        placeholder="Created date"
+        onChange={(f, t) => {
+          setCreatedFrom(f);
+          setCreatedTo(t);
+          setPage(0);
+        }}
+      />
+    </TableToolbar>
+  );
+
+  const pager = (
+    <TablePagination
+      page={safePage}
+      pageSize={PAGE_SIZE}
+      total={rows.length}
+      onPage={setPage}
+      noun="sources"
+    />
+  );
+
   return (
     <DashboardPage
       actions={
@@ -218,130 +335,164 @@ export function DistributionPage() {
           Add source
         </Button>
       }
+      tabs={<HeaderTabs tabs={DIST_TABS} active={tab} onChange={setTab} />}
+      // The pager rides the fixed footer band — but only under the list.
+      footer={tab === "Sources" && rows.length ? pager : null}
     >
-      <SectionGrid>
-        <StatTile
-          className="lg:col-span-3"
-          label="Active sources"
-          value={fmtInt(activeCount)}
-          detail={unassignedCount > 0 ? `${fmtInt(unassignedCount)} unassigned` : undefined}
-          info="Sources assigned to a campaign or polst that is live or scheduled."
-        />
-        <StatTile
-          className="lg:col-span-3"
-          label="Voters · last 30 days"
-          value={fmtInt(window30.voters)}
-          detail={votersTile.detail}
-          trend={votersTile.trend}
-          info={METRIC_INFO.voters}
-        />
-        <StatTile
-          className="lg:col-span-3"
-          label="Best completion"
-          value={best?.completionRate != null ? fmtPct(best.completionRate, 0) : "—"}
-          detail={best?.name}
-          info={completionScope}
-        />
-        <StatTile
-          className="lg:col-span-3"
-          label="Lowest completion"
-          value={worst?.completionRate != null ? fmtPct(worst.completionRate, 0) : "—"}
-          detail={worst?.name}
-          info={completionScope}
-        />
-      </SectionGrid>
+      {tab === "Sources" ? (
+        <>
+          <SectionGrid>
+            <StatTile
+              className="lg:col-span-3"
+              label="Active sources"
+              value={fmtInt(activeCount)}
+              detail={unassignedCount > 0 ? `${fmtInt(unassignedCount)} unassigned` : undefined}
+              info="Sources assigned to a campaign or polst that is live or scheduled."
+            />
+            <StatTile
+              className="lg:col-span-3"
+              label="Voters · last 30 days"
+              value={fmtInt(window30.voters)}
+              detail={votersTile.detail}
+              trend={votersTile.trend}
+              info={METRIC_INFO.voters}
+            />
+            <StatTile
+              className="lg:col-span-3"
+              label="Best completion"
+              value={best?.completionRate != null ? fmtPct(best.completionRate, 0) : "—"}
+              detail={best?.name}
+              info={completionScope}
+            />
+            <StatTile
+              className="lg:col-span-3"
+              label="Lowest completion"
+              value={worst?.completionRate != null ? fmtPct(worst.completionRate, 0) : "—"}
+              detail={worst?.name}
+              info={completionScope}
+            />
+          </SectionGrid>
 
-      <DashboardCard padded={false}>
-        <DataTable
-          rows={rows}
-          columns={columns}
-          emptyLabel="No sources yet — add one to start attributing voters"
-        />
-      </DashboardCard>
-
-      <DashboardCard title="QR codes">
-        {qrSources.length ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {qrSources.map((s) => {
-              const m = metaFor(s);
-              return (
-                <QrTile
-                  key={s.id}
-                  source={s}
-                  linked={m}
-                  onOpen={m ? () => setQrTarget({ source: s, linked: m }) : undefined}
-                  onAssign={() => setAssignTarget(s)}
+          {/* The action row rides ABOVE the card (the list-page altitude). */}
+          <section className="space-y-2">
+            {toolbar}
+            {rows.length ? (
+              <DashboardCard padded={false}>
+                <DataTable
+                  rows={pageRows}
+                  columns={columns}
+                  sort={sort}
+                  onSortChange={setFilterAndResetPage(setSort)}
                 />
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState
-            icon="qr_code_2"
-            title="No QR codes yet"
-            hint="Print one per placement so every scan stays attributed."
-            action={{ label: "Add source", onClick: () => setAddOpen(true) }}
-          />
-        )}
-      </DashboardCard>
-
-      <DashboardCard
-        title="Links & embeds"
-        description="Copy-ready assets for runs that are live or scheduled."
-      >
-        {linkAssets.length + embedAssets.length ? (
-          <div className="space-y-3">
-            {linkAssets.length ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {linkAssets.map((s) => {
-                  const m = liveMeta(s)!;
+              </DashboardCard>
+            ) : (
+              <DashboardCard padded={false}>
+                <EmptyState icon="hub" title={emptyTitle} action={emptyAction} />
+              </DashboardCard>
+            )}
+          </section>
+        </>
+      ) : (
+        <>
+          {/* Assets sit directly on the page under section headers —
+              cards never nest inside cards. */}
+          <section className="space-y-3">
+            <SectionHeader
+              title="QR codes"
+              description="Print one per placement so every scan stays attributed."
+            />
+            {qrSources.length ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {qrSources.map((s) => {
+                  const m = metaFor(s);
                   return (
-                    <SnippetCard
+                    <QrTile
                       key={s.id}
-                      title={s.name}
-                      description={`Feeds ${m.name}`}
-                      code={attributedUrl(m, s.id)}
+                      source={s}
+                      linked={m}
+                      onOpen={m ? () => setQrTarget({ source: s, linked: m }) : undefined}
+                      onAssign={() => setAssignTarget(s)}
                     />
                   );
                 })}
               </div>
-            ) : null}
-            {embedAssets.length ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {embedAssets.map((s) => {
-                  const m = liveMeta(s)!;
-                  return (
-                    <SnippetCard
-                      key={s.id}
-                      title={s.name}
-                      description={`Feeds ${m.name}`}
-                      code={embedIframe(m.id)}
-                    />
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <EmptyState
-            icon="link"
-            title="No live links yet"
-            hint="Share links and embeds appear here while their campaign or polst is live."
-            action={{ label: "Add source", onClick: () => setAddOpen(true) }}
-          />
-        )}
-      </DashboardCard>
+            ) : (
+              <DashboardCard padded={false}>
+                <EmptyState
+                  icon="qr_code_2"
+                  title="No QR codes yet"
+                  hint="Print one per placement so every scan stays attributed."
+                  action={{ label: "Add source", onClick: () => setAddOpen(true) }}
+                />
+              </DashboardCard>
+            )}
+          </section>
 
-      <DashboardCard title="Email & influencer platforms">
-        <div className="grid gap-3 lg:grid-cols-2">
-          {klaviyo ? <ConnectCard integration={klaviyo} /> : null}
-          <LockedCard
-            title="Influencer tracking"
-            chip="Not connected"
-            description="Creator benchmarks and story views arrive once a creator platform is connected."
-          />
-        </div>
-      </DashboardCard>
+          <section className="space-y-3">
+            <SectionHeader
+              title="Links & embeds"
+              description="Copy-ready assets for runs that are live or scheduled."
+            />
+            {linkAssets.length + embedAssets.length ? (
+              <div className="space-y-4">
+                {linkAssets.length ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {linkAssets.map((s) => {
+                      const m = liveMeta(s)!;
+                      return (
+                        <SnippetCard
+                          key={s.id}
+                          className="rounded-card bg-surface-raised shadow-sm"
+                          title={s.name}
+                          description={`Feeds ${m.name}`}
+                          code={attributedUrl(m, s.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {embedAssets.length ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {embedAssets.map((s) => {
+                      const m = liveMeta(s)!;
+                      return (
+                        <SnippetCard
+                          key={s.id}
+                          className="rounded-card bg-surface-raised shadow-sm"
+                          title={s.name}
+                          description={`Feeds ${m.name}`}
+                          code={embedIframe(m.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <DashboardCard padded={false}>
+                <EmptyState
+                  icon="link"
+                  title="No live links yet"
+                  hint="Share links and embeds appear here while their campaign or polst is live."
+                  action={{ label: "Add source", onClick: () => setAddOpen(true) }}
+                />
+              </DashboardCard>
+            )}
+          </section>
+
+          <section className="space-y-3">
+            <SectionHeader title="Email & influencer platforms" />
+            <div className="grid gap-4 lg:grid-cols-2">
+              {klaviyo ? <ConnectCard integration={klaviyo} /> : null}
+              <LockedCard
+                title="Influencer tracking"
+                chip="Not connected"
+                description="Creator benchmarks and story views arrive once a creator platform is connected."
+              />
+            </div>
+          </section>
+        </>
+      )}
 
       <AssignSourceModal
         open={addOpen}
@@ -398,7 +549,8 @@ function QrTile({
   onAssign: () => void;
 }) {
   return (
-    <div className="flex flex-col rounded-md border border-border-default p-4">
+    // Card chrome — QR tiles sit directly on the page now, not inside a card.
+    <div className="flex flex-col rounded-card border border-border-default bg-surface-raised p-4 shadow-sm">
       <div className="flex items-start gap-3">
         <IconTile size={12} className="text-icon-primary">
           <Icon name="qr_code_2" size={32} />

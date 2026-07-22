@@ -166,6 +166,36 @@ export function DashboardCard({
   );
 }
 
+/** A page-level section heading — the same anatomy Home's "Campaigns"
+ *  row carries: card-title type with an optional trailing control, over
+ *  content that sits directly on the page (no wrapper card around it —
+ *  cards never nest inside cards). */
+export function SectionHeader({
+  title,
+  description,
+  action,
+  className,
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-wrap items-start justify-between gap-2", className)}>
+      <div className="min-w-0">
+        <h2 className="font-display text-lg font-semibold leading-7 tracking-tight text-text-primary">
+          {title}
+        </h2>
+        {description ? (
+          <p className="mt-0.5 text-sm leading-5 text-text-secondary">{description}</p>
+        ) : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
 /** 12-column layout row at the shared 16px gutter. Children set
  *  `lg:col-span-{n}`; everything stacks below `lg`. Grid items default to
  *  `min-width: auto`, which lets a wide child (a table's min-content, a
@@ -1542,14 +1572,18 @@ export function SnippetCard({
   title,
   description,
   code,
+  className,
 }: {
   title: string;
   description?: string;
   code: string;
+  /** Standalone (page-level) call sites pass card chrome; inside a card
+   *  the default subtle inset stands. */
+  className?: string;
 }) {
   const toast = useToast();
   return (
-    <div className="rounded-md border border-border-default bg-surface-subtle">
+    <div className={cn("rounded-md border border-border-default bg-surface-subtle", className)}>
       <div className="flex items-center justify-between gap-3 px-3 pt-3">
         <div className="min-w-0">
           <p className="font-display text-sm font-semibold text-text-primary">{title}</p>
@@ -1597,7 +1631,7 @@ export function LockedCard({
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-md border border-dashed border-border-strong bg-surface-subtle p-4",
+        "flex items-start gap-3 rounded-card border border-dashed border-border-strong bg-surface-subtle p-4",
         className,
       )}
     >
@@ -1783,7 +1817,9 @@ export function ConnectCard({ integration }: { integration: Integration }) {
     // min-w-0: as a grid item this card must shrink to its track — without
     // it the nowrap name/action row forces the card wider than the column
     // and the parent card's overflow-hidden clips the Connect button.
-    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border-default bg-surface-raised p-4">
+    // Card chrome — every ConnectCard now sits directly on the page
+    // (integration grids under a SectionHeader), never inside a card.
+    <div className="flex min-w-0 items-center gap-3 rounded-card border border-border-default bg-surface-raised p-4 shadow-sm">
       <IconTile size={10} className="text-icon-primary">
         <Icon name={integration.icon} size={22} />
       </IconTile>
