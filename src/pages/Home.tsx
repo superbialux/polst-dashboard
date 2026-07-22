@@ -299,22 +299,7 @@ export function HomePage() {
         </>
       ) : (
         <>
-      {/* 1 · Workspace health leads; every delta states its comparison window. */}
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <DateRangeMenu value={range} onChange={setRange} />
-          <Button variant="secondary" size="sm" asChild>
-            <Link to="/analytics">View analytics</Link>
-          </Button>
-        </div>
-        <StatsStrip
-          stats={stats}
-          xTicks={STAT_XTICKS[range]}
-          scopeLabel={workspaceWindow(range).compareLabel ?? undefined}
-        />
-      </section>
-
-      {/* 2 · The two ways in — a campaign, or one quick polst. */}
+      {/* 1 · The two ways in — a campaign, or one quick polst. */}
       <HeroBanner
         left={{
           eyebrow: "Campaigns",
@@ -334,14 +319,7 @@ export function HomePage() {
         }}
       />
 
-      {/* 3 · Suggested for you — decisions, fixes, then discovery. */}
-      <SuggestionGrid
-        title="Suggested for you"
-        suggestions={suggestions}
-        onDismiss={dismissSuggestion}
-      />
-
-      {/* 4 · One campaign, one row — the stats rail rides the last
+      {/* 2 · One campaign, one row — the stats rail rides the last
              quarter with the workspace's campaign totals. */}
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -377,7 +355,8 @@ export function HomePage() {
               </div>
             )}
           </div>
-          <div className="space-y-3">
+          {/* The rail stays put while the campaign list scrolls past. */}
+          <div className="space-y-3 self-start lg:sticky lg:top-4">
             <StatsListCard
               title="All campaigns"
               rows={campaignStats}
@@ -391,6 +370,28 @@ export function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* 3 · Workspace health; every delta states its comparison window. */}
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <DateRangeMenu value={range} onChange={setRange} />
+          <Button variant="secondary" size="sm" asChild>
+            <Link to="/analytics">View analytics</Link>
+          </Button>
+        </div>
+        <StatsStrip
+          stats={stats}
+          xTicks={STAT_XTICKS[range]}
+          scopeLabel={workspaceWindow(range).compareLabel ?? undefined}
+        />
+      </section>
+
+      {/* 4 · Suggested for you — decisions, fixes, then discovery. */}
+      <SuggestionGrid
+        title="Suggested for you"
+        suggestions={suggestions}
+        onDismiss={dismissSuggestion}
+      />
         </>
       )}
     </DashboardPage>
