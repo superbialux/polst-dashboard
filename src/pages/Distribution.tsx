@@ -24,10 +24,8 @@ import {
   ModalFooter,
   RateCell,
   SOURCE_KINDS,
-  SectionGrid,
   SectionHeader,
   SnippetCard,
-  StatTile,
   StatsStrip,
   StatusBadge,
   StatusSelect,
@@ -48,6 +46,7 @@ import {
   STAT_XTICKS,
   embedIframe,
   shareUrl,
+  sourceSetVotersWindow,
   windowMetricSpark,
   workspaceWindow,
   type Source,
@@ -424,6 +423,54 @@ export function DistributionPage() {
   const tabSources = tabFormat ? ordered.filter((s) => s.kind === tabFormat) : [];
   const tabTotals = formatTotals(tabSources);
 
+  /* The format tab's strip: count, run-to-date volume, and completion
+     are facts without a daily shape; voters gets the format's real
+     windowed series (each source riding its run, share-allocated). */
+  const tabVoters = tabFormat ? sourceSetVotersWindow(tabSources, "30D") : null;
+  const tabStats: Stat[] = tabFormat
+    ? [
+        {
+          label: tab,
+          value: fmtInt(tabSources.length),
+          delta: "—",
+          trend: "flat",
+          detail:
+            tabTotals.unassigned > 0 ? `${fmtInt(tabTotals.unassigned)} unassigned` : undefined,
+          info: FORMAT_META[tabFormat].blurb,
+        },
+        {
+          label: FORMAT_META[tabFormat].volume,
+          value: tabTotals.views > 0 ? fmtInt(tabTotals.views) : "—",
+          delta: "—",
+          trend: "flat",
+          detail: "run to date",
+          info: METRIC_INFO.views,
+        },
+        {
+          label: "Voters · last 30 days",
+          value: fmtInt(tabVoters!.total),
+          delta: tabVoters!.delta === null ? "—" : `${Math.abs(tabVoters!.delta)}%`,
+          trend:
+            tabVoters!.delta === null || tabVoters!.delta === 0
+              ? "flat"
+              : tabVoters!.delta > 0
+                ? "up"
+                : "down",
+          info: METRIC_INFO.voters,
+          spark: tabVoters!.spark,
+          previous: tabVoters!.previous,
+        },
+        {
+          label: "Completion",
+          value: tabTotals.completion !== null ? fmtPct(tabTotals.completion, 0) : "—",
+          delta: "—",
+          trend: "flat",
+          detail: "across campaign sources",
+          info: COMPLETION_SCOPE,
+        },
+      ]
+    : [];
+
   return (
     <DashboardPage
       actions={
@@ -519,38 +566,14 @@ export function DistributionPage() {
         </>
       ) : (
         <>
-          <SectionGrid>
-            <StatTile
-              className="lg:col-span-3"
-              label={tab}
-              value={fmtInt(tabSources.length)}
-              detail={
-                tabTotals.unassigned > 0
-                  ? `${fmtInt(tabTotals.unassigned)} unassigned`
-                  : undefined
-              }
-              info={FORMAT_META[tabFormat!].blurb}
-            />
-            <StatTile
-              className="lg:col-span-3"
-              label={FORMAT_META[tabFormat!].volume}
-              value={tabTotals.views > 0 ? fmtInt(tabTotals.views) : "—"}
-              info={METRIC_INFO.views}
-            />
-            <StatTile
-              className="lg:col-span-3"
-              label="Voters"
-              value={tabTotals.voters > 0 ? fmtInt(tabTotals.voters) : "—"}
-              info={METRIC_INFO.voters}
-            />
-            <StatTile
-              className="lg:col-span-3"
-              label="Completion"
-              value={tabTotals.completion !== null ? fmtPct(tabTotals.completion, 0) : "—"}
-              detail="across campaign sources"
-              info={COMPLETION_SCOPE}
-            />
-          </SectionGrid>
+          {/* The same folded strip as Overview — a stat click opens the
+              format's voters chart, the chevron folds it back. */}
+          <StatsStrip
+            stats={tabStats}
+            xTicks={STAT_XTICKS["30D"]}
+            scopeLabel={window30.compareLabel ?? undefined}
+            collapsible
+          />
 
           {tabSources.length ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

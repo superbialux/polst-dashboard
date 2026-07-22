@@ -21,6 +21,7 @@ import {
   allocate,
   chainVotes,
   dailySeries,
+  dateSpan,
   hourlyVotes,
   sumWindow,
   timeHeat,
@@ -1516,6 +1517,67 @@ export const windowMetricSpark = (
   if (range === "All" || w.compareLabel === null) return { spark };
   const [prevStart, prevEnd] = windowBounds(range, 1);
   return { spark, previous: downsampleCounts(metricWindow(metric, prevStart, prevEnd).values) };
+};
+
+/** Windowed voters for a SET of sources (a Distribution format tab):
+ *  each source rides its linked run's daily voters series scaled by its
+ *  authored voter share, with exact integer allocation — so the set's
+ *  series sums to its windowed voters, never a decorated guess. The
+ *  previous window comes back only when the comparison clears
+ *  windowDelta's honesty floor. */
+export const sourceSetVotersWindow = (
+  set: Source[],
+  range: StatRange,
+): { total: number; spark: number[]; delta: number | null; previous?: number[] } => {
+  const daily = (start: string, end: string): number[] => {
+    const days = dateSpan(start, end);
+    const totals = days.map(() => 0);
+    // Shares fold per linked object first — two sources on one run
+    // allocate once, keeping the integer arithmetic exact.
+    const shareByObject = new Map<string, number>();
+    for (const s of set) {
+      if (!s.linked || !s.voterShare) continue;
+      const key = `${s.linked.type}:${s.linked.id}`;
+      shareByObject.set(key, (shareByObject.get(key) ?? 0) + s.voterShare);
+    }
+    for (const [key, share] of shareByObject) {
+      const [type, id] = key.split(":");
+      const object =
+        type === "campaign"
+          ? CAMPAIGNS.find((c) => c.id === id)
+          : SINGLE_POLSTS.find((p) => p.id === id);
+      if (!object) continue;
+      const series =
+        type === "campaign"
+          ? campaignSeries(object as Campaign, "voters")
+          : polstSeries(object as SinglePolst, "voters");
+      const values = days.map((iso) => {
+        const i = series.dates.indexOf(iso);
+        return i === -1 ? 0 : series.values[i];
+      });
+      const windowTotal = values.reduce((a, b) => a + b, 0);
+      const scoped = Math.round(windowTotal * share);
+      const allocated = scoped === windowTotal ? values : allocate(scoped, values);
+      allocated.forEach((v, i) => {
+        totals[i] += v;
+      });
+    }
+    return totals;
+  };
+
+  const [start, end] = windowBounds(range);
+  const cur = daily(start, end);
+  const total = cur.reduce((a, b) => a + b, 0);
+  if (range === "All") return { total, spark: downsampleCounts(cur), delta: null };
+  const [prevStart, prevEnd] = windowBounds(range, 1);
+  const prev = daily(prevStart, prevEnd);
+  const delta = windowDelta(total, prev.reduce((a, b) => a + b, 0));
+  return {
+    total,
+    spark: downsampleCounts(cur),
+    delta,
+    ...(delta !== null ? { previous: downsampleCounts(prev) } : {}),
+  };
 };
 
 /** Axis labels for the expanded chart — first / middle / last window day. */
