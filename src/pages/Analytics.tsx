@@ -620,38 +620,44 @@ export function AnalyticsOverviewPage() {
   if (!rows.length) {
     return (
       <DashboardPage>
-        <AnalyticsFilterBar />
-        <EmptyAnalytics />
+        {/* Controls ride tight above the content — the list pages' gap. */}
+        <section className="space-y-2">
+          <AnalyticsFilterBar />
+          <EmptyAnalytics />
+        </section>
       </DashboardPage>
     );
   }
 
   return (
     <DashboardPage actions={<ExportMenu summary={summary} csv={csv} />}>
-      <AnalyticsFilterBar />
+      {/* Controls ride tight above the first card — the list pages' gap. */}
+      <section className="space-y-2">
+        <AnalyticsFilterBar />
 
-      {/* Decisions first, telemetry after. The title follows the rows'
-          truth: all-Ended runs have results ready; live rows state their
-          own evidence fact. */}
-      <DashboardCard
-        title={
-          ready.length > 0 && ready.every((c) => c.status === "Ended")
-            ? "Results ready"
-            : "Ready for a decision"
-        }
-        padded={false}
-        bodyClassName="pb-1"
-      >
-        {ready.length ? (
-          <ReadyToDecideList campaigns={ready} />
-        ) : (
-          <EmptyState
-            title="No campaigns are ready for a decision"
-            hint="Campaigns appear here once a clear leader emerges on enough voters."
-            action={{ label: "View campaigns", to: "/campaigns" }}
-          />
-        )}
-      </DashboardCard>
+        {/* Decisions first, telemetry after. The title follows the rows'
+            truth: all-Ended runs have results ready; live rows state their
+            own evidence fact. */}
+        <DashboardCard
+          title={
+            ready.length > 0 && ready.every((c) => c.status === "Ended")
+              ? "Results ready"
+              : "Ready for a decision"
+          }
+          padded={false}
+          bodyClassName="pb-1"
+        >
+          {ready.length ? (
+            <ReadyToDecideList campaigns={ready} />
+          ) : (
+            <EmptyState
+              title="No campaigns are ready for a decision"
+              hint="Campaigns appear here once a clear leader emerges on enough voters."
+              action={{ label: "View campaigns", to: "/campaigns" }}
+            />
+          )}
+        </DashboardCard>
+      </section>
 
       <SectionGrid>
         {/* The fused KPI hero: the four headline metrics as tabs over one
@@ -941,10 +947,6 @@ export function AnalyticsInsightsPage() {
         ) : null
       }
     >
-      <p className="max-w-3xl text-sm leading-6 text-text-secondary">
-        What each campaign learned, which polsts shaped that learning, and what to do next.
-        Standalone polsts keep their factual detail pages — they never appear here.
-      </p>
       {/* The action row rides ABOVE the card (the list-page altitude). */}
       <section className="space-y-2">
         <TableToolbar
@@ -1121,22 +1123,25 @@ export function AnalyticsReportsPage() {
 
   return (
     <DashboardPage actions={scoped.length ? <ExportMenu summary={summary} /> : undefined}>
-      <AnalyticsFilterBar />
+      {/* Controls ride tight above the card — the list pages' gap. */}
+      <section className="space-y-2">
+        <AnalyticsFilterBar />
 
-      {scoped.length ? (
-        <DashboardCard padded={false}>
-          <DataTable rows={scoped} columns={reportColumns} />
-        </DashboardCard>
-      ) : (
-        <DashboardCard>
-          <EmptyState
-            icon="lab_profile"
-            title="No reports in this view"
-            hint="A report shows when its campaign or polst has activity inside the selected window and filters."
-            action={{ label: "Reset filters", onClick: resetFilters }}
-          />
-        </DashboardCard>
-      )}
+        {scoped.length ? (
+          <DashboardCard padded={false}>
+            <DataTable rows={scoped} columns={reportColumns} />
+          </DashboardCard>
+        ) : (
+          <DashboardCard>
+            <EmptyState
+              icon="lab_profile"
+              title="No reports in this view"
+              hint="A report shows when its campaign or polst has activity inside the selected window and filters."
+              action={{ label: "Reset filters", onClick: resetFilters }}
+            />
+          </DashboardCard>
+        )}
+      </section>
 
       <ReportPreview
         open={Boolean(preview)}
