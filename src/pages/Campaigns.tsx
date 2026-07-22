@@ -1766,7 +1766,7 @@ function CampaignOverview({
           className="lg:col-span-7"
           action={
             <InfoHint
-              label="Time to decide"
+              label="Avg time"
               text="Average seconds a voter spends on the question before picking a side."
             />
           }
@@ -1815,10 +1815,8 @@ function CampaignOverview({
                       {pct(row.votes, campaign.voters)}
                     </span>
                   </span>
-                  <span className="w-20">
-                    <span className="block text-xs leading-4 text-text-tertiary">
-                      Time to decide
-                    </span>
+                  <span className="w-14">
+                    <span className="block text-xs leading-4 text-text-tertiary">Avg time</span>
                     <span className="block text-sm font-semibold leading-5 tabular-nums text-text-primary">
                       {row.seconds}s
                     </span>
