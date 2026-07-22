@@ -45,7 +45,7 @@ export type { Confidence, DecisionSignal, Status } from "@/lib/canon";
 export type { WindowRange } from "@/lib/engine";
 
 export type Category = "Food & drink" | "Lifestyle" | "Shopping & deals";
-export type Channel = "Website" | "Email" | "Instagram" | "QR" | "Influencer";
+export type Channel = "Website" | "Email" | "Instagram" | "In person" | "Influencer";
 
 /* ── Workspace identity ──────────────────────────────────────────── */
 
@@ -154,7 +154,9 @@ export type SinglePolst = {
 export type Source = {
   id: string;
   name: string;
-  kind: "QR code" | "Share link" | "Embed" | "Tracked link";
+  /** The asset Polst generates. Every one is tracked — a separate
+   *  "tracked link" kind would be a distinction without a difference. */
+  kind: "Share link" | "QR code" | "Embed";
   channel: Channel;
   placement?: string; // "On-pack sticker", "Booth banner", "@handle"
   linked: { type: "campaign" | "polst"; id: string } | null;
@@ -737,7 +739,7 @@ type SourceSeed = Omit<Source, "voters" | "views" | "completed" | "completionRat
 
 const SOURCE_SEEDS: SourceSeed[] = shiftSeed([
   // Flavor Launch Recap
-  { id: "qr-packaging", name: "QR — Packaging", kind: "QR code", channel: "QR", placement: "On-pack sticker", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-26", voterShare: 0.26, completionDelta: 4 },
+  { id: "qr-packaging", name: "QR — Packaging", kind: "QR code", channel: "In person", placement: "On-pack sticker", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-26", voterShare: 0.26, completionDelta: 4 },
   { id: "link-newsletter", name: "Share Link — Newsletter", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-27", voterShare: 0.41, completionDelta: 2 },
   { id: "embed-site-flavor", name: "Website Embed — Flavor", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "flavor-launch-recap" }, createdAt: "2026-05-26", voterShare: 0.33, completionDelta: -3 },
   // Spring Email Creative
@@ -746,36 +748,36 @@ const SOURCE_SEEDS: SourceSeed[] = shiftSeed([
   // Subscription Box Positioning
   { id: "email-subscription-box", name: "Share Link — Subscriber List", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "subscription-box-positioning" }, createdAt: "2026-04-24", voterShare: 0.47, completionDelta: 4 },
   { id: "embed-subscription-box", name: "Website Embed — Subscription", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "subscription-box-positioning" }, createdAt: "2026-04-24", voterShare: 0.34, completionDelta: 1 },
-  { id: "creator-subscription-box", name: "Creator — @pantryweek", kind: "Tracked link", channel: "Influencer", placement: "@pantryweek", linked: { type: "campaign", id: "subscription-box-positioning" }, createdAt: "2026-04-26", voterShare: 0.19, completionDelta: -8 },
+  { id: "creator-subscription-box", name: "Creator — @pantryweek", kind: "Share link", channel: "Influencer", placement: "@pantryweek", linked: { type: "campaign", id: "subscription-box-positioning" }, createdAt: "2026-04-26", voterShare: 0.19, completionDelta: -8 },
   // Mother's Day Gift Guide
   { id: "email-mothers-day", name: "Share Link — Mother's Day Email", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "mothers-day-gift-guide" }, createdAt: "2026-04-30", voterShare: 0.52, completionDelta: 6 },
   { id: "story-mothers-day", name: "Instagram Story — Gift Guide", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "mothers-day-gift-guide" }, createdAt: "2026-05-01", voterShare: 0.30, completionDelta: -2 },
-  { id: "qr-mothers-day", name: "QR — Gift Display", kind: "QR code", channel: "QR", placement: "Gift display", linked: { type: "campaign", id: "mothers-day-gift-guide" }, createdAt: "2026-05-02", voterShare: 0.18, completionDelta: -9 },
+  { id: "qr-mothers-day", name: "QR — Gift Display", kind: "QR code", channel: "In person", placement: "Gift display", linked: { type: "campaign", id: "mothers-day-gift-guide" }, createdAt: "2026-05-02", voterShare: 0.18, completionDelta: -9 },
   // Homepage Message Hierarchy
   { id: "embed-homepage-message", name: "Website Embed — Homepage", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "homepage-message-hierarchy" }, createdAt: "2026-05-08", voterShare: 0.74, completionDelta: 2 },
   { id: "story-homepage-message", name: "Instagram Story — Homepage", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "homepage-message-hierarchy" }, createdAt: "2026-05-09", voterShare: 0.26, completionDelta: -5 },
   // Creator Brief Direction
-  { id: "creator-brief-link", name: "Creator — @weeknighttable", kind: "Tracked link", channel: "Influencer", placement: "@weeknighttable", linked: { type: "campaign", id: "creator-brief-direction" }, createdAt: "2026-05-14", voterShare: 0.58, completionDelta: -7 },
+  { id: "creator-brief-link", name: "Creator — @weeknighttable", kind: "Share link", channel: "Influencer", placement: "@weeknighttable", linked: { type: "campaign", id: "creator-brief-direction" }, createdAt: "2026-05-14", voterShare: 0.58, completionDelta: -7 },
   { id: "story-creator-brief", name: "Instagram Story — Creator Brief", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "creator-brief-direction" }, createdAt: "2026-05-15", voterShare: 0.42, completionDelta: 5 },
   // Farmers Market Sampling
-  { id: "qr-farmers-market", name: "QR — Market Booth", kind: "QR code", channel: "QR", placement: "Tasting table", linked: { type: "campaign", id: "farmers-market-sampling" }, createdAt: "2026-05-18", voterShare: 0.72, completionDelta: 5 },
+  { id: "qr-farmers-market", name: "QR — Market Booth", kind: "QR code", channel: "In person", placement: "Tasting table", linked: { type: "campaign", id: "farmers-market-sampling" }, createdAt: "2026-05-18", voterShare: 0.72, completionDelta: 5 },
   { id: "email-farmers-market", name: "Share Link — Market Recap", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "farmers-market-sampling" }, createdAt: "2026-05-20", voterShare: 0.28, completionDelta: -7 },
   // Packaging Direction Test
   { id: "embed-website-pd", name: "Website Embed — Packaging", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "packaging-direction" }, createdAt: "2026-05-31", voterShare: 0.42, completionDelta: 7 },
   { id: "story-instagram-pd", name: "Instagram Story Link", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "packaging-direction" }, createdAt: "2026-06-02", voterShare: 0.33, completionDelta: -6 },
-  { id: "qr-instore-pd", name: "QR — Shelf Talker", kind: "QR code", channel: "QR", placement: "Shelf talker", linked: { type: "campaign", id: "packaging-direction" }, createdAt: "2026-06-01", voterShare: 0.16, completionDelta: 9 },
-  { id: "creator-morningfeed", name: "Creator — @themorningfeed", kind: "Tracked link", channel: "Influencer", placement: "@themorningfeed", linked: { type: "campaign", id: "packaging-direction" }, createdAt: "2026-06-03", voterShare: 0.09, completionDelta: -10 },
+  { id: "qr-instore-pd", name: "QR — Shelf Talker", kind: "QR code", channel: "In person", placement: "Shelf talker", linked: { type: "campaign", id: "packaging-direction" }, createdAt: "2026-06-01", voterShare: 0.16, completionDelta: 9 },
+  { id: "creator-morningfeed", name: "Creator — @themorningfeed", kind: "Share link", channel: "Influencer", placement: "@themorningfeed", linked: { type: "campaign", id: "packaging-direction" }, createdAt: "2026-06-03", voterShare: 0.09, completionDelta: -10 },
   // Summer Flavor Lineup
   { id: "newsletter-summer", name: "Share Link — Summer Newsletter", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "summer-flavor-lineup" }, createdAt: "2026-05-30", voterShare: 0.45, completionDelta: 6 },
   { id: "embed-landing", name: "Landing Page Embed", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "summer-flavor-lineup" }, createdAt: "2026-05-28", voterShare: 0.31, completionDelta: 0 },
   { id: "story-instagram-summer", name: "Instagram Story — Lineup", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "summer-flavor-lineup" }, createdAt: "2026-06-03", voterShare: 0.18, completionDelta: -4 },
-  { id: "qr-conference", name: "QR — Conference Booth", kind: "QR code", channel: "QR", placement: "Booth banner", linked: { type: "campaign", id: "summer-flavor-lineup" }, createdAt: "2026-06-02", voterShare: 0.06, completionDelta: -17 },
+  { id: "qr-conference", name: "QR — Conference Booth", kind: "QR code", channel: "In person", placement: "Booth banner", linked: { type: "campaign", id: "summer-flavor-lineup" }, createdAt: "2026-06-02", voterShare: 0.06, completionDelta: -17 },
   // Retail Shelf Layout
   { id: "embed-website-retail", name: "Website Embed — Retail", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "retail-shelf-layout" }, createdAt: "2026-06-10", voterShare: 1, completionDelta: 0 },
   // Holiday Gifting Bundles
   { id: "newsletter-holiday", name: "Share Link — Gift Guide Email", kind: "Share link", channel: "Email", linked: { type: "campaign", id: "holiday-gifting-bundles" }, createdAt: "2026-06-05", voterShare: 0.55, completionDelta: 5 },
   { id: "story-instagram-holiday", name: "Instagram Story — Gifting", kind: "Share link", channel: "Instagram", linked: { type: "campaign", id: "holiday-gifting-bundles" }, createdAt: "2026-06-08", voterShare: 0.27, completionDelta: -3 },
-  { id: "qr-endcap-holiday", name: "QR — End-cap Poster", kind: "QR code", channel: "QR", placement: "End-cap poster", linked: { type: "campaign", id: "holiday-gifting-bundles" }, createdAt: "2026-06-06", voterShare: 0.18, completionDelta: -6 },
+  { id: "qr-endcap-holiday", name: "QR — End-cap Poster", kind: "QR code", channel: "In person", placement: "End-cap poster", linked: { type: "campaign", id: "holiday-gifting-bundles" }, createdAt: "2026-06-06", voterShare: 0.18, completionDelta: -6 },
   // Loyalty Program Naming — staged ahead of start, zero traffic
   { id: "embed-website-loyalty", name: "Website Embed — Loyalty", kind: "Embed", channel: "Website", linked: { type: "campaign", id: "loyalty-program-naming" }, createdAt: "2026-06-12", voterShare: 1, completionDelta: 0 },
   // Standalone polsts (single source each)
@@ -783,10 +785,10 @@ const SOURCE_SEEDS: SourceSeed[] = shiftSeed([
   { id: "newsletter-price", name: "Share Link — Price Test Email", kind: "Share link", channel: "Email", linked: { type: "polst", id: "price-point-fair" }, createdAt: "2026-06-03", voterShare: 1, completionDelta: 0 },
   { id: "embed-website-snack", name: "Website Embed — Snack Size", kind: "Embed", channel: "Website", linked: { type: "polst", id: "snack-size-sells" }, createdAt: "2026-06-06", voterShare: 1, completionDelta: 0 },
   { id: "story-instagram-hero", name: "Instagram Story — Hero Image", kind: "Share link", channel: "Instagram", linked: { type: "polst", id: "hero-image-ad" }, createdAt: "2026-06-09", voterShare: 1, completionDelta: 0 },
-  { id: "qr-instore-sweet", name: "QR — In-store Counter", kind: "QR code", channel: "QR", placement: "Counter card", linked: { type: "polst", id: "sweet-or-savory" }, createdAt: "2026-06-11", voterShare: 1, completionDelta: 0 },
+  { id: "qr-instore-sweet", name: "QR — In-store Counter", kind: "QR code", channel: "In person", placement: "Counter card", linked: { type: "polst", id: "sweet-or-savory" }, createdAt: "2026-06-11", voterShare: 1, completionDelta: 0 },
   { id: "embed-website-label", name: "Website Embed — Label Test", kind: "Embed", channel: "Website", linked: { type: "polst", id: "label-layout" }, createdAt: "2026-05-20", voterShare: 1, completionDelta: 0 },
   // Unlinked — the assign flow's material
-  { id: "qr-poster", name: "QR — Retail Poster", kind: "QR code", channel: "QR", placement: "End-cap poster", linked: null, createdAt: "2026-06-09" },
+  { id: "qr-poster", name: "QR — Retail Poster", kind: "QR code", channel: "In person", placement: "End-cap poster", linked: null, createdAt: "2026-06-09" },
   { id: "link-instagram-spare", name: "Instagram Story Link", kind: "Share link", channel: "Instagram", linked: null, createdAt: "2026-03-18" },
 ]);
 
@@ -983,27 +985,36 @@ const POLST_ARCHIVE = generatePolstArchive(50 - POLST_SEEDS.length);
 
 /* Every traffic-bearing run needs a source — analytics attributes ALL
    traffic through channels, and an unsourced run would fall out of the
-   totals (invariant 8). One share link each, channels cycled. */
-const ARCHIVE_CHANNELS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
+   totals (invariant 8). One source each, channels cycled; the format
+   follows the channel (a link makes no sense on a shelf — QR does). */
+const ARCHIVE_CHANNELS: Channel[] = ["Website", "Email", "Instagram", "In person", "Influencer"];
+const archiveFormat = (channel: Channel) =>
+  channel === "In person" ? ("QR code" as const) : ("Share link" as const);
 const ARCHIVE_SOURCE_SEEDS: SourceSeed[] = shiftSeed([
-  ...CAMPAIGN_ARCHIVE.filter((c) => c.voters > 0).map((c, i) => ({
-    id: `gen-src-${c.id}`,
-    name: `Share link — ${c.name}`,
-    kind: "Share link" as const,
-    channel: ARCHIVE_CHANNELS[i % ARCHIVE_CHANNELS.length],
-    linked: { type: "campaign" as const, id: c.id },
-    createdAt: c.createdAt,
-    voterShare: 1,
-  })),
-  ...POLST_ARCHIVE.filter((p) => p.votes > 0).map((p, i) => ({
-    id: `gen-src-${p.id}`,
-    name: `Share link — ${p.question}`,
-    kind: "Share link" as const,
-    channel: ARCHIVE_CHANNELS[(i + 2) % ARCHIVE_CHANNELS.length],
-    linked: { type: "polst" as const, id: p.id },
-    createdAt: p.createdAt,
-    voterShare: 1,
-  })),
+  ...CAMPAIGN_ARCHIVE.filter((c) => c.voters > 0).map((c, i) => {
+    const channel = ARCHIVE_CHANNELS[i % ARCHIVE_CHANNELS.length];
+    return {
+      id: `gen-src-${c.id}`,
+      name: `${archiveFormat(channel)} — ${c.name}`,
+      kind: archiveFormat(channel),
+      channel,
+      linked: { type: "campaign" as const, id: c.id },
+      createdAt: c.createdAt,
+      voterShare: 1,
+    };
+  }),
+  ...POLST_ARCHIVE.filter((p) => p.votes > 0).map((p, i) => {
+    const channel = ARCHIVE_CHANNELS[(i + 2) % ARCHIVE_CHANNELS.length];
+    return {
+      id: `gen-src-${p.id}`,
+      name: `${archiveFormat(channel)} — ${p.question}`,
+      kind: archiveFormat(channel),
+      channel,
+      linked: { type: "polst" as const, id: p.id },
+      createdAt: p.createdAt,
+      voterShare: 1,
+    };
+  }),
 ]);
 
 const ALL_SOURCE_SEEDS: SourceSeed[] = [...SOURCE_SEEDS, ...ARCHIVE_SOURCE_SEEDS];

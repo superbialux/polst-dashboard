@@ -37,9 +37,10 @@ import {
 } from "@/lib/workspace";
 
 /* ── The Sources library ────────────────────────────────────────────
-   Distribution owns the concrete assets that collect voters — QR codes,
-   share links, embeds, tracked links. "Source" is the asset; "channel"
-   is its family. Content itself lives on /polsts and /campaigns. */
+   Distribution owns the concrete assets that collect voters — share
+   links, QR codes, embeds. "Source" is the tracked asset Polst mints;
+   "channel" is where it gets placed. Content itself lives on /polsts
+   and /campaigns. */
 
 /** What a source feeds, resolved through the store so renames follow. */
 type LinkedMeta = {
@@ -133,7 +134,7 @@ export function DistributionPage() {
         </div>
       ),
     },
-    { header: "Kind", cell: (s) => <Chip>{s.kind}</Chip> },
+    { header: "Format", cell: (s) => <Chip>{s.kind}</Chip> },
     { header: "Channel", cell: (s) => <span className="text-text-secondary">{s.channel}</span> },
     {
       header: "Linked to",
@@ -205,9 +206,7 @@ export function DistributionPage() {
     const m = metaFor(s);
     return m && LIVE_STATUSES.includes(m.status) ? m : null;
   };
-  const linkAssets = sources.filter(
-    (s) => (s.kind === "Share link" || s.kind === "Tracked link") && liveMeta(s),
-  );
+  const linkAssets = sources.filter((s) => s.kind === "Share link" && liveMeta(s));
   const embedAssets = sources.filter((s) => s.kind === "Embed" && liveMeta(s));
   const klaviyo = INTEGRATIONS.find((i) => i.id === "int-klaviyo");
 

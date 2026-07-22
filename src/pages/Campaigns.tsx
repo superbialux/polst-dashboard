@@ -2527,7 +2527,7 @@ function CampaignSources({
         </div>
       ),
     },
-    { header: "Kind", cell: (s) => <Chip>{s.kind}</Chip> },
+    { header: "Format", cell: (s) => <Chip>{s.kind}</Chip> },
     { header: "Channel", cell: (s) => s.channel },
     { header: "Voters", align: "right", cell: (s) => fmtInt(s.voters) },
     { header: "Completion", align: "right", cell: (s) => RateCell(s.completionRate) },

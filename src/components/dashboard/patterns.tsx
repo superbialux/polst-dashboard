@@ -298,17 +298,14 @@ export function RevealSecretModal({
    by every assign/add flow. "Assign" links an existing asset; "Add"
    (Distribution) creates one, optionally pre-linked. */
 
-/** Every kind of asset that can collect voters. Single source of truth —
- *  the type narrows to Source["kind"] so the store and the form agree. */
-export const SOURCE_KINDS: Array<Source["kind"]> = [
-  "QR code",
-  "Share link",
-  "Embed",
-  "Tracked link",
-];
+/** The formats Polst can mint — every one a tracked asset. Single source
+ *  of truth: the type narrows to Source["kind"] so the store and the
+ *  form agree. */
+export const SOURCE_KINDS: Array<Source["kind"]> = ["Share link", "QR code", "Embed"];
 
-/** The channel families a source can belong to. */
-export const CHANNELS: Channel[] = ["Website", "Email", "Instagram", "QR", "Influencer"];
+/** Where a source gets placed. Polst never operates these channels — it
+ *  only counts the voters each placement brings in. */
+export const CHANNELS: Channel[] = ["Website", "Email", "Instagram", "In person", "Influencer"];
 
 /** A campaign/polst a source can point at, ready for SelectMenu. */
 export type SourceTargetOption = SelectOption & { linked: NonNullable<Source["linked"]> };
@@ -330,7 +327,7 @@ export function SourceForm({
   onKindChange,
   channel,
   onChannelChange,
-  namePlaceholder = "QR — Shelf talker",
+  namePlaceholder = "Share link — Newsletter",
   gridClassName = "grid gap-4 sm:grid-cols-2",
 }: {
   name: string;
@@ -356,29 +353,37 @@ export function SourceForm({
           />
         )}
       </Field>
-      <div className={gridClassName}>
-        <Field label="Kind">
-          {(id) => (
-            <SelectMenu
-              id={id}
-              label="Kind"
-              value={kind}
-              onValueChange={onKindChange}
-              options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))}
-            />
-          )}
-        </Field>
-        <Field label="Channel">
-          {(id) => (
-            <SelectMenu
-              id={id}
-              label="Channel"
-              value={channel}
-              onValueChange={onChannelChange}
-              options={CHANNELS.map((c) => ({ value: c, label: c }))}
-            />
-          )}
-        </Field>
+      <div className="flex flex-col gap-1.5">
+        <div className={gridClassName}>
+          <Field label="Format">
+            {(id) => (
+              <SelectMenu
+                id={id}
+                label="Format"
+                value={kind}
+                onValueChange={onKindChange}
+                options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))}
+              />
+            )}
+          </Field>
+          <Field label="Channel">
+            {(id) => (
+              <SelectMenu
+                id={id}
+                label="Channel"
+                value={channel}
+                onValueChange={onChannelChange}
+                options={CHANNELS.map((c) => ({ value: c, label: c }))}
+              />
+            )}
+          </Field>
+        </div>
+        {/* The one line that teaches the split — the two selects are
+            meaningless without it. */}
+        <p className="text-xs leading-4 text-text-secondary">
+          Polst generates the format — a link, a QR code, or an embed. The channel is where you
+          place it.
+        </p>
       </div>
     </>
   );
@@ -407,7 +412,7 @@ export function AssignSourceModal({
   targetLabel = "Link to",
   targetHelper,
   onCreate,
-  defaultKind = "QR code",
+  defaultKind = "Share link",
   defaultChannel = "Website",
   namePlaceholder,
   gridClassName,
