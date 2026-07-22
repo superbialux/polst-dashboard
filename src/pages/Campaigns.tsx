@@ -1756,7 +1756,9 @@ function CampaignOverview({
         collapsible
       />
 
-      <SectionGrid className="items-start">
+      {/* No items-start here: the results card stretches level with the
+          right column. */}
+      <SectionGrid>
         {/* One row per polst, chain order — the questions test different
             things, so each states its own result. Image OR image, because
             that IS the polst. */}
@@ -1828,31 +1830,23 @@ function CampaignOverview({
         </DashboardCard>
 
         <div className="space-y-4 lg:col-span-5">
-          {/* The numbers that were buried in the brief, as first-class tiles. */}
+          {/* The numbers that were buried in the brief, as first-class
+              tiles — values only, no helper lines. */}
           <div className="grid gap-4 sm:grid-cols-2">
             <StatTile
               label="Participants"
               value={fmtInt(campaign.voters)}
-              detail={
-                campaign.target
-                  ? campaign.voters >= campaign.target
-                    ? `goal of ${fmtInt(campaign.target)} reached`
-                    : `of the ${fmtInt(campaign.target)} goal`
-                  : undefined
-              }
-              info={campaign.target ? METRIC_INFO.participantGoal : METRIC_INFO.voters}
+              info={METRIC_INFO.voters}
             />
             <StatTile
               label="Completion"
               value={pct(campaign.completed, campaign.voters)}
-              detail={`${fmtInt(campaign.completed)} finished`}
               info={METRIC_INFO.completionRate}
             />
             {daysLeft !== null ? (
               <StatTile
                 label="Days left"
                 value={daysLeft <= 0 ? "Ends today" : fmtInt(daysLeft)}
-                detail={campaign.endAt ? `until ${fmtDate(campaign.endAt)}` : undefined}
               />
             ) : (
               <StatTile
@@ -1862,30 +1856,45 @@ function CampaignOverview({
                     ? `${daysBetween(campaign.startAt, campaign.endAt)} days`
                     : "—"
                 }
-                detail={fmtDateRange(campaign.startAt, campaign.endAt)}
               />
             )}
-            <StatTile
-              label="Top source"
-              value={topSource && topSource.voters > 0 ? topSource.name : "—"}
-              detail={
-                topSource && topSource.voters > 0
-                  ? `${fmtInt(topSource.voters)} voters`
-                  : undefined
-              }
-            />
+            {/* The top source opens — the name IS the way in. */}
+            <DashboardCard>
+              <p className="truncate text-xs font-semibold text-text-secondary">Top source</p>
+              {topSource && topSource.voters > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onGoTo("Sources")}
+                  className="mt-1.5 block w-full truncate text-left font-display text-xl font-semibold leading-8 tracking-tight text-text-primary transition-colors hover:text-text-accent"
+                  title={topSource.name}
+                >
+                  {topSource.name}
+                </button>
+              ) : (
+                <p className="mt-1.5 font-display text-xl font-semibold leading-8 tracking-tight text-text-primary">
+                  —
+                </p>
+              )}
+            </DashboardCard>
           </div>
 
-          {/* The read: what the numbers say and what to do about it. */}
-          <DashboardCard title="Summary">
+          {/* The read: what the numbers say and what to do about it. The
+              caveat rides a warning hint beside the title, not a banner. */}
+          <DashboardCard
+            title="Takeaway"
+            action={
+              campaign.caveats[0] ? (
+                <InfoHint
+                  label="Caveat"
+                  icon="warning"
+                  iconClassName="text-status-warning hover:text-status-warning"
+                  text={campaign.caveats[0]}
+                />
+              ) : undefined
+            }
+          >
             {campaign.summary ? (
               <p className="text-sm leading-6 text-text-secondary">{campaign.summary}</p>
-            ) : null}
-            {campaign.caveats[0] ? (
-              <p className="mt-3 flex items-start gap-1.5 text-sm leading-5 text-status-warning">
-                <Icon name="error" size={16} className="mt-0.5 shrink-0" />
-                {campaign.caveats[0]}
-              </p>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               <Button onClick={primary.onClick}>{primary.label}</Button>

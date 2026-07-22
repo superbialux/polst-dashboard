@@ -18,7 +18,18 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
  *  number or a field label. Keeps explanations out of the layout until
  *  asked; never rendered under an input. Portaled (Radix), so it never
  *  clips inside overflow-hidden panels like modals and cards. */
-export function InfoHint({ text, label = "Definition" }: { text: string; label?: string }) {
+export function InfoHint({
+  text,
+  label = "Definition",
+  icon = "info",
+  iconClassName,
+}: {
+  text: string;
+  label?: string;
+  /** Alternate glyph — e.g. "warning" for a caveat hint. */
+  icon?: string;
+  iconClassName?: string;
+}) {
   return (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
@@ -27,9 +38,12 @@ export function InfoHint({ text, label = "Definition" }: { text: string; label?:
             tabIndex={0}
             role="note"
             aria-label={`${label}: ${text}`}
-            className="grid cursor-help place-items-center text-icon-tertiary transition-colors hover:text-icon-secondary"
+            className={cn(
+              "grid cursor-help place-items-center text-icon-tertiary transition-colors hover:text-icon-secondary",
+              iconClassName,
+            )}
           >
-            <Icon name="info" size={14} />
+            <Icon name={icon} size={14} />
           </span>
         </TooltipTrigger>
         <TooltipContent
