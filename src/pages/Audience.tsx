@@ -5,6 +5,7 @@ import {
   DashboardPage,
   DataTable,
   DateRangeMenu,
+  DonutChart,
   GeoMap,
   MixBars,
   SectionGrid,
@@ -21,7 +22,7 @@ import {
   answerHeat,
   browserMix,
   countryMix,
-  deviceMix,
+  deviceMixCounts,
   platformMix,
   workspaceWindow,
   type CountryRow,
@@ -118,23 +119,24 @@ export function AudiencePage() {
   ];
 
   return (
-    <DashboardPage actions={<DateRangeMenu value={range} onChange={setRange} />}>
-      {/* The window and its comparison period, said once for the band. */}
-      <div className="space-y-3">
-        <p className="text-sm text-text-secondary">
-          {w.label}
-          {w.compareLabel ? ` · compared with ${w.compareLabel.slice(3)}` : ""}
-        </p>
+    <DashboardPage>
+      {/* Controls ride tight above the tiles — the list pages' gap. The
+          tiles' delta chips already state the comparison, so no band
+          label repeats the dates. */}
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <DateRangeMenu value={range} onChange={setRange} />
+        </div>
         <SectionGrid>
           {tiles.map((tile) => (
             <StatTile key={tile.label} className="lg:col-span-4" {...tile} />
           ))}
         </SectionGrid>
-      </div>
+      </section>
 
-      {/* items-start: short cards (Devices, Geography) keep their natural
-          height beside tall neighbours instead of stretching into dead space. */}
-      <SectionGrid className="items-start">
+      {/* ONE grid for all four cards: vertical gaps match the horizontal
+          gap-4, and each row's cards stretch to equal height. */}
+      <SectionGrid>
         <DashboardCard
           title="When your audience answers"
           action={w.votes > 0 ? <Chip>{peakLabel(heat)}</Chip> : undefined}
@@ -143,11 +145,12 @@ export function AudiencePage() {
           <TimeHeatmap values={heat} days={HEATMAP_DAYS} buckets={HEATMAP_BUCKETS} />
         </DashboardCard>
         <DashboardCard title="Devices" className="lg:col-span-4">
-          <MixBars slices={deviceMix(range)} />
+          <DonutChart
+            slices={deviceMixCounts(range)}
+            centerValue={fmtInt(w.voters)}
+            centerLabel="voters"
+          />
         </DashboardCard>
-      </SectionGrid>
-
-      <SectionGrid className="items-start">
         <DashboardCard
           title="Geography"
           description="Where the period's voters answered from."
@@ -175,7 +178,6 @@ export function AudiencePage() {
           <MixBars className="mt-3" slices={browserMix(range)} />
         </DashboardCard>
       </SectionGrid>
-
     </DashboardPage>
   );
 }

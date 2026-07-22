@@ -566,7 +566,9 @@ export function DonutChart({
   const total = data.reduce((sum, s) => sum + s.value, 0);
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-8 gap-y-4", className)}>
+    // Ring on top, legend underneath — names stay fully readable at any
+    // card width instead of squeezing beside the chart.
+    <div className={cn("flex flex-col items-center gap-4", className)}>
       <div className="relative h-40 w-40 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -597,7 +599,7 @@ export function DonutChart({
           </div>
         </div>
       </div>
-      <ul className="min-w-0 flex-1 space-y-2" aria-label={`Share of ${noun}`}>
+      <ul className="w-full space-y-2" aria-label={`Share of ${noun}`}>
         {data.map((s, i) => (
           <li key={s.label} className="flex items-center gap-2.5 text-sm">
             <span

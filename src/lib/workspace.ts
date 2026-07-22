@@ -1937,6 +1937,12 @@ const mixFor = (shares: Array<{ label: string; value: number }>, range: WindowRa
 };
 
 export const deviceMix = (range: WindowRange): MixSlice[] => mixFor(DEVICE_SHARES, range);
+
+/** Device counts for the window — the donut wants voters, not shares. */
+export const deviceMixCounts = (range: WindowRange): Array<{ label: string; value: number }> => {
+  const counts = allocate(workspaceWindow(range).voters, DEVICE_SHARES.map((s) => s.value));
+  return DEVICE_SHARES.map((s, i) => ({ label: s.label, value: counts[i] }));
+};
 export const platformMix = (range: WindowRange): MixSlice[] => mixFor(PLATFORM_SHARES, range);
 export const browserMix = (range: WindowRange): MixSlice[] => mixFor(BROWSER_SHARES, range);
 
