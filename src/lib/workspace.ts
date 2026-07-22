@@ -2017,6 +2017,16 @@ export function countryMix(range: WindowRange): CountryRow[] {
   return rows;
 }
 
+/** Average seconds a voter spends before picking a side on a question —
+ *  deterministic per question: tight races take longer to call, with a
+ *  seeded per-question wobble. */
+export const decideSeconds = (questionId: string, splitA: number): number => {
+  const margin = Math.abs(2 * splitA - 100);
+  const wobble = mulberry32(audienceSeed(questionId))();
+  // 8–18s base, up to +14s as the race tightens toward 50/50.
+  return Math.round(8 + wobble * 10 + (1 - margin / 100) * 14);
+};
+
 /** Country mix for ONE campaign — the same reconciling allocation the
  *  workspace table uses, over the campaign's own voters and completions. */
 export const campaignCountryMix = (c: {

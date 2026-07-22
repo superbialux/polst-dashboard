@@ -85,6 +85,7 @@ import {
   campaignDeviceMix,
   campaignSeries,
   clipToRun,
+  decideSeconds,
   embedIframe,
   embedScript,
   polstImage,
@@ -106,7 +107,6 @@ import {
   polstRole,
   qualifiesForInsights,
 } from "@/lib/insights";
-import { allocate } from "@/lib/engine";
 import { useWorkspace } from "@/lib/store";
 
 /* ── Shared vocabulary ───────────────────────────────────────────── */
@@ -1690,26 +1690,6 @@ export function CampaignDetailPage() {
 
 /* ── Overview tab ────────────────────────────────────────────────── */
 
-/** Days until each question's responses passed a readable sample — its
- *  votes allocated across the campaign's own daily votes curve. A count
- *  of days, not a significance test, and it says so on hover. */
-const READABLE_SAMPLE = 200;
-const decisionDays = (campaign: Campaign): Array<number | null> => {
-  const daily = campaignSeries(campaign, "votes").values;
-  if (!daily.length) return campaign.chain.map(() => null);
-  return campaign.chain.map((_, i) => {
-    const votes = campaign.votesByQuestion[i] ?? 0;
-    if (votes < READABLE_SAMPLE) return null;
-    const perDay = allocate(votes, daily);
-    let cumulative = 0;
-    for (let d = 0; d < perDay.length; d++) {
-      cumulative += perDay[d];
-      if (cumulative >= READABLE_SAMPLE) return d + 1;
-    }
-    return perDay.length;
-  });
-};
-
 function CampaignOverview({
   campaign,
   sources,
@@ -1749,15 +1729,14 @@ function CampaignOverview({
 
   /* Per-polst breakdown, in chain order — the questions test different
      things, so no cross-question ranking: each states its own winner,
-     responses, margin, and how fast it became readable. */
-  const readAfter = decisionDays(campaign);
+     responses, reach, and how long a voter takes to pick a side. */
   const breakdown = campaign.chain.map((q, i) => ({
     q,
     winner: q.splitA >= 50 ? q.optionA : q.optionB,
     share: Math.max(q.splitA, 100 - q.splitA),
-    margin: Math.abs(2 * q.splitA - 100),
+    even: q.splitA === 50,
     votes: campaign.votesByQuestion[i] ?? 0,
-    days: readAfter[i],
+    seconds: decideSeconds(q.id, q.splitA),
   }));
 
   const primary =
@@ -1787,8 +1766,8 @@ function CampaignOverview({
           className="lg:col-span-7"
           action={
             <InfoHint
-              label="Time to read"
-              text={`Days until the question passed ${READABLE_SAMPLE} responses — a readable sample, not a significance test.`}
+              label="Time to decide"
+              text="Average seconds a voter spends on the question before picking a side."
             />
           }
         >
@@ -1818,7 +1797,7 @@ function CampaignOverview({
                     {row.q.question}
                   </span>
                   <span className="block truncate text-xs leading-4 text-text-secondary">
-                    {row.margin === 0
+                    {row.even
                       ? `Dead even · 50% vs 50%`
                       : `${row.winner} won · ${row.share}% vs ${100 - row.share}%`}
                   </span>
@@ -1831,19 +1810,17 @@ function CampaignOverview({
                     </span>
                   </span>
                   <span className="w-14">
-                    <span className="block text-xs leading-4 text-text-tertiary">Margin</span>
+                    <span className="block text-xs leading-4 text-text-tertiary">Reached</span>
                     <span className="block text-sm font-semibold leading-5 tabular-nums text-text-primary">
-                      {row.margin === 0 ? "Even" : `${row.margin} pts`}
+                      {pct(row.votes, campaign.voters)}
                     </span>
                   </span>
                   <span className="w-20">
                     <span className="block text-xs leading-4 text-text-tertiary">
-                      Time to read
+                      Time to decide
                     </span>
                     <span className="block text-sm font-semibold leading-5 tabular-nums text-text-primary">
-                      {row.days !== null
-                        ? `${row.days} ${row.days === 1 ? "day" : "days"}`
-                        : "—"}
+                      {row.seconds}s
                     </span>
                   </span>
                 </span>
@@ -2187,8 +2164,6 @@ function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources:
         <div className="grid gap-4 lg:grid-cols-2">
           {campaign.chain.map((q, i) => {
             const votes = campaign.votesByQuestion[i] ?? 0;
-            const leadPts = Math.abs(2 * q.splitA - 100);
-            const leader = q.splitA >= 50 ? q.optionA : q.optionB;
             const prevVotes = i > 0 ? campaign.votesByQuestion[i - 1] ?? 0 : campaign.voters;
             const dropPct =
               prevVotes > 0 ? Math.round(((prevVotes - votes) / prevVotes) * 100) : 0;
@@ -2218,8 +2193,10 @@ function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources:
                   })}
                   dense
                 />
+                {/* The split lives on the bar above — the caption carries
+                    what the bar can't: pace and participation. */}
                 <p className="mt-3 text-xs leading-4 text-text-secondary">
-                  {leadPts === 0 ? "Dead even" : `${leader} leads by ${leadPts} points`}
+                  {decideSeconds(q.id, q.splitA)}s to decide on average
                   {dropPct > 0
                     ? ` · −${dropPct}% participation vs ${i === 0 ? "starters" : `Q${i}`}`
                     : ""}
