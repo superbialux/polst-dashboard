@@ -224,6 +224,23 @@ const TONE_CHIP: Record<StatusTone, string> = {
   neutral: "bg-surface-subtle text-text-secondary",
 };
 
+/** The tone's solid dot ink — for status controls that wear button
+ *  chrome instead of the badge's soft chip. */
+const TONE_DOT: Record<StatusTone, string> = {
+  success: "bg-status-success",
+  accent: "bg-accent-default",
+  warning: "bg-status-warning",
+  danger: "bg-status-danger",
+  neutral: "bg-text-secondary",
+};
+
+/** The status dot alone, tone-colored — rides inside button-chrome
+ *  status controls where the soft badge would clash with its siblings. */
+export function StatusDot({ status }: { status: Status | string }) {
+  const tone: StatusTone = (STATUS_TONE as Record<string, StatusTone>)[status] ?? "neutral";
+  return <span className={cn("h-1.5 w-1.5 rounded-pill", TONE_DOT[tone])} aria-hidden />;
+}
+
 /** Canon's STATUS_TONE owns object-state → tone (Ended is neutral,
  *  Scheduled accent). Non-canonical strings from unmigrated pages fall
  *  back to a neutral pill instead of crashing. */

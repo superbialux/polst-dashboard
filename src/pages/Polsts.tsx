@@ -39,6 +39,7 @@ import {
   SegmentedControl,
   StatsStrip,
   StatusBadge,
+  StatusDot,
   durationEnd,
   durationPresetFor,
   filterByCreated,
@@ -634,21 +635,23 @@ export function PolstDetailPage() {
               label="Change status"
               align="end"
               trigger={({ open, toggle }) => (
-                <button
-                  type="button"
+                // The button chrome its header siblings wear — a tone dot
+                // in the icon slot, same face and height.
+                <Button
+                  variant="secondary"
                   onClick={toggle}
                   aria-haspopup="menu"
                   aria-expanded={open}
                   aria-label="Change status"
-                  className="-m-1 flex items-center gap-0.5 rounded-md p-1 transition-colors hover:bg-surface-subtle"
                 >
-                  <StatusBadge status={polst.status} />
+                  <StatusDot status={polst.status} />
+                  {polst.status}
                   <Icon
                     name="arrow_drop_down"
                     size={18}
-                    className={cn("text-icon-secondary transition-transform", open && "rotate-180")}
+                    className={cn("transition-transform", open && "rotate-180")}
                   />
-                </button>
+                </Button>
               )}
             >
               <MenuItem
@@ -678,7 +681,12 @@ export function PolstDetailPage() {
               <MenuItem icon="flag" label="Ended" onClick={() => setEndOpen(true)} />
             </Menu>
           ) : (
-            <StatusBadge status={polst.status} />
+            // The same chrome, minus the menu — a state with no switches
+            // still reads as part of the action row.
+            <span className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md border border-btn-secondary-border bg-btn-secondary-bg px-3 font-display text-sm font-semibold text-btn-secondary-fg">
+              <StatusDot status={polst.status} />
+              {polst.status}
+            </span>
           )}
           {isActive || isScheduled ? (
             <>
