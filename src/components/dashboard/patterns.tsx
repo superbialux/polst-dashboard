@@ -5,7 +5,15 @@ import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/components/Toast";
-import { Checkbox, Field, SelectMenu, TextInput, type SelectOption } from "@/components/Field";
+import {
+  Checkbox,
+  Field,
+  SearchSelect,
+  SelectMenu,
+  TextInput,
+  type SearchSelectOption,
+  type SelectOption,
+} from "@/components/Field";
 import { DashboardCard, DetailList, InfoHint, PollThumb } from "./kit";
 import { fmtPct } from "@/lib/canon";
 import type { PollOption } from "@/lib/poll";
@@ -307,8 +315,9 @@ export const SOURCE_KINDS: Array<Source["kind"]> = ["Share link", "QR code", "Em
  *  only counts the voters each placement brings in. */
 export const CHANNELS: Channel[] = ["Website", "Email", "Instagram", "In person", "Influencer"];
 
-/** A campaign/polst a source can point at, ready for SelectMenu. */
-export type SourceTargetOption = SelectOption & { linked: NonNullable<Source["linked"]> };
+/** A campaign/polst a source can point at, ready for the search select
+ *  (grouped "Campaigns" / "Polsts" so a thousand of each stays findable). */
+export type SourceTargetOption = SearchSelectOption & { linked: NonNullable<Source["linked"]> };
 
 /** What the create flow hands back — the store's addSource input shape. */
 export type SourceDraft = {
@@ -353,37 +362,37 @@ export function SourceForm({
           />
         )}
       </Field>
-      <div className="flex flex-col gap-1.5">
-        <div className={gridClassName}>
-          <Field label="Format">
-            {(id) => (
-              <SelectMenu
-                id={id}
-                label="Format"
-                value={kind}
-                onValueChange={onKindChange}
-                options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))}
-              />
-            )}
-          </Field>
-          <Field label="Channel">
-            {(id) => (
-              <SelectMenu
-                id={id}
-                label="Channel"
-                value={channel}
-                onValueChange={onChannelChange}
-                options={CHANNELS.map((c) => ({ value: c, label: c }))}
-              />
-            )}
-          </Field>
-        </div>
-        {/* The one line that teaches the split — the two selects are
-            meaningless without it. */}
-        <p className="text-xs leading-4 text-text-secondary">
-          Polst generates the format — a link, a QR code, or an embed. The channel is where you
-          place it.
-        </p>
+      {/* The Format/Channel split is taught on the labels, behind info
+          hints — explanatory copy never sits under an input. */}
+      <div className={gridClassName}>
+        <Field
+          label="Format"
+          hint="The tracked asset Polst generates for you — a share link, a QR code, or an embed."
+        >
+          {(id) => (
+            <SelectMenu
+              id={id}
+              label="Format"
+              value={kind}
+              onValueChange={onKindChange}
+              options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))}
+            />
+          )}
+        </Field>
+        <Field
+          label="Channel"
+          hint="Where you place the asset. Polst counts the voters each placement brings in."
+        >
+          {(id) => (
+            <SelectMenu
+              id={id}
+              label="Channel"
+              value={channel}
+              onValueChange={onChannelChange}
+              options={CHANNELS.map((c) => ({ value: c, label: c }))}
+            />
+          )}
+        </Field>
       </div>
     </>
   );
@@ -410,7 +419,7 @@ export function AssignSourceModal({
   onAssign,
   targets,
   targetLabel = "Link to",
-  targetHelper,
+  targetHint,
   onCreate,
   defaultKind = "Share link",
   defaultChannel = "Website",
@@ -425,10 +434,11 @@ export function AssignSourceModal({
   unlinked?: UnlinkedSource[];
   /** One-click assign for a listed source. Enables the list + headings. */
   onAssign?: (source: UnlinkedSource) => void;
-  /** Assignable campaigns/polsts. Enables the "Link to" select. */
+  /** Assignable campaigns/polsts. Enables the "Link to" search select. */
   targets?: SourceTargetOption[];
   targetLabel?: string;
-  targetHelper?: ReactNode;
+  /** Label tooltip — explanation lives on the label, never under the input. */
+  targetHint?: string;
   onCreate: (draft: SourceDraft) => void;
   /** Pass "" to force an explicit choice (the Distribution flow). */
   defaultKind?: string;
@@ -525,12 +535,14 @@ export function AssignSourceModal({
             gridClassName={gridClassName}
           />
           {targets ? (
-            <Field label={targetLabel} helper={targetHelper}>
+            <Field label={targetLabel} hint={targetHint}>
               {(id) => (
-                <SelectMenu
+                <SearchSelect
                   id={id}
                   label={targetLabel}
                   placeholder="Not linked yet"
+                  searchPlaceholder="Search campaigns and polsts…"
+                  clearLabel="Keep unlinked"
                   options={targets}
                   value={target}
                   onValueChange={setTarget}
@@ -554,7 +566,7 @@ export function AssignTargetModal({
   onAssign,
   title = "Assign source",
   targetLabel = "Assign to",
-  targetHelper,
+  targetHint,
 }: {
   source: { name: string } | null;
   onClose: () => void;
@@ -562,7 +574,8 @@ export function AssignTargetModal({
   onAssign: (linked: NonNullable<Source["linked"]>, targetName: string) => void;
   title?: string;
   targetLabel?: string;
-  targetHelper?: ReactNode;
+  /** Label tooltip — explanation lives on the label, never under the input. */
+  targetHint?: string;
 }) {
   const [target, setTarget] = useState("");
   const close = () => {
@@ -598,12 +611,13 @@ export function AssignTargetModal({
     >
       <div className="space-y-4 p-4">
         <p className="truncate text-sm text-text-secondary">{source?.name}</p>
-        <Field label={targetLabel} helper={targetHelper}>
+        <Field label={targetLabel} hint={targetHint}>
           {(id) => (
-            <SelectMenu
+            <SearchSelect
               id={id}
               label={targetLabel}
               placeholder="Pick a campaign or polst"
+              searchPlaceholder="Search campaigns and polsts…"
               options={targets}
               value={target}
               onValueChange={setTarget}

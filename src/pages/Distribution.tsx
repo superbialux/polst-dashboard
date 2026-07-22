@@ -349,12 +349,7 @@ export function DistributionPage() {
         title="Add source"
         confirmLabel="Add source"
         targets={targetOptions(campaigns, polsts)}
-        targetHelper={
-          <p className="text-xs leading-4 text-text-secondary">
-            An unassigned source doesn&rsquo;t collect voters yet — assign it to a campaign
-            or polst when you&rsquo;re ready.
-          </p>
-        }
+        targetHint="An unassigned source doesn't collect voters yet — assign it to a campaign or polst when you're ready."
         // The library flow makes no assumptions: kind and channel start
         // unchosen so every asset is described deliberately.
         defaultKind=""
@@ -371,11 +366,7 @@ export function DistributionPage() {
         source={assignTarget}
         onClose={() => setAssignTarget(null)}
         targets={targetOptions(campaigns, polsts)}
-        targetHelper={
-          <p className="text-xs leading-4 text-text-secondary">
-            From the first scan or click, every voter it collects is attributed here.
-          </p>
-        }
+        targetHint="From the first scan or click, every voter it collects is attributed here."
         onAssign={(linked, targetName) => {
           if (!assignTarget) return;
           assignSource(assignTarget.id, linked);
@@ -476,6 +467,7 @@ function targetOptions(
         value: `campaign:${c.id}`,
         label: c.name,
         icon: "campaign",
+        group: "Campaigns",
         linked: { type: "campaign" as const, id: c.id },
       })),
     ...polsts
@@ -484,6 +476,7 @@ function targetOptions(
         value: `polst:${p.id}`,
         label: p.question,
         icon: "ballot",
+        group: "Polsts",
         linked: { type: "polst" as const, id: p.id },
       })),
   ];

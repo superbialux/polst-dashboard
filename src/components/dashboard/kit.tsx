@@ -10,7 +10,7 @@ import { TrendChart } from "./charts";
 import { useToast } from "@/components/Toast";
 import { PollOptionsBlock } from "@/components/PollCard";
 import { voteShares, type PollOption } from "@/lib/poll";
-import { FieldHelper, SelectMenu, TextInput } from "@/components/Field";
+import { FieldHelper, InfoHint, SelectMenu, TextInput } from "@/components/Field";
 import { HeaderActions, HeaderTabsSlot, PageFooterSlot } from "./Shell";
 import { STATUS_TONE, daysBetween, fmtDateRange, type StatusTone } from "@/lib/canon";
 import { addDays } from "@/lib/engine";
@@ -222,25 +222,9 @@ export type { DecisionSignal } from "@/lib/workspace";
 
 /* ── Info hint ───────────────────────────────────────────────────── */
 
-/** A metric definition on hover/focus — the inspectable data contract
- *  behind every number. Keeps definitions out of the layout until asked. */
-export function InfoHint({ text, label = "Definition" }: { text: string; label?: string }) {
-  return (
-    <span className="group/hint relative inline-flex">
-      <span
-        tabIndex={0}
-        role="note"
-        aria-label={`${label}: ${text}`}
-        className="grid cursor-help place-items-center text-icon-tertiary transition-colors hover:text-icon-secondary"
-      >
-        <Icon name="info" size={14} />
-      </span>
-      <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-56 -translate-x-1/2 rounded-md border border-border-default bg-surface-raised p-2.5 text-left text-xs font-normal leading-4 text-text-secondary shadow-lg group-hover/hint:block group-focus-within/hint:block">
-        {text}
-      </span>
-    </span>
-  );
-}
+/* InfoHint moved next to Field so field labels can carry it without an
+ * import cycle; kit keeps exporting it for every dashboard call site. */
+export { InfoHint } from "@/components/Field";
 
 /* ── Decision brief ──────────────────────────────────────────────── */
 
