@@ -25,16 +25,17 @@ import {
   DashboardCard,
   DashboardPage,
   DataTable,
-  DecisionBrief,
   DetailList,
+  DonutChart,
   DurationField,
   EmptyState,
-  Funnel,
+  FunnelChart,
   HeaderTabs,
   InfoHint,
   MixBars,
   StatTile,
   biggestFunnelDrop,
+  type FunnelChartStep,
   durationEnd,
   durationPresetFor,
   ModalFooter,
@@ -64,7 +65,6 @@ import {
   filterByStatus,
   type DataColumn,
   type DurationPreset,
-  type FunnelStep,
   type SetupStep,
 } from "@/components/dashboard";
 import {
@@ -85,10 +85,10 @@ import {
   campaignDeviceMix,
   campaignSeries,
   clipToRun,
-  decisionEyebrow,
   embedIframe,
   embedScript,
   headlineLabel,
+  polstImage,
   polstOptions,
   shareUrl,
   type Campaign,
@@ -1463,12 +1463,14 @@ function campaignRunStats(campaign: Campaign): { stats: Stat[]; ticks: string[] 
 }
 
 /** The journey steps every funnel surface shares: Started → each
- *  question → Completed. */
-const journeySteps = (campaign: Campaign): FunnelStep[] => [
+ *  question (its image pair riding along — that IS the polst) →
+ *  Completed. Questions speak for themselves, no "Q1:" prefix. */
+const journeySteps = (campaign: Campaign): FunnelChartStep[] => [
   { label: "Started", count: campaign.voters },
   ...campaign.chain.map((q, i) => ({
-    label: `Q${i + 1}: ${q.question}`,
+    label: q.question,
     count: campaign.votesByQuestion[i] ?? 0,
+    thumbId: q.id,
   })),
   { label: "Completed", count: campaign.completed },
 ];
@@ -1691,26 +1693,6 @@ export function CampaignDetailPage() {
 /* The headline framing is the shared `headlineLabel` (workspace.ts) — the
    decision report leads with the exact same words, one anatomy. */
 
-/** The brief's eyebrow is the shared status-aware `decisionEyebrow`
- *  (workspace.ts) — the exact words the decision report opens with, so the
- *  two surfaces can never drift. Ready states take the success tone; a
- *  stated confidence carries its method (canon METRIC_INFO) on hover. */
-const briefEyebrow = (c: Campaign): ReactNode => {
-  const { label, ready } = decisionEyebrow(c);
-  const hint =
-    ready && c.confidence !== "—" ? (
-      <InfoHint label="Confidence" text={METRIC_INFO.confidence} />
-    ) : null;
-  return ready ? (
-    <span className="inline-flex items-center gap-1 text-status-success">
-      {label}
-      {hint}
-    </span>
-  ) : (
-    label
-  );
-};
-
 function CampaignOverview({
   campaign,
   sources,
@@ -1739,7 +1721,6 @@ function CampaignOverview({
   const daysLeft =
     campaign.status === "Active" && campaign.endAt ? daysBetween(TODAY, campaign.endAt) : null;
   const ready = campaign.status === "Active" && isReadyToDecide(campaign);
-
   const funnelSteps = journeySteps(campaign);
   const { stats: runStats, ticks: runTicks } = campaignRunStats(campaign);
 
@@ -1749,96 +1730,176 @@ function CampaignOverview({
     (w) => w.to === `/campaigns/${campaign.id}`,
   );
 
-  const sourceColumns: Array<DataColumn<Source>> = [
-    {
-      header: "Source",
-      cell: (s) => <span className="font-semibold text-text-primary">{s.name}</span>,
-    },
-    { header: "Channel", cell: (s) => s.channel },
-    { header: "Voters", align: "right", cell: (s) => fmtInt(s.voters) },
-    { header: "Completion", align: "right", cell: (s) => RateCell(s.completionRate) },
-  ];
+  /* The leaderboard: every question's winning option, most decisive
+     first — the campaign's choices ranked, not a single crowned result. */
+  const board = campaign.chain
+    .map((q, i) => ({
+      q,
+      winner: q.splitA >= 50 ? q.optionA : q.optionB,
+      loser: q.splitA >= 50 ? q.optionB : q.optionA,
+      share: Math.max(q.splitA, 100 - q.splitA),
+      votes: campaign.votesByQuestion[i] ?? 0,
+    }))
+    .sort((a, b) => b.share - a.share);
+
+  const primary =
+    campaign.status === "Ended"
+      ? { label: "Export report", onClick: onReport }
+      : ready
+        ? { label: "End campaign & decide", onClick: onEnd }
+        : { label: "View polst results", onClick: () => onGoTo("Polsts") };
 
   return (
     <>
-      <DecisionBrief
-        eyebrow={briefEyebrow(campaign)}
-        headline={headlineLabel(campaign)}
-        summary={campaign.summary}
-        caveat={campaign.caveats[0]}
-        evidence={[
-          /* The audit's participant-goal contract: the goal is a planning
-             target spoken as a sentence on the detail ("goal of 1,200
-             reached"), never the list's ambiguous "1,486 / 1,200". */
-          {
-            label: "Participants",
-            value: campaign.target
-              ? campaign.voters >= campaign.target
-                ? `${fmtInt(campaign.voters)} — goal of ${fmtInt(campaign.target)} reached`
-                : `${fmtInt(campaign.voters)} toward the ${fmtInt(campaign.target)} goal`
-              : fmtInt(campaign.voters),
-            info: campaign.target ? METRIC_INFO.participantGoal : METRIC_INFO.voters,
-          },
-          {
-            label: "Completion",
-            value: pct(campaign.completed, campaign.voters),
-            info: METRIC_INFO.completionRate,
-          },
-          {
-            label: "Top source",
-            value: topSource && topSource.voters > 0 ? topSource.name : "—",
-          },
-          ...(daysLeft !== null
-            ? [
-                {
-                  label: "Days left",
-                  value:
-                    daysLeft <= 0 ? "Ends today" : daysLeft === 1 ? "1 day" : `${daysLeft} days`,
-                },
-              ]
-            : campaign.status === "Ended"
-              ? [{ label: "Ran", value: fmtDateRange(campaign.startAt, campaign.endAt) }]
-              : []),
-        ]}
-        primary={
-          campaign.status === "Ended"
-            ? { label: "Export report", onClick: onReport }
-            : ready
-              ? { label: "End campaign & decide", onClick: onEnd }
-              : { label: "View polst results", onClick: () => onGoTo("Polsts") }
-        }
-        secondary={
-          ready || campaign.status === "Ended"
-            ? { label: "View polst results", onClick: () => onGoTo("Polsts") }
-            : undefined
-        }
-      />
+      {/* Reach up top, folded until asked. */}
       <StatsStrip
         stats={runStats}
         xTicks={runTicks}
         scopeLabel={fmtDateRange(campaign.startAt, campaign.endAt)}
         collapsible
       />
-      {/* items-start, like this page's other grids — the journey card keeps
-          its own height instead of stretching to the right column's. */}
+
+      <SectionGrid className="items-start">
+        {/* The choices, ranked — image OR image, because that IS the polst. */}
+        <DashboardCard title="Leaderboard" padded={false} className="lg:col-span-7">
+          <ol className="divide-y divide-border-default">
+            {board.map((row, rank) => (
+              <li key={row.q.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="w-6 shrink-0 text-center font-display text-sm font-semibold tabular-nums text-text-tertiary">
+                  {rank + 1}
+                </span>
+                <span className="grid h-10 w-14 shrink-0 grid-cols-2 overflow-hidden rounded-md bg-surface-strong">
+                  <img
+                    src={polstImage(row.q.id, "a", 120, 160)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                  <img
+                    src={polstImage(row.q.id, "b", 120, 160)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-display text-sm font-semibold leading-5 text-text-primary">
+                    {row.winner}
+                  </span>
+                  <span className="block truncate text-xs leading-4 text-text-secondary">
+                    beat {row.loser} · {row.q.question}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block font-display text-lg font-semibold leading-6 tabular-nums text-text-primary">
+                    {row.share}%
+                  </span>
+                  <span className="block text-xs leading-4 tabular-nums text-text-secondary">
+                    {fmtInt(row.votes)} votes
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </DashboardCard>
+
+        <div className="space-y-4 lg:col-span-5">
+          {/* The numbers that were buried in the brief, as first-class tiles. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <StatTile
+              label="Participants"
+              value={fmtInt(campaign.voters)}
+              detail={
+                campaign.target
+                  ? campaign.voters >= campaign.target
+                    ? `goal of ${fmtInt(campaign.target)} reached`
+                    : `of the ${fmtInt(campaign.target)} goal`
+                  : undefined
+              }
+              info={campaign.target ? METRIC_INFO.participantGoal : METRIC_INFO.voters}
+            />
+            <StatTile
+              label="Completion"
+              value={pct(campaign.completed, campaign.voters)}
+              detail={`${fmtInt(campaign.completed)} finished`}
+              info={METRIC_INFO.completionRate}
+            />
+            {daysLeft !== null ? (
+              <StatTile
+                label="Days left"
+                value={daysLeft <= 0 ? "Ends today" : fmtInt(daysLeft)}
+                detail={campaign.endAt ? `until ${fmtDate(campaign.endAt)}` : undefined}
+              />
+            ) : (
+              <StatTile
+                label="Ran"
+                value={
+                  campaign.startAt && campaign.endAt
+                    ? `${daysBetween(campaign.startAt, campaign.endAt)} days`
+                    : "—"
+                }
+                detail={fmtDateRange(campaign.startAt, campaign.endAt)}
+              />
+            )}
+            <StatTile
+              label="Top source"
+              value={topSource && topSource.voters > 0 ? topSource.name : "—"}
+              detail={
+                topSource && topSource.voters > 0
+                  ? `${fmtInt(topSource.voters)} voters`
+                  : undefined
+              }
+            />
+          </div>
+
+          {/* The read: what the numbers say and what to do about it. */}
+          <DashboardCard title={headlineLabel(campaign)}>
+            {campaign.summary ? (
+              <p className="text-sm leading-6 text-text-secondary">{campaign.summary}</p>
+            ) : null}
+            {campaign.caveats[0] ? (
+              <p className="mt-3 flex items-start gap-1.5 text-sm leading-5 text-status-warning">
+                <Icon name="error" size={16} className="mt-0.5 shrink-0" />
+                {campaign.caveats[0]}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button onClick={primary.onClick}>{primary.label}</Button>
+              {ready || campaign.status === "Ended" ? (
+                <Button variant="secondary" onClick={() => onGoTo("Polsts")}>
+                  View polst results
+                </Button>
+              ) : null}
+            </div>
+          </DashboardCard>
+        </div>
+      </SectionGrid>
+
       <SectionGrid className="items-start">
         <DashboardCard
           title="Voter journey"
-          className="lg:col-span-6"
+          className="lg:col-span-7"
           action={
             <Button variant="secondary" size="sm" onClick={() => onGoTo("Analytics")}>
               Full analytics
             </Button>
           }
         >
-          <Funnel steps={funnelSteps} />
+          <FunnelChart steps={funnelSteps} />
         </DashboardCard>
-        <div className="space-y-4 lg:col-span-6">
-          <DashboardCard title="Source performance" padded={false}>
-            <DataTable rows={sources} columns={sourceColumns} emptyLabel="No sources assigned" />
-            <p className="border-t border-border-default px-4 py-3 text-xs text-text-secondary">
-              Campaign average completion: {pct(campaign.completed, campaign.voters)}
-            </p>
+        <div className="space-y-4 lg:col-span-5">
+          <DashboardCard title="What drove voters">
+            {sources.some((s) => s.voters > 0) ? (
+              <DonutChart
+                slices={sources.map((s) => ({ label: s.name, value: s.voters }))}
+                centerValue={fmtInt(campaign.voters)}
+                centerLabel="voters"
+              />
+            ) : (
+              <EmptyState
+                icon="hub"
+                title="No attributed voters yet"
+                action={{ label: "View sources", onClick: () => onGoTo("Sources") }}
+              />
+            )}
           </DashboardCard>
           {changed.length > 0 ? (
             <DashboardCard title="What changed">
@@ -2017,11 +2078,7 @@ function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources:
     },
   ];
 
-  /* The funnel's one-line reading — plain words, both numbers stated. */
   const finishRate = pct(campaign.completed, campaign.voters);
-  const reading = biggest
-    ? `${finishRate} of starters finish. The biggest loss is ${steps[biggest.index - 1].label} → ${steps[biggest.index].label}: −${fmtInt(biggest.lost)} voters (−${biggest.pct}%).`
-    : `${finishRate} of starters finish — no step lost voters.`;
 
   return (
     <>
@@ -2033,11 +2090,8 @@ function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources:
       />
 
       <SectionGrid className="items-start">
-        <DashboardCard title="Conversion funnel" className="lg:col-span-7" bodyClassName="pb-2">
-          <Funnel steps={steps} />
-          <p className="mt-4 border-t border-border-default pt-3 text-xs leading-4 text-text-secondary">
-            {reading}
-          </p>
+        <DashboardCard title="Conversion funnel" className="lg:col-span-7">
+          <FunnelChart steps={steps} />
         </DashboardCard>
         <div className="grid gap-4 sm:grid-cols-2 lg:col-span-5">
           <StatTile
@@ -2132,12 +2186,6 @@ function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources:
             columns={sourceColumns}
             emptyLabel="No sources assigned — nothing to attribute"
           />
-          {sources.length ? (
-            <p className="border-t border-border-default px-4 py-3 text-xs leading-4 text-text-tertiary">
-              Sources recruit different audiences — a gap describes the traffic, it does not
-              prove the source caused it.
-            </p>
-          ) : null}
         </DashboardCard>
         <div className="space-y-4 lg:col-span-5">
           <DashboardCard

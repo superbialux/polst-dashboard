@@ -22,7 +22,8 @@ import {
   type SinglePolst,
   type Source,
 } from "@/lib/workspace";
-import { DetailList, Funnel, InfoHint, PollResults, type FunnelStep } from "./kit";
+import { FunnelChart, type FunnelChartStep } from "./charts";
+import { DetailList, InfoHint, PollResults } from "./kit";
 import { ChecklistItem, RateCell, SectionTitle } from "./patterns";
 
 const campaignSummary = (c: Campaign, sources: Source[]): string => {
@@ -59,11 +60,12 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
   const eyebrow = zeroVoters
     ? { label: "Ended without votes", ready: false }
     : decisionEyebrow(campaign);
-  const journey: FunnelStep[] = [
+  const journey: FunnelChartStep[] = [
     { label: "Started", count: campaign.voters },
     ...campaign.chain.map((q, i) => ({
-      label: `Q${i + 1}: ${q.question}`,
+      label: q.question,
       count: campaign.votesByQuestion[i] ?? 0,
+      thumbId: q.id,
     })),
     { label: "Completed", count: campaign.completed },
   ];
@@ -117,7 +119,7 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
         <section>
           <SectionTitle>Voter journey</SectionTitle>
           <div className="mt-2">
-            <Funnel steps={journey} />
+            <FunnelChart steps={journey} />
           </div>
         </section>
       ) : null}

@@ -4,8 +4,11 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Line,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   YAxis,
@@ -13,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { formatNumber, type StatAnnotation } from "@/lib/workspace";
+import { formatNumber, polstImage, type StatAnnotation } from "@/lib/workspace";
 
 /* ══════════════════════════════════════════════════════════════════
    CHARTS — the Recharts layer.
@@ -417,6 +420,201 @@ export function Sparkline({
           />
         </AreaChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ── Funnel chart ────────────────────────────────────────────────────
+   The closed funnel (the GA register): one column per step — the step's
+   name, count, and share of starters in the header — vertical bars on a
+   shared baseline with the flow silhouette behind them. Steps that are
+   polsts carry their image pair, because that IS the polst. The
+   percentages do the talking; no caption explains the obvious. */
+
+export type FunnelChartStep = { label: string; count: number; thumbId?: string };
+
+export function FunnelChart({
+  steps,
+  className,
+}: {
+  steps: FunnelChartStep[];
+  className?: string;
+}) {
+  const max = steps[0]?.count || 1;
+  const n = steps.length;
+  if (!n) return null;
+  const pcts = steps.map((s) => (max > 0 ? s.count / max : 0));
+  /* The flow silhouette passes through each bar's top at its column
+     center, then closes along the baseline. */
+  const points = [
+    `0,${100 - pcts[0] * 100}`,
+    ...pcts.map((p, i) => `${((i + 0.5) / n) * 100},${100 - p * 100}`),
+    `100,${100 - pcts[n - 1] * 100}`,
+    "100,100",
+    "0,100",
+  ].join(" ");
+
+  return (
+    <div className={className}>
+      <div
+        className="grid gap-x-3"
+        style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
+      >
+        {steps.map((s, i) => (
+          <div
+            key={`${s.label}-${i}`}
+            className="min-w-0 border-l border-border-default pl-3 first:border-l-0 first:pl-0"
+          >
+            {s.thumbId ? (
+              <span className="mb-1.5 grid h-9 w-14 grid-cols-2 overflow-hidden rounded-md bg-surface-strong">
+                <img
+                  src={polstImage(s.thumbId, "a", 120, 160)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+                <img
+                  src={polstImage(s.thumbId, "b", 120, 160)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </span>
+            ) : (
+              // Started/Completed keep the header baseline without art.
+              <span className="mb-1.5 block h-9" aria-hidden />
+            )}
+            <p className="truncate text-xs font-medium text-text-secondary" title={s.label}>
+              {s.label}
+            </p>
+            <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
+              <span className="font-display text-lg font-semibold leading-6 tabular-nums text-text-primary">
+                {formatNumber(s.count)}
+              </span>
+              <span className="text-xs tabular-nums text-text-tertiary">
+                {Math.round(pcts[i] * 100)}%
+              </span>
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="relative mt-3 h-36">
+        <svg
+          className="absolute inset-0 h-full w-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <polygon points={points} fill="var(--color-purple-tint)" />
+        </svg>
+        <div
+          className="absolute inset-0 grid gap-x-3"
+          style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
+        >
+          {steps.map((s, i) => (
+            <div key={`${s.label}-bar-${i}`} className="flex items-end justify-center">
+              <div
+                className={cn(
+                  "w-full max-w-14 rounded-t",
+                  i === n - 1 ? "bg-status-success" : "bg-accent-default",
+                )}
+                style={{ height: `${Math.max(2, pcts[i] * 100)}%` }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="border-t border-border-default" />
+    </div>
+  );
+}
+
+/* ── Donut chart ─────────────────────────────────────────────────────
+   A share-of-total ring on the validated chart palette, the headline
+   total in the hole, and a legend that carries the exact numbers. More
+   than five slices fold into "Other" — a ring stops reading past that. */
+
+export type DonutSlice = { label: string; value: number };
+
+const DONUT_FILLS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
+
+export function DonutChart({
+  slices,
+  centerValue,
+  centerLabel,
+  noun = "voters",
+  className,
+}: {
+  slices: DonutSlice[];
+  centerValue: string;
+  centerLabel: string;
+  /** What the legend counts, for screen-reader labels. */
+  noun?: string;
+  className?: string;
+}) {
+  const ranked = [...slices].filter((s) => s.value > 0).sort((a, b) => b.value - a.value);
+  const top = ranked.slice(0, 4);
+  const rest = ranked.slice(4);
+  const data = rest.length
+    ? [...top, { label: "Other", value: rest.reduce((sum, s) => sum + s.value, 0) }]
+    : top;
+  const total = data.reduce((sum, s) => sum + s.value, 0);
+
+  return (
+    <div className={cn("flex flex-wrap items-center gap-x-8 gap-y-4", className)}>
+      <div className="relative h-40 w-40 shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="label"
+              innerRadius={54}
+              outerRadius={78}
+              paddingAngle={2}
+              startAngle={90}
+              endAngle={-270}
+              stroke="none"
+              isAnimationActive={false}
+            >
+              {data.map((s, i) => (
+                <Cell key={s.label} fill={DONUT_FILLS[i % DONUT_FILLS.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+          <div>
+            <p className="font-display text-xl font-semibold leading-7 tabular-nums text-text-primary">
+              {centerValue}
+            </p>
+            <p className="text-xs text-text-secondary">{centerLabel}</p>
+          </div>
+        </div>
+      </div>
+      <ul className="min-w-0 flex-1 space-y-2" aria-label={`Share of ${noun}`}>
+        {data.map((s, i) => (
+          <li key={s.label} className="flex items-center gap-2.5 text-sm">
+            <span
+              aria-hidden
+              className="h-2.5 w-2.5 shrink-0 rounded-sm"
+              style={{ background: DONUT_FILLS[i % DONUT_FILLS.length] }}
+            />
+            <span className="min-w-0 flex-1 truncate text-text-primary">{s.label}</span>
+            <span className="shrink-0 font-semibold tabular-nums text-text-primary">
+              {formatNumber(s.value)}
+            </span>
+            <span className="w-10 shrink-0 text-right text-xs tabular-nums text-text-tertiary">
+              {total > 0 ? Math.round((s.value / total) * 100) : 0}%
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
