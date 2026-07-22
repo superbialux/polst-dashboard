@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/Toast";
 import { Field, FieldHelper, SelectMenu, TextInput } from "@/components/Field";
 import { Menu, MenuItem, MenuSeparator } from "@/components/Menu";
-import { PollCard } from "@/components/PollCard";
 import { PollComposer, type ComposerState } from "@/components/PollComposer";
 import { QrCodeModal, SocialShareModal } from "@/components/DistributionActions";
 import { PolstComposerModal } from "@/components/PolstComposerModal";
@@ -29,7 +28,6 @@ import {
   InfoHint,
   NotFoundCard,
   PollResults,
-  PollThumb,
   PolstListRow,
   ReviewModal,
   TableToolbar,
@@ -39,7 +37,7 @@ import {
   DateRangePicker,
   SectionGrid,
   SegmentedControl,
-  StatTile,
+  StatsStrip,
   StatusBadge,
   durationEnd,
   durationPresetFor,
@@ -62,16 +60,19 @@ import {
   relativeToToday,
   signalFor,
 } from "@/lib/canon";
+import { cn } from "@/lib/utils";
 import {
-  WORKSPACE,
   polstImage,
   polstOptions,
+  polstSeries,
   shareUrl,
   verdictLabel,
   voteVelocity,
   type SinglePolst,
   type Category,
+  type Stat,
 } from "@/lib/workspace";
+import { SourceDetailModal, type LinkedMeta } from "@/components/SourceDetail";
 import { publishedStatus, useWorkspace } from "@/lib/store";
 
 /* ── Shared vocabulary ───────────────────────────────────────────── */
@@ -468,17 +469,26 @@ export function PolstsPage() {
 
 export function PolstDetailPage() {
   const { id } = useParams();
-  const { polstById, archivePolst, restorePolst, deletePolst, sources, assignSource, addSource } =
-    useWorkspace();
+  const {
+    polstById,
+    archivePolst,
+    restorePolst,
+    deletePolst,
+    sources,
+    assignSource,
+    addSource,
+    unassignSource,
+    campaigns,
+  } = useWorkspace();
   const toast = useToast();
   const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  // The full social card is preview-on-demand (real feedback: the always-on
-  // preview was "too big — a waste of real estate").
-  const [previewOpen, setPreviewOpen] = useState(false);
+  /* The source detail tracks the ID, not the object — unassign inside
+     the modal drops the source from this polst's list live. */
+  const [detailId, setDetailId] = useState<string | null>(null);
   const polst = polstById(id);
   if (!polst) return <NotFoundCard kind="polst" />;
 
@@ -493,7 +503,6 @@ export function PolstDetailPage() {
   const isActive = polst.status === "Active";
   const isEnded = polst.status === "Ended";
   const isArchived = polst.status === "Archived";
-  const locked = isScheduled || isActive || isEnded;
 
   /* Schedule facts — every value from the entity, none synthesized. */
   const scheduleItems: Array<[string, ReactNode]> = [["Created", fmtDate(polst.createdAt)]];
@@ -544,22 +553,70 @@ export function PolstDetailPage() {
     <span className="text-sm font-medium tabular-nums text-text-secondary">{resultVerdict}</span>
   ) : undefined;
 
-  /* Voter preview facts. The like/repost counts split the polst's real
-   *  interactions total, so the card reconciles with the tile above. */
-  const showPreview = !isEnded && !isArchived;
-  const startedDaysAgo =
-    polst.startAt && polst.startAt <= TODAY ? daysBetween(polst.startAt, TODAY) : 0;
-  const previewReposts = Math.round(polst.interactions / 4);
-  const previewLikes = polst.interactions - previewReposts;
-  /* "Time left" only exists once a run is live — a Draft or Scheduled
-   * polst has no countdown, so the preview carries no time-left chip. */
-  const previewTimeLeft = (() => {
-    if (isActive && polst.endAt) {
-      const left = daysBetween(TODAY, polst.endAt);
-      return left > 0 ? `${left}d` : "<1d";
-    }
-    return undefined;
-  })();
+  /* The run's reach on the stat strip — daily series are the polst's
+     own record (polstSeries); sparkless cells borrow the nearest series
+     and the chart header says which one it draws. */
+  const viewSeries = polstSeries(polst, "views");
+  const voteSeries = polstSeries(polst, "votes");
+  const runDates = viewSeries.dates;
+  const runTicks =
+    runDates.length > 0
+      ? [
+          runDates[0],
+          runDates[Math.floor(runDates.length / 2)],
+          runDates[runDates.length - 1],
+        ].map((d) => fmtDate(d))
+      : [];
+  const runStats: Stat[] = [
+    {
+      label: "Views",
+      value: fmtInt(polst.views),
+      delta: "—",
+      trend: "flat",
+      info: METRIC_INFO.views,
+      spark: viewSeries.values,
+    },
+    {
+      label: "Votes",
+      value: fmtInt(polst.votes),
+      delta: "—",
+      trend: "flat",
+      info: METRIC_INFO.votes,
+      spark: voteSeries.values,
+    },
+    {
+      label: "Interactions",
+      value: fmtInt(polst.interactions),
+      delta: "—",
+      trend: "flat",
+      info: METRIC_INFO.interactions,
+    },
+    {
+      label: "Votes / view",
+      value: polst.engagementRate !== null ? fmtPct(polst.engagementRate, 1) : "—",
+      delta: "—",
+      trend: "flat",
+      info: METRIC_INFO.votesPerView,
+    },
+  ];
+
+  /* Campaigns carrying this polst — a library add copies the question
+     into the chain with an id derived from this polst's, so both the
+     derived id and an exact question match count. */
+  const inCampaigns = campaigns.filter((c) =>
+    c.chain.some((q) => q.id.includes(polst.id) || q.question === polst.question),
+  );
+
+  // Every source here feeds THIS polst — the linked meta is the page.
+  const sourceDetail = detailId ? polstSources.find((s) => s.id === detailId) ?? null : null;
+  const linkedMeta: LinkedMeta = {
+    type: "polst",
+    id: polst.id,
+    name: polst.question,
+    status: polst.status,
+    to: `/polsts/${polst.id}`,
+  };
+  const assignable = !isEnded && !isArchived;
 
   return (
     <DashboardPage
@@ -623,20 +680,14 @@ export function PolstDetailPage() {
           ) : null}
         </>
       }
-    >
-      <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-xl font-semibold leading-7 text-text-primary">
-            {polst.question}
-          </h1>
+      // The breadcrumb names the polst; the header band carries only the
+      // run's status — the campaign detail's chrome, tabless.
+      tabs={
+        <div className="flex w-full items-center justify-end">
           <StatusBadge status={polst.status} />
         </div>
-        <p className="mt-1 text-sm text-text-secondary">
-          {polst.optionA} vs {polst.optionB}
-          {locked ? " · Question and options lock after publishing." : ""}
-        </p>
-      </div>
-
+      }
+    >
       {isDraft ? (
         <ActionCard
           title="Finish and publish this polst"
@@ -682,60 +733,26 @@ export function PolstDetailPage() {
       ) : null}
 
       {hasRun(polst) ? (
-        <SectionGrid>
-          <StatTile
-            className="lg:col-span-3"
-            label="Views"
-            value={fmtInt(polst.views)}
-            info={METRIC_INFO.views}
-          />
-          <StatTile
-            className="lg:col-span-3"
-            label="Votes"
-            value={fmtInt(polst.votes)}
-            info={METRIC_INFO.votes}
-          />
-          <StatTile
-            className="lg:col-span-3"
-            label="Interactions"
-            value={fmtInt(polst.interactions)}
-            // The aggregate opens into its parts right on the tile — the
-            // "two separate columns" ask without a second table.
-            detail={
-              polst.interactions > 0
-                ? `${fmtInt(polst.interactionMix.likes)} likes · ${fmtInt(
-                    polst.interactionMix.shares,
-                  )} shares · ${fmtInt(polst.interactionMix.reposts)} reposts`
-                : undefined
-            }
-            info={METRIC_INFO.interactions}
-          />
-          <StatTile
-            className="lg:col-span-3"
-            label="Votes / view"
-            value={polst.engagementRate !== null ? fmtPct(polst.engagementRate, 1) : "—"}
-            info={METRIC_INFO.votesPerView}
-          />
-        </SectionGrid>
+        <StatsStrip
+          stats={runStats}
+          xTicks={runTicks}
+          scopeLabel={fmtDateRange(polst.startAt, polst.endAt)}
+          collapsible
+        />
       ) : null}
 
-      {showPreview ? (
-        <SectionGrid>
+      <SectionGrid className="items-start">
+        {polst.votes > 0 || velocity ? (
           <div className="space-y-4 lg:col-span-7">
             {polst.votes > 0 ? (
               <DashboardCard title="Results" action={verdictLine}>
                 <PollResults options={polstOptions(polst)} />
               </DashboardCard>
             ) : null}
-            <DashboardCard title="Schedule">
-              <DetailList items={scheduleItems} />
-            </DashboardCard>
             {velocity ? (
               <DashboardCard
                 title="Vote velocity"
-                action={
-                  <InfoHint label="Vote velocity" text={METRIC_INFO.voteVelocity} />
-                }
+                action={<InfoHint label="Vote velocity" text={METRIC_INFO.voteVelocity} />}
               >
                 <DetailList
                   items={[
@@ -747,59 +764,104 @@ export function PolstDetailPage() {
               </DashboardCard>
             ) : null}
           </div>
+        ) : null}
+        <div
+          className={cn(
+            "space-y-4",
+            polst.votes > 0 || velocity ? "lg:col-span-5" : "lg:col-span-7",
+          )}
+        >
+          <DashboardCard title="About">
+            <DetailList
+              items={[
+                ...scheduleItems,
+                ["Category", polst.category],
+                [
+                  "In campaigns",
+                  inCampaigns.length ? (
+                    <span key="in-campaigns" className="flex flex-wrap justify-end gap-x-2">
+                      {inCampaigns.map((c) => (
+                        <Link
+                          key={c.id}
+                          to={`/campaigns/${c.id}`}
+                          className="font-semibold text-text-accent hover:underline"
+                        >
+                          {c.name}
+                        </Link>
+                      ))}
+                    </span>
+                  ) : (
+                    "—"
+                  ),
+                ],
+              ]}
+            />
+          </DashboardCard>
+          {/* A row IS the way in — click opens the source's detail (stats,
+              its working asset, guarded unassign), Distribution's contract. */}
           <DashboardCard
-            title="Voter preview"
-            padded={previewOpen ? false : undefined}
-            className="self-start lg:col-span-5"
-            bodyClassName={previewOpen ? "pt-2" : undefined}
+            title="Sources"
+            padded={polstSources.length === 0}
             action={
-              <Button variant="secondary" size="sm" onClick={() => setPreviewOpen((v) => !v)}>
-                {previewOpen ? "Hide preview" : "Preview as voter"}
-              </Button>
+              assignable ? (
+                <Button variant="secondary" size="sm" onClick={() => setAssignOpen(true)}>
+                  <Icon name="add" size={18} />
+                  Assign source
+                </Button>
+              ) : undefined
             }
           >
-            {previewOpen ? (
-              <PollCard
-                preview
-                author={WORKSPACE.brand}
-                authorBadge={WORKSPACE.initials}
-                authorColor="var(--color-purple-tint)"
-                isFollowing
-                postedAgo={startedDaysAgo > 0 ? `${startedDaysAgo}d` : undefined}
-                categories={[polst.category]}
-                question={polst.question}
-                options={polstOptions(polst)}
-                tags={[]}
-                likes={previewLikes}
-                reposts={previewReposts}
-                votes={polst.votes}
-                timeLeft={previewTimeLeft}
-              />
+            {polstSources.length > 0 ? (
+              <ul className="divide-y divide-border-default">
+                {polstSources.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => setDetailId(s.id)}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-subtle"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-text-primary">
+                          {s.name}
+                        </span>
+                        <span className="block text-xs text-text-secondary">
+                          {s.kind} · {s.channel}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-sm tabular-nums text-text-secondary">
+                        {s.voters > 0 ? `${fmtInt(s.voters)} voters` : "—"}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             ) : (
-              <div className="flex items-center gap-3">
-                <PollThumb options={polstOptions(polst)} />
-                <p className="min-w-0 text-sm leading-5 text-text-secondary">
-                  See the exact card voters get — question, images, and live tallies.
-                </p>
-              </div>
+              <EmptyState
+                icon="hub"
+                title="No sources yet"
+                action={
+                  assignable
+                    ? { label: "Assign source", onClick: () => setAssignOpen(true) }
+                    : undefined
+                }
+              />
             )}
           </DashboardCard>
-        </SectionGrid>
-      ) : (
-        <SectionGrid>
-          {polst.votes > 0 ? (
-            <DashboardCard title="Results" className="lg:col-span-7" action={verdictLine}>
-              <PollResults options={polstOptions(polst)} />
-            </DashboardCard>
-          ) : null}
-          <DashboardCard
-            title="Schedule"
-            className={polst.votes > 0 ? "self-start lg:col-span-5" : "lg:col-span-7"}
-          >
-            <DetailList items={scheduleItems} />
-          </DashboardCard>
-        </SectionGrid>
-      )}
+        </div>
+      </SectionGrid>
+
+      <SourceDetailModal
+        source={sourceDetail}
+        linked={sourceDetail ? linkedMeta : null}
+        onClose={() => setDetailId(null)}
+        // Already on the polst's own page — no circular "Open polst".
+        showOpenLink={false}
+        onAssign={() => setAssignOpen(true)}
+        onUnassign={(s) => {
+          const result = unassignSource(s.id);
+          toast(result.ok ? `${s.name} unassigned` : result.reason);
+        }}
+      />
 
       <SocialShareModal
         open={shareOpen}
