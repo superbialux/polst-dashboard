@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/Modal";
 import { useCopyToClipboard, useToast } from "@/components/Toast";
-import { QrCodeModal } from "@/components/DistributionActions";
+import { QrCodeModal, QrPanel } from "@/components/DistributionActions";
 import {
   AssignSourceModal,
   AssignTargetModal,
@@ -27,6 +28,7 @@ import {
   SectionHeader,
   SnippetCard,
   StatTile,
+  StatsStrip,
   StatusBadge,
   StatusSelect,
   TablePagination,
@@ -40,13 +42,16 @@ import {
 } from "@/components/dashboard";
 import { useWorkspace } from "@/lib/store";
 import { METRIC_INFO, fmtInt, fmtPct, pct, relativeToToday } from "@/lib/canon";
-import { windowTileDelta } from "@/lib/engine";
+import { windowDelta } from "@/lib/engine";
 import {
   INTEGRATIONS,
+  STAT_XTICKS,
   embedIframe,
   shareUrl,
+  windowMetricSpark,
   workspaceWindow,
   type Source,
+  type Stat,
   type Status,
 } from "@/lib/workspace";
 
@@ -244,9 +249,6 @@ export function DistributionPage() {
   }, [sources]);
 
   const window30 = workspaceWindow("30D");
-  const votersTile = windowTileDelta(window30.voters, window30.prev?.voters, window30.compareLabel, {
-    fallbackDetail: window30.label,
-  });
   const activeCount = sources.filter((s) => {
     const m = metaFor(s);
     return m !== null && LIVE_STATUSES.includes(m.status);
@@ -259,6 +261,47 @@ export function DistributionPage() {
   );
   const worst = rankable[0];
   const best = rankable[rankable.length - 1];
+
+  /* The Overview strip: the same four distribution facts the tiles held,
+     on the Home stat-strip anatomy. Only voters carries an honest daily
+     series — the sparkless cells borrow it (and the chart header says
+     so), which is the strip's built-in contract. */
+  const votersDelta = window30.prev ? windowDelta(window30.voters, window30.prev.voters) : null;
+  const overviewStats: Stat[] = [
+    {
+      label: "Active sources",
+      value: fmtInt(activeCount),
+      delta: "—",
+      trend: "flat",
+      detail: unassignedCount > 0 ? `${fmtInt(unassignedCount)} unassigned` : undefined,
+      info: "Sources assigned to a campaign or polst that is live or scheduled.",
+    },
+    {
+      label: "Voters · last 30 days",
+      value: fmtInt(window30.voters),
+      delta: votersDelta === null ? "—" : `${Math.abs(votersDelta)}%`,
+      trend:
+        votersDelta === null || votersDelta === 0 ? "flat" : votersDelta > 0 ? "up" : "down",
+      info: METRIC_INFO.voters,
+      ...windowMetricSpark("30D", "voters"),
+    },
+    {
+      label: "Best completion",
+      value: best?.completionRate != null ? fmtPct(best.completionRate, 0) : "—",
+      delta: "—",
+      trend: "flat",
+      detail: best?.name,
+      info: COMPLETION_SCOPE,
+    },
+    {
+      label: "Lowest completion",
+      value: worst?.completionRate != null ? fmtPct(worst.completionRate, 0) : "—",
+      delta: "—",
+      trend: "flat",
+      detail: worst?.name,
+      info: COMPLETION_SCOPE,
+    },
+  ];
 
   const columns: Array<DataColumn<Source>> = [
     {
@@ -403,37 +446,14 @@ export function DistributionPage() {
     >
       {tab === "Overview" ? (
         <>
-          <SectionGrid>
-            <StatTile
-              className="lg:col-span-3"
-              label="Active sources"
-              value={fmtInt(activeCount)}
-              detail={unassignedCount > 0 ? `${fmtInt(unassignedCount)} unassigned` : undefined}
-              info="Sources assigned to a campaign or polst that is live or scheduled."
-            />
-            <StatTile
-              className="lg:col-span-3"
-              label="Voters · last 30 days"
-              value={fmtInt(window30.voters)}
-              detail={votersTile.detail}
-              trend={votersTile.trend}
-              info={METRIC_INFO.voters}
-            />
-            <StatTile
-              className="lg:col-span-3"
-              label="Best completion"
-              value={best?.completionRate != null ? fmtPct(best.completionRate, 0) : "—"}
-              detail={best?.name}
-              info={COMPLETION_SCOPE}
-            />
-            <StatTile
-              className="lg:col-span-3"
-              label="Lowest completion"
-              value={worst?.completionRate != null ? fmtPct(worst.completionRate, 0) : "—"}
-              detail={worst?.name}
-              info={COMPLETION_SCOPE}
-            />
-          </SectionGrid>
+          {/* The Home stat-strip, folded by default — a stat click (or the
+              chevron) opens the chart; the chevron folds it back. */}
+          <StatsStrip
+            stats={overviewStats}
+            xTicks={STAT_XTICKS["30D"]}
+            scopeLabel={window30.compareLabel ?? undefined}
+            collapsible
+          />
 
           {/* The action row rides ABOVE the card (the list-page altitude). */}
           <section className="space-y-2">
@@ -569,7 +589,6 @@ export function DistributionPage() {
           const result = unassignSource(s.id);
           toast(result.ok ? `${s.name} unassigned` : result.reason);
         }}
-        onQr={(s, m) => setQrTarget({ source: s, linked: m })}
       />
 
       <AssignSourceModal
@@ -696,21 +715,23 @@ function SourceDetailModal({
   onClose,
   onAssign,
   onUnassign,
-  onQr,
 }: {
   source: Source | null;
   linked: LinkedMeta | null;
   onClose: () => void;
   onAssign: (source: Source) => void;
   onUnassign: (source: Source) => void;
-  onQr: (source: Source, linked: LinkedMeta) => void;
 }) {
+  /* A linked QR opens two-up: the story on the left, the working QR —
+     live preview, options, download — on the right, no extra click. */
+  const twoUp = Boolean(source && linked && source.kind === "QR code");
   return (
     <Modal
       open={Boolean(source)}
       onClose={onClose}
       label="Source"
       title={source?.name ?? "Source"}
+      className={twoUp ? "lg:max-w-2xl" : undefined}
       footer={
         source ? (
           <ModalFooter
@@ -737,49 +758,51 @@ function SourceDetailModal({
       }
     >
       {source ? (
-        <div className="space-y-4 p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Chip>{source.kind}</Chip>
-            <Chip>{source.channel}</Chip>
-            {source.placement ? (
-              <span className="text-xs text-text-secondary">{source.placement}</span>
+        <div className={cn("p-4", twoUp && "grid gap-6 lg:grid-cols-2")}>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Chip>{source.kind}</Chip>
+              <Chip>{source.channel}</Chip>
+              {source.placement ? (
+                <span className="text-xs text-text-secondary">{source.placement}</span>
+              ) : null}
+            </div>
+
+            {linked ? (
+              <p className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+                Feeds{" "}
+                <Link
+                  to={linked.to}
+                  className="font-semibold text-text-primary hover:text-text-accent"
+                >
+                  {linked.name}
+                </Link>
+                <StatusBadge status={linked.status} />
+              </p>
+            ) : (
+              <p className="text-sm leading-5 text-text-secondary">
+                Unassigned — this source has no working asset and collects no voters until it
+                feeds a campaign or polst.
+              </p>
+            )}
+
+            <MiniStatGrid cols={3} tone="subtle" items={sourceStatItems(source, linked)} />
+
+            {linked && source.kind === "Share link" ? (
+              <SnippetCard title="Share link" code={attributedUrl(linked, source.id)} />
+            ) : null}
+            {linked && source.kind === "Embed" ? (
+              <SnippetCard title="Embed code" code={embedIframe(linked.id)} />
             ) : null}
           </div>
 
-          {linked ? (
-            <p className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
-              Feeds{" "}
-              <Link
-                to={linked.to}
-                className="font-semibold text-text-primary hover:text-text-accent"
-              >
-                {linked.name}
-              </Link>
-              <StatusBadge status={linked.status} />
-            </p>
-          ) : (
-            <p className="text-sm leading-5 text-text-secondary">
-              Unassigned — this source has no working asset and collects no voters until it
-              feeds a campaign or polst.
-            </p>
-          )}
-
-          <MiniStatGrid cols={3} tone="subtle" items={sourceStatItems(source, linked)} />
-
-          {linked ? (
-            source.kind === "QR code" ? (
-              <div className="space-y-3">
-                <SnippetCard title="Scan URL" code={attributedUrl(linked, source.id)} />
-                <Button variant="secondary" className="w-full" onClick={() => onQr(source, linked)}>
-                  <Icon name="qr_code_2" size={18} />
-                  QR code — preview & download
-                </Button>
-              </div>
-            ) : source.kind === "Share link" ? (
-              <SnippetCard title="Share link" code={attributedUrl(linked, source.id)} />
-            ) : (
-              <SnippetCard title="Embed code" code={embedIframe(linked.id)} />
-            )
+          {twoUp && linked ? (
+            // Keyed per source so options reset between sources.
+            <QrPanel
+              key={source.id}
+              objectName={linked.name}
+              url={attributedUrl(linked, source.id)}
+            />
           ) : null}
         </div>
       ) : (

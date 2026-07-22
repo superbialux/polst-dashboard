@@ -1201,6 +1201,8 @@ export type Stat = {
   /** Period-over-period change, e.g. "12%" (arrow + colour come from trend). */
   delta: string;
   trend?: "up" | "down" | "flat";
+  /** A one-line qualifier under the value ("2 unassigned", a source name). */
+  detail?: string;
   spark?: number[];
   /** The same metric over the previous window, on the spark's scale. */
   previous?: number[];
@@ -1500,6 +1502,21 @@ const STAT_INFO: Record<string, string> = {
  *  attribution sees in-session campaigns and polsts. Window totals still
  *  derive from the seed series (store-created objects carry zero traffic). */
 export const dashboardStats = buildStats;
+
+/** One metric's windowed daily values on the strip's chart budget, with
+ *  the previous window when the comparison is honest — for stat strips
+ *  (Distribution) that chart a single series without rebuilding the
+ *  full dashboard stat set. */
+export const windowMetricSpark = (
+  range: StatRange,
+  metric: SeriesMetric,
+): { spark: number[]; previous?: number[] } => {
+  const w = workspaceWindow(range);
+  const spark = downsampleCounts(metricWindow(metric, w.start, w.end).values);
+  if (range === "All" || w.compareLabel === null) return { spark };
+  const [prevStart, prevEnd] = windowBounds(range, 1);
+  return { spark, previous: downsampleCounts(metricWindow(metric, prevStart, prevEnd).values) };
+};
 
 /** Axis labels for the expanded chart — first / middle / last window day. */
 export const STAT_XTICKS: Record<StatRange, string[]> = Object.fromEntries(

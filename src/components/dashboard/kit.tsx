@@ -872,9 +872,10 @@ function DeltaChip({ delta, trend = "flat" }: { delta: string; trend?: Stat["tre
  *  cells split by hairlines — 12px label, 24px tabular value, delta chip —
  *  and each cell is a tab: the active one carries a 2px accent underline
  *  (the strip's only violet; chart ink comes from charts.tsx) and picks
- *  which stat's TrendChart fills the card below. The chart is always on —
- *  the old expand/collapse chevron is retired. A cell without its own
- *  series borrows the nearest stat that has one; the chart header names
+ *  which stat's TrendChart fills the card below. The chart is always on
+ *  by default; `collapsible` pages fold it behind a chevron instead. A
+ *  cell without its own series borrows the nearest stat that has one;
+ *  the chart header names
  *  the series it actually draws, so the fallback never mislabels. The
  *  dashed previous-period line is the data layer's real previous series —
  *  when a stat carries none, the chart simply shows the current period. */
@@ -882,15 +883,20 @@ export function StatsStrip({
   stats,
   xTicks,
   scopeLabel,
+  collapsible = false,
   className,
 }: {
   stats: Stat[];
   xTicks: string[];
   /** The comparison window behind every delta — "vs previous 30 days". */
   scopeLabel?: string;
+  /** Chart starts folded; a stat click opens it, the chevron folds it.
+   *  Home keeps the always-on chart — this is for quieter pages. */
+  collapsible?: boolean;
   className?: string;
 }) {
   const [sel, setSel] = useState(0);
+  const [open, setOpen] = useState(!collapsible);
   const active = stats[sel] ?? stats[0];
   const chartStat = active.spark?.length ? active : stats.find((s) => s.spark?.length);
   // A "%"-valued stat charts as a rate: its y-axis and hover chip say so.
@@ -901,16 +907,19 @@ export function StatsStrip({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm",
+        "relative overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm",
         className,
       )}
     >
-      <div className="grid grid-cols-2 border-b border-border-default lg:grid-cols-4">
+      <div className={cn("grid grid-cols-2 lg:grid-cols-4", open && "border-b border-border-default")}>
         {stats.map((stat, i) => (
           <button
             key={stat.label}
             type="button"
-            onClick={() => setSel(i)}
+            onClick={() => {
+              setSel(i);
+              if (collapsible && !open) setOpen(true);
+            }}
             aria-pressed={i === sel}
             className={cn(
               // Hairline dividers: left of every in-row neighbour, above the
@@ -929,7 +938,12 @@ export function StatsStrip({
               </span>
               <DeltaChip delta={stat.delta} trend={stat.trend} />
             </span>
-            {i === sel ? (
+            {stat.detail ? (
+              <span className="mt-0.5 block truncate text-xs text-text-tertiary">
+                {stat.detail}
+              </span>
+            ) : null}
+            {i === sel && open ? (
               // The active tab's 2px accent underline, flush with the strip's
               // bottom hairline — tab semantics, not border-colour semantics.
               <span
@@ -940,26 +954,54 @@ export function StatsStrip({
           </button>
         ))}
       </div>
+      {collapsible && !open ? (
+        // Folded: the corner chevron is the visible way in (a stat click
+        // opens too, selecting its series on the way).
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Show chart"
+          onClick={() => setOpen(true)}
+          className="absolute right-2 top-2 h-6 w-6 text-icon-secondary"
+        >
+          <Icon name="keyboard_arrow_down" size={18} />
+        </Button>
+      ) : null}
 
-      <div className="pt-3">
-        {/* The chart names the series it draws; the metric's definition
-            rides a visible ⓘ, not a title=. */}
-        <div className="mb-2 flex items-baseline justify-between gap-3 px-4">
-          <span className="flex items-center gap-1 text-xs font-semibold text-text-secondary">
-            {chartStat?.label ?? active.label}
-            {chartStat?.info ? <InfoHint text={chartStat.info} /> : null}
-          </span>
-          {scopeLabel ? <span className="text-xs text-text-tertiary">{scopeLabel}</span> : null}
+      {open ? (
+        <div className="pt-3">
+          {/* The chart names the series it draws; the metric's definition
+              rides a visible ⓘ, not a title=. */}
+          <div className="mb-2 flex items-center justify-between gap-3 px-4">
+            <span className="flex items-center gap-1 text-xs font-semibold text-text-secondary">
+              {chartStat?.label ?? active.label}
+              {chartStat?.info ? <InfoHint text={chartStat.info} /> : null}
+            </span>
+            <span className="flex items-center gap-2">
+              {scopeLabel ? <span className="text-xs text-text-tertiary">{scopeLabel}</span> : null}
+              {collapsible ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Hide chart"
+                  onClick={() => setOpen(false)}
+                  className="h-6 w-6 text-icon-secondary"
+                >
+                  <Icon name="keyboard_arrow_up" size={18} />
+                </Button>
+              ) : null}
+            </span>
+          </div>
+          <TrendChart
+            series={chartStat?.spark ?? []}
+            previous={chartStat?.previous}
+            annotations={chartStat?.annotations}
+            xTicks={xTicks}
+            format={format}
+            className="px-2 pb-3"
+          />
         </div>
-        <TrendChart
-          series={chartStat?.spark ?? []}
-          previous={chartStat?.previous}
-          annotations={chartStat?.annotations}
-          xTicks={xTicks}
-          format={format}
-          className="px-2 pb-3"
-        />
-      </div>
+      ) : null}
     </section>
   );
 }

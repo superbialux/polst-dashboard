@@ -162,17 +162,10 @@ const svgToPngBlob = (svg: string): Promise<Blob> =>
     image.src = svgUrl;
   });
 
-export function QrCodeModal({
-  open,
-  onClose,
-  objectName,
-  url,
-}: {
-  open: boolean;
-  onClose: () => void;
-  objectName: string;
-  url: string;
-}) {
+/** The working QR block — live preview, URL, color/logo options, and
+ *  the download row. The modal wraps it; the Distribution source detail
+ *  renders it inline so preview and download need no extra click. */
+export function QrPanel({ objectName, url }: { objectName: string; url: string }) {
   const toast = useToast();
   const [format, setFormat] = useState<"PNG" | "SVG">("PNG");
   // --text-primary's hex — <input type="color"> needs a literal value.
@@ -181,7 +174,7 @@ export function QrCodeModal({
   const [svg, setSvg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || !url) return;
+    if (!url) return;
     let stale = false;
     buildQrSvg(url, color, logo)
       .then((next) => {
@@ -193,7 +186,7 @@ export function QrCodeModal({
     return () => {
       stale = true;
     };
-  }, [open, url, color, logo]);
+  }, [url, color, logo]);
 
   const download = async () => {
     if (!svg) return;
@@ -211,54 +204,73 @@ export function QrCodeModal({
   };
 
   return (
+    <div className="space-y-4">
+      {/* Print exception: a QR quiet zone must stay true white to scan
+          reliably, so this surface deliberately skips the theme tokens. */}
+      <div className="mx-auto grid size-56 place-items-center rounded-md border border-border-default bg-white">
+        {svg ? (
+          <span aria-label={`QR code for ${url}`} dangerouslySetInnerHTML={{ __html: svg }} />
+        ) : (
+          <span style={{ color }}>
+            <Icon name="qr_code_2" size={184} />
+          </span>
+        )}
+      </div>
+      <div className="truncate rounded-md bg-surface-subtle px-3 py-2 font-mono text-xs text-text-secondary">
+        {url}
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
+          QR color
+          <input
+            type="color"
+            value={color}
+            onChange={(event) => setColor(event.target.value)}
+            className="h-8 w-10 rounded-sm border border-border-default bg-surface-raised p-1"
+          />
+        </label>
+        {/* A real <label>, like "QR color" beside it — clicking the words
+            toggles the switch (the button is the label's control). */}
+        <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
+          Brand logo
+          <Switch checked={logo} onChange={setLogo} label="Brand logo overlay" />
+        </label>
+      </div>
+      <div className="flex items-center gap-2">
+        <SegmentedControl
+          tabs={["PNG", "SVG"] as const}
+          active={format}
+          onChange={setFormat}
+          size="compact"
+        />
+        <Button className="flex-1" disabled={!svg} onClick={download}>
+          <Icon name="download" size={18} />
+          Download
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function QrCodeModal({
+  open,
+  onClose,
+  objectName,
+  url,
+}: {
+  open: boolean;
+  onClose: () => void;
+  objectName: string;
+  url: string;
+}) {
+  return (
     <Modal open={open} onClose={onClose} label="QR code" title="QR code">
       <div className="space-y-4 p-4">
         <p className="text-sm leading-5 text-text-secondary">
           Scanning opens {objectName} with attribution intact.
         </p>
-        {/* Print exception: a QR quiet zone must stay true white to scan
-            reliably, so this surface deliberately skips the theme tokens. */}
-        <div className="mx-auto grid size-56 place-items-center rounded-md border border-border-default bg-white">
-          {svg ? (
-            <span aria-label={`QR code for ${url}`} dangerouslySetInnerHTML={{ __html: svg }} />
-          ) : (
-            <span style={{ color }}>
-              <Icon name="qr_code_2" size={184} />
-            </span>
-          )}
-        </div>
-        <div className="truncate rounded-md bg-surface-subtle px-3 py-2 font-mono text-xs text-text-secondary">
-          {url}
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
-            QR color
-            <input
-              type="color"
-              value={color}
-              onChange={(event) => setColor(event.target.value)}
-              className="h-8 w-10 rounded-sm border border-border-default bg-surface-raised p-1"
-            />
-          </label>
-          {/* A real <label>, like "QR color" beside it — clicking the words
-              toggles the switch (the button is the label's control). */}
-          <label className="flex items-center gap-2 text-sm font-medium text-text-primary">
-            Brand logo
-            <Switch checked={logo} onChange={setLogo} label="Brand logo overlay" />
-          </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <SegmentedControl
-            tabs={["PNG", "SVG"] as const}
-            active={format}
-            onChange={setFormat}
-            size="compact"
-          />
-          <Button className="flex-1" disabled={!svg} onClick={download}>
-            <Icon name="download" size={18} />
-            Download
-          </Button>
-        </div>
+        {/* Keyed remount per URL so the options start fresh per object. */}
+        {open ? <QrPanel key={url} objectName={objectName} url={url} /> : null}
       </div>
     </Modal>
   );
