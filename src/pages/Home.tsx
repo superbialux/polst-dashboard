@@ -119,7 +119,7 @@ const DISCOVERY: Suggestion[] = [
 const campaignSources = (sources: Source[], id: string) =>
   sources.filter((s) => s.linked?.type === "campaign" && s.linked.id === id);
 
-const HOME_TABS = ["Overview", "Calendar"] as const;
+const HOME_TABS = ["Overview", "Events"] as const;
 type HomeTab = (typeof HOME_TABS)[number];
 
 /** Tab state lives in `?tab=` (the detail pages' pattern) so the
@@ -286,7 +286,7 @@ export function HomePage() {
       }
       tabs={<HeaderTabs tabs={HOME_TABS} active={tab} onChange={setTab} />}
     >
-      {tab === "Calendar" ? (
+      {tab === "Events" ? (
         <>
           <WorkspaceCalendar />
           {/* Upcoming key dates as a bento — covered dates open their
