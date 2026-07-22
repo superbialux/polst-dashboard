@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/Icon";
 import {
+  InsightRailCard,
   StatsListCard,
   CampaignCard,
   CampaignCardGrid,
@@ -19,6 +20,7 @@ import {
   type Suggestion,
 } from "@/components/dashboard";
 import { TODAY, fmtDateRange, fmtInt, isReadyToDecide } from "@/lib/canon";
+import { deriveInsights } from "@/lib/insights";
 import { useWorkspace } from "@/lib/store";
 import {
   KEY_DATES,
@@ -139,6 +141,13 @@ export function HomePage() {
   const [campaignView, setCampaignView] = useState<"Active" | "Queued">("Active");
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const { campaigns, polsts, sources } = useWorkspace();
+
+  /* The rail's short findings — the same computed insight engine the
+     Analytics Overview reads, trimmed to the top three. */
+  const railInsights = useMemo(
+    () => deriveInsights(campaigns, polsts, sources).slice(0, 3),
+    [campaigns, polsts, sources],
+  );
 
   /* Stats derive from the LIVE store — marker attribution sees campaigns
      created in-session. */
@@ -367,6 +376,7 @@ export function HomePage() {
               rows={polstStats}
               viewAll={{ label: "View all polsts", to: "/polsts" }}
             />
+            <InsightRailCard insights={railInsights} />
           </div>
         </div>
       </section>

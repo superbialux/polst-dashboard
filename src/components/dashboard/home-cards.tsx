@@ -370,6 +370,68 @@ export function CampaignCardGrid({ children }: { children: ReactNode }) {
  *  card title over DetailList's bordered label → value rows. The title
  *  names the scope ("All campaigns", "All polsts") so no number floats
  *  without its universe. */
+/** The rail's short-insights card (the prototype's "Recent
+ *  Recommendations" register on house anatomy): the top computed
+ *  findings as compact rows — the finding, the question it answers,
+ *  and its drill-down — with the Insights index as the footer. Renders
+ *  nothing when the engine has nothing to say. */
+export function InsightRailCard({
+  insights,
+  className,
+}: {
+  insights: Array<{
+    id: string;
+    question: string;
+    evidence: string;
+    action: { to: string };
+  }>;
+  className?: string;
+}) {
+  if (!insights.length) return null;
+  return (
+    <section
+      className={cn(
+        "rounded-card border border-border-default bg-surface-raised p-4 shadow-sm",
+        className,
+      )}
+    >
+      <h2 className="font-display text-base font-semibold leading-6 text-text-primary">
+        Insights
+      </h2>
+      <ul className="-mx-2 mt-2">
+        {insights.map((insight) => (
+          <li key={insight.id}>
+            <Link
+              to={insight.action.to}
+              className="group flex items-center gap-2.5 rounded-md p-2 transition-colors hover:bg-surface-subtle"
+            >
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-default">
+                <Icon name="auto_awesome" size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium leading-5 text-text-primary">
+                  {insight.evidence}
+                </span>
+                <span className="block truncate text-xs leading-4 text-text-secondary">
+                  {insight.question}
+                </span>
+              </span>
+              <Icon
+                name="arrow_forward"
+                size={16}
+                className="shrink-0 text-icon-tertiary transition-transform group-hover:translate-x-0.5 group-hover:text-icon-secondary"
+              />
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <Button variant="secondary" size="sm" asChild className="mt-2 w-full">
+        <Link to="/analytics/insights">View all insights</Link>
+      </Button>
+    </section>
+  );
+}
+
 export function StatsListCard({
   title,
   rows,
