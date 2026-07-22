@@ -216,6 +216,10 @@ type WorkspaceStore = {
   createPolst: (input: CreatePolstInput, opts?: { publish?: boolean }) => string;
   updatePolst: (id: string, patch: Partial<CreatePolstInput>) => void;
   publishPolst: (id: string) => { ok: true; status: Status } | { ok: false; reason: string };
+  pausePolst: (id: string) => void;
+  /** Resumes to the schedule's honest status (a past end resumes as Ended). */
+  resumePolst: (id: string) => Status;
+  endPolst: (id: string) => void;
   archivePolst: (id: string) => void;
   restorePolst: (id: string) => Status;
   /** Refused once a run has votes — evidence is part of the record. */
@@ -517,6 +521,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         patchPolst(id, (x) => ({ ...x, status: publishedStatus(x.startAt, x.endAt) }));
         return { ok: true as const, status };
       },
+      // The campaign pause/resume pair, mirrored: resume re-resolves the
+      // schedule honestly — an end date that passed while paused comes
+      // back as Ended, never Active.
+      pausePolst: (id) => patchPolst(id, (p) => ({ ...p, status: "Paused" })),
+      resumePolst: (id) => {
+        const p = polsts.find((x) => x.id === id);
+        const status = publishedStatus(p?.startAt, p?.endAt);
+        patchPolst(id, (x) => ({ ...x, status: publishedStatus(x.startAt, x.endAt) }));
+        return status;
+      },
+      endPolst: (id) =>
+        patchPolst(id, (p) => ({ ...p, status: "Ended", endAt: TODAY })),
       archivePolst: (id) => patchPolst(id, (p) => ({ ...p, status: "Archived" })),
       // The polst mirror of unpublishCampaign: a voted run never rewinds
       // to Draft — its evidence is part of the record.

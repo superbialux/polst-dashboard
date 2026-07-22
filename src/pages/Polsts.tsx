@@ -78,7 +78,7 @@ import { publishedStatus, useWorkspace } from "@/lib/store";
 /* ── Shared vocabulary ───────────────────────────────────────────── */
 
 /** Every lifecycle state is reachable — "All" really means everything. */
-const POLST_FILTERS = ["All", "Active", "Scheduled", "Drafts", "Ended", "Archived"] as const;
+const POLST_FILTERS = ["All", "Active", "Paused", "Scheduled", "Drafts", "Ended", "Archived"] as const;
 
 const CATEGORIES: Category[] = ["Food & drink", "Lifestyle", "Shopping & deals"];
 
@@ -479,6 +479,9 @@ export function PolstDetailPage() {
     addSource,
     unassignSource,
     campaigns,
+    pausePolst,
+    resumePolst,
+    endPolst,
   } = useWorkspace();
   const toast = useToast();
   const navigate = useNavigate();
@@ -486,6 +489,7 @@ export function PolstDetailPage() {
   const [qrOpen, setQrOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
   /* The source detail tracks the ID, not the object — unassign inside
      the modal drops the source from this polst's list live. */
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -501,6 +505,7 @@ export function PolstDetailPage() {
   const isDraft = polst.status === "Draft";
   const isScheduled = polst.status === "Scheduled";
   const isActive = polst.status === "Active";
+  const isPaused = polst.status === "Paused";
   const isEnded = polst.status === "Ended";
   const isArchived = polst.status === "Archived";
 
@@ -622,6 +627,59 @@ export function PolstDetailPage() {
     <DashboardPage
       actions={
         <>
+          {/* The status IS a control: live runs switch Active / Paused /
+              Ended right here; every other state shows its badge. */}
+          {isActive || isPaused ? (
+            <Menu
+              label="Change status"
+              align="end"
+              trigger={({ open, toggle }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  aria-label="Change status"
+                  className="-m-1 flex items-center gap-0.5 rounded-md p-1 transition-colors hover:bg-surface-subtle"
+                >
+                  <StatusBadge status={polst.status} />
+                  <Icon
+                    name="arrow_drop_down"
+                    size={18}
+                    className={cn("text-icon-secondary transition-transform", open && "rotate-180")}
+                  />
+                </button>
+              )}
+            >
+              <MenuItem
+                icon="play_arrow"
+                label="Active"
+                selected={isActive}
+                onClick={() => {
+                  if (isActive) return;
+                  const status = resumePolst(polst.id);
+                  toast(
+                    status === "Ended"
+                      ? "Resumed — the end date passed while paused, so the run is Ended"
+                      : "Polst is live again",
+                  );
+                }}
+              />
+              <MenuItem
+                icon="pause"
+                label="Paused"
+                selected={isPaused}
+                onClick={() => {
+                  if (isPaused) return;
+                  pausePolst(polst.id);
+                  toast("Polst paused — voters can't reach it until it resumes");
+                }}
+              />
+              <MenuItem icon="flag" label="Ended" onClick={() => setEndOpen(true)} />
+            </Menu>
+          ) : (
+            <StatusBadge status={polst.status} />
+          )}
           {isActive || isScheduled ? (
             <>
               <Button variant="secondary" onClick={() => setShareOpen(true)}>
@@ -655,14 +713,6 @@ export function PolstDetailPage() {
           ) : null}
           {isArchived ? (
             <>
-              {/* A never-run archive can be deleted; a voted run's record
-                  stays (the store refuses — same law as voted sources). */}
-              {polst.votes === 0 ? (
-                <Button variant="destructive-secondary" onClick={() => setDeleteOpen(true)}>
-                  <Icon name="delete" size={18} />
-                  Delete
-                </Button>
-              ) : null}
               {/* A voted run restores to Ended, not Draft — say so. */}
               <Button
                 onClick={() => {
@@ -679,13 +729,6 @@ export function PolstDetailPage() {
             </>
           ) : null}
         </>
-      }
-      // The breadcrumb names the polst; the header band carries only the
-      // run's status — the campaign detail's chrome, tabless.
-      tabs={
-        <div className="flex w-full items-center justify-end">
-          <StatusBadge status={polst.status} />
-        </div>
       }
     >
       {isDraft ? (
@@ -847,8 +890,43 @@ export function PolstDetailPage() {
               />
             )}
           </DashboardCard>
+
+          {/* Deleting is for runs that never collected — the store's
+              evidence law, stated on the disabled control itself. */}
+          <DashboardCard title="Danger zone">
+            <Button
+              variant="destructive-secondary"
+              disabled={polst.votes > 0}
+              title={
+                polst.votes > 0
+                  ? "This polst collected votes — its record can be archived, not deleted."
+                  : undefined
+              }
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Icon name="delete" size={18} />
+              Delete polst
+            </Button>
+          </DashboardCard>
         </div>
       </SectionGrid>
+
+      <ConfirmModal
+        open={endOpen}
+        onClose={() => setEndOpen(false)}
+        label="End polst"
+        title="End this polst?"
+        tone="danger"
+        confirmLabel="End polst"
+        onConfirm={() => {
+          endPolst(polst.id);
+          setEndOpen(false);
+          toast("Polst ended — voting is closed");
+        }}
+      >
+        Voting stops immediately and “{polst.question}” becomes read-only. The{" "}
+        {fmtInt(polst.votes)} votes collected so far are kept.
+      </ConfirmModal>
 
       <SourceDetailModal
         source={sourceDetail}
