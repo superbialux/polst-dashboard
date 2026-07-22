@@ -1436,17 +1436,19 @@ export function StatTile({
   className?: string;
 }) {
   return (
+    // Typography matches the stat strip's cells exactly — one KPI
+    // anatomy app-wide, never a second font scale for the same job.
     <DashboardCard className={className}>
-      <p className="flex items-center gap-1 text-sm font-medium text-text-secondary">
+      <p className="flex items-center gap-1 truncate text-xs font-semibold text-text-secondary">
         {label}
         {info ? <InfoHint text={info} /> : null}
       </p>
       <p
         className={cn(
-          "mt-3 font-display font-semibold tracking-tight text-text-primary",
+          "mt-1.5 font-display font-semibold tracking-tight text-text-primary",
           /^[0-9]/.test(value)
             ? "text-2xl leading-8 tabular-nums"
-            : "text-xl leading-7",
+            : "truncate text-xl leading-8",
         )}
       >
         {value}
@@ -1462,7 +1464,7 @@ export function StatTile({
               ) : null}
             </p>
           ) : (
-            <p className="mt-2 text-sm font-medium text-text-secondary">{detail}</p>
+            <p className="mt-0.5 truncate text-xs text-text-tertiary">{detail}</p>
           );
         })()
       ) : null}

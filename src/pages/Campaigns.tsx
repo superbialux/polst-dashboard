@@ -87,7 +87,6 @@ import {
   clipToRun,
   embedIframe,
   embedScript,
-  headlineLabel,
   polstImage,
   polstOptions,
   shareUrl,
@@ -107,6 +106,7 @@ import {
   polstRole,
   qualifiesForInsights,
 } from "@/lib/insights";
+import { allocate } from "@/lib/engine";
 import { useWorkspace } from "@/lib/store";
 
 /* ── Shared vocabulary ───────────────────────────────────────────── */
@@ -1690,8 +1690,25 @@ export function CampaignDetailPage() {
 
 /* ── Overview tab ────────────────────────────────────────────────── */
 
-/* The headline framing is the shared `headlineLabel` (workspace.ts) — the
-   decision report leads with the exact same words, one anatomy. */
+/** Days until each question's responses passed a readable sample — its
+ *  votes allocated across the campaign's own daily votes curve. A count
+ *  of days, not a significance test, and it says so on hover. */
+const READABLE_SAMPLE = 200;
+const decisionDays = (campaign: Campaign): Array<number | null> => {
+  const daily = campaignSeries(campaign, "votes").values;
+  if (!daily.length) return campaign.chain.map(() => null);
+  return campaign.chain.map((_, i) => {
+    const votes = campaign.votesByQuestion[i] ?? 0;
+    if (votes < READABLE_SAMPLE) return null;
+    const perDay = allocate(votes, daily);
+    let cumulative = 0;
+    for (let d = 0; d < perDay.length; d++) {
+      cumulative += perDay[d];
+      if (cumulative >= READABLE_SAMPLE) return d + 1;
+    }
+    return perDay.length;
+  });
+};
 
 function CampaignOverview({
   campaign,
@@ -1730,17 +1747,18 @@ function CampaignOverview({
     (w) => w.to === `/campaigns/${campaign.id}`,
   );
 
-  /* The leaderboard: every question's winning option, most decisive
-     first — the campaign's choices ranked, not a single crowned result. */
-  const board = campaign.chain
-    .map((q, i) => ({
-      q,
-      winner: q.splitA >= 50 ? q.optionA : q.optionB,
-      loser: q.splitA >= 50 ? q.optionB : q.optionA,
-      share: Math.max(q.splitA, 100 - q.splitA),
-      votes: campaign.votesByQuestion[i] ?? 0,
-    }))
-    .sort((a, b) => b.share - a.share);
+  /* Per-polst breakdown, in chain order — the questions test different
+     things, so no cross-question ranking: each states its own winner,
+     responses, margin, and how fast it became readable. */
+  const readAfter = decisionDays(campaign);
+  const breakdown = campaign.chain.map((q, i) => ({
+    q,
+    winner: q.splitA >= 50 ? q.optionA : q.optionB,
+    share: Math.max(q.splitA, 100 - q.splitA),
+    margin: Math.abs(2 * q.splitA - 100),
+    votes: campaign.votesByQuestion[i] ?? 0,
+    days: readAfter[i],
+  }));
 
   const primary =
     campaign.status === "Ended"
@@ -1760,13 +1778,28 @@ function CampaignOverview({
       />
 
       <SectionGrid className="items-start">
-        {/* The choices, ranked — image OR image, because that IS the polst. */}
-        <DashboardCard title="Leaderboard" padded={false} className="lg:col-span-7">
+        {/* One row per polst, chain order — the questions test different
+            things, so each states its own result. Image OR image, because
+            that IS the polst. */}
+        <DashboardCard
+          title="Polst results"
+          padded={false}
+          className="lg:col-span-7"
+          action={
+            <InfoHint
+              label="Time to read"
+              text={`Days until the question passed ${READABLE_SAMPLE} responses — a readable sample, not a significance test.`}
+            />
+          }
+        >
           <ol className="divide-y divide-border-default">
-            {board.map((row, rank) => (
-              <li key={row.q.id} className="flex items-center gap-3 px-4 py-3">
-                <span className="w-6 shrink-0 text-center font-display text-sm font-semibold tabular-nums text-text-tertiary">
-                  {rank + 1}
+            {breakdown.map((row, i) => (
+              <li
+                key={row.q.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3"
+              >
+                <span className="w-5 shrink-0 text-center font-display text-sm font-semibold tabular-nums text-text-tertiary">
+                  {i + 1}
                 </span>
                 <span className="grid h-10 w-14 shrink-0 grid-cols-2 overflow-hidden rounded-md bg-surface-strong">
                   <img
@@ -1780,20 +1813,38 @@ function CampaignOverview({
                     className="h-full w-full object-cover"
                   />
                 </span>
-                <span className="min-w-0 flex-1">
+                <span className="min-w-0 flex-1 basis-48">
                   <span className="block truncate font-display text-sm font-semibold leading-5 text-text-primary">
-                    {row.winner}
+                    {row.q.question}
                   </span>
                   <span className="block truncate text-xs leading-4 text-text-secondary">
-                    beat {row.loser} · {row.q.question}
+                    {row.margin === 0
+                      ? `Dead even · 50% vs 50%`
+                      : `${row.winner} won · ${row.share}% vs ${100 - row.share}%`}
                   </span>
                 </span>
-                <span className="shrink-0 text-right">
-                  <span className="block font-display text-lg font-semibold leading-6 tabular-nums text-text-primary">
-                    {row.share}%
+                <span className="flex shrink-0 gap-5 text-right">
+                  <span className="w-14">
+                    <span className="block text-xs leading-4 text-text-tertiary">Votes</span>
+                    <span className="block text-sm font-semibold leading-5 tabular-nums text-text-primary">
+                      {fmtInt(row.votes)}
+                    </span>
                   </span>
-                  <span className="block text-xs leading-4 tabular-nums text-text-secondary">
-                    {fmtInt(row.votes)} votes
+                  <span className="w-14">
+                    <span className="block text-xs leading-4 text-text-tertiary">Margin</span>
+                    <span className="block text-sm font-semibold leading-5 tabular-nums text-text-primary">
+                      {row.margin === 0 ? "Even" : `${row.margin} pts`}
+                    </span>
+                  </span>
+                  <span className="w-20">
+                    <span className="block text-xs leading-4 text-text-tertiary">
+                      Time to read
+                    </span>
+                    <span className="block text-sm font-semibold leading-5 tabular-nums text-text-primary">
+                      {row.days !== null
+                        ? `${row.days} ${row.days === 1 ? "day" : "days"}`
+                        : "—"}
+                    </span>
                   </span>
                 </span>
               </li>
@@ -1851,7 +1902,7 @@ function CampaignOverview({
           </div>
 
           {/* The read: what the numbers say and what to do about it. */}
-          <DashboardCard title={headlineLabel(campaign)}>
+          <DashboardCard title="Summary">
             {campaign.summary ? (
               <p className="text-sm leading-6 text-text-secondary">{campaign.summary}</p>
             ) : null}
@@ -1875,7 +1926,7 @@ function CampaignOverview({
 
       <SectionGrid className="items-start">
         <DashboardCard
-          title="Voter journey"
+          title="Conversion funnel"
           className="lg:col-span-7"
           action={
             <Button variant="secondary" size="sm" onClick={() => onGoTo("Analytics")}>
@@ -1886,7 +1937,7 @@ function CampaignOverview({
           <FunnelChart steps={funnelSteps} />
         </DashboardCard>
         <div className="space-y-4 lg:col-span-5">
-          <DashboardCard title="What drove voters">
+          <DashboardCard title="Voters by source">
             {sources.some((s) => s.voters > 0) ? (
               <DonutChart
                 slices={sources.map((s) => ({ label: s.name, value: s.voters }))}
@@ -1902,7 +1953,7 @@ function CampaignOverview({
             )}
           </DashboardCard>
           {changed.length > 0 ? (
-            <DashboardCard title="What changed">
+            <DashboardCard title="Milestones">
               <ul className="space-y-2.5">
                 {changed.map((w) => (
                   <li key={w.id} className="flex items-baseline justify-between gap-3 text-sm">
