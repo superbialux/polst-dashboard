@@ -376,9 +376,10 @@ export function CampaignsPage() {
           <ViewToggle value={view} onChange={setView} />
         </TableToolbar>
         {rows.length > 0 && view === "grid" ? (
-          <div className="grid items-start gap-3 lg:grid-cols-2">
+          // Uniform cards: every card holds the four-row reference height.
+          <div className="grid gap-3 lg:grid-cols-2">
             {pageRows.map((c) => (
-              <CampaignCard key={c.id} campaign={c} sourceCount={sourceCount(c.id)} />
+              <CampaignCard key={c.id} campaign={c} sourceCount={sourceCount(c.id)} uniform />
             ))}
           </div>
         ) : (

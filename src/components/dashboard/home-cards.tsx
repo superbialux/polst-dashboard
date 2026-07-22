@@ -247,15 +247,23 @@ function InlineStat({ value, label }: { value: string; label?: string }) {
   );
 }
 
+/** The chain list shows at most this many rows — the four-polst card
+ *  (Flavor Launch Recap) is the grid's reference height, and a longer
+ *  in-session chain folds its tail into a "+n more" row. */
+const MAX_CHAIN_ROWS = 4;
+
 /** One campaign as one card: header states the run, the body lists the
  *  chain's polsts with their votes — the campaign is readable here
- *  without opening the detail page. */
+ *  without opening the detail page. `uniform` pins the card to the
+ *  four-row reference height so a grid of them lines up exactly. */
 export function CampaignCard({
   campaign,
   sourceCount,
+  uniform = false,
 }: {
   campaign: Campaign;
   sourceCount: number;
+  uniform?: boolean;
 }) {
   // Ran = Active or Ended: both have real numbers to state. Only
   // Scheduled/Draft cards speak in plans ("starts in 2 days · staged").
@@ -277,8 +285,23 @@ export function CampaignCard({
     </>
   );
 
+  /* Longer chains fold: three rows plus a "+n more" row keeps every
+     card within the four-slot budget. */
+  const shown =
+    campaign.chain.length > MAX_CHAIN_ROWS
+      ? campaign.chain.slice(0, MAX_CHAIN_ROWS - 1)
+      : campaign.chain;
+  const hidden = campaign.chain.length - shown.length;
+
   return (
-    <section className="flex flex-col rounded-card border border-border-default bg-surface-raised p-4 shadow-sm">
+    <section
+      className={cn(
+        "flex flex-col rounded-card border border-border-default bg-surface-raised p-4 shadow-sm",
+        // The measured natural height of a four-row card — the tallest
+        // the content budget allows, so every uniform card matches it.
+        uniform && "h-[344px]",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
@@ -298,7 +321,7 @@ export function CampaignCard({
       </div>
       {campaign.chain.length ? (
         <ul className="mt-3 divide-y divide-border-default border-t border-border-default">
-          {campaign.chain.map((q, i) => (
+          {shown.map((q, i) => (
             <ChainPolstRow
               key={q.id}
               id={q.id}
@@ -306,6 +329,18 @@ export function CampaignCard({
               meta={live ? `${fmtInt(campaign.votesByQuestion[i] ?? 0)} votes` : "staged"}
             />
           ))}
+          {hidden > 0 ? (
+            // The fold row keeps the chain-row anatomy so the slot
+            // heights stay identical.
+            <li className="flex items-center gap-2.5 py-2">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-surface-subtle text-xs font-semibold text-text-secondary">
+                +{hidden}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm leading-5 text-text-secondary">
+                {hidden} more {hidden === 1 ? "polst" : "polsts"}
+              </span>
+            </li>
+          ) : null}
         </ul>
       ) : (
         <p className="mt-3 border-t border-border-default pt-3 text-sm text-text-tertiary">
