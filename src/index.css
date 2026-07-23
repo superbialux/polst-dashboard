@@ -348,13 +348,14 @@ html, body, #root { min-height: 100%; }
 
 @layer utilities {
   /* A restrained scrollbar that reads as part of the surface, not chrome:
-     a thin, pill thumb one step off the card background, inset by a
-     transparent border so it never crowds the content. */
+     a thin, pill thumb one step off the card background, floating over a
+     transparent track. Pair with [scrollbar-gutter:stable] on scrollers
+     whose width must not shift when the bar comes and goes. */
   .scroll-subtle {
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) transparent;
   }
-  .scroll-subtle::-webkit-scrollbar { width: 12px; height: 12px; }
+  .scroll-subtle::-webkit-scrollbar { width: 10px; height: 10px; }
   .scroll-subtle::-webkit-scrollbar-track { background: transparent; }
   /* No stepper arrows at the ends of the track. */
   .scroll-subtle::-webkit-scrollbar-button { display: none; width: 0; height: 0; }

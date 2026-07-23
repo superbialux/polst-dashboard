@@ -192,7 +192,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               <main
                 id="main-content"
                 ref={mainRef}
-                className="flex-1 overflow-y-auto px-4 pb-10 pt-6 sm:px-5"
+                className="scroll-subtle flex-1 overflow-y-auto px-4 pb-10 pt-6 [scrollbar-gutter:stable] sm:px-5"
               >
                 {children}
               </main>
