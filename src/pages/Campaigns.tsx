@@ -2325,6 +2325,25 @@ function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources:
             columns={sourceColumns}
             emptyLabel="No sources assigned — nothing to attribute"
           />
+          {/* The audit's plain-language line: both rates stated, and the
+              gap described as traffic, never asserted as a cause. */}
+          {(() => {
+            const ranked = sources
+              .filter((s) => s.completionRate !== null && s.voters >= 30)
+              .sort((a, b) => (b.completionRate ?? 0) - (a.completionRate ?? 0));
+            const bestSrc = ranked[0];
+            const worstSrc = ranked[ranked.length - 1];
+            return bestSrc &&
+              worstSrc &&
+              bestSrc !== worstSrc &&
+              (bestSrc.completionRate ?? 0) - (worstSrc.completionRate ?? 0) >= 5 ? (
+              <p className="border-t border-border-default px-4 py-3 text-sm leading-5 text-text-secondary">
+                {bestSrc.name} finishes at {Math.round(bestSrc.completionRate!)}%;{" "}
+                {worstSrc.name} finishes at {Math.round(worstSrc.completionRate!)}%. Sources
+                recruit different audiences — the gap describes the traffic, not a cause.
+              </p>
+            ) : null;
+          })()}
         </DashboardCard>
         <div className="space-y-4 lg:col-span-5">
           <DashboardCard
@@ -2502,7 +2521,7 @@ function CampaignInsights({
     campaign.status === "Ended"
       ? `Ended ${fmtDate(campaign.endAt!)}`
       : `Collecting until ${campaign.endAt ? fmtDate(campaign.endAt) : "ended manually"}`,
-    `${fmtInt(campaign.voters)} participants`,
+    `${fmtInt(campaign.voters)} started`,
     `${finishRate} finish rate`,
   ];
 
