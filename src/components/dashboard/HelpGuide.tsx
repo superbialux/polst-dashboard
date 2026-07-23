@@ -19,10 +19,10 @@ const METRIC_ROWS: Array<{ term: string; def: string }> = [
   { term: "Views", def: METRIC_INFO.views },
   { term: "Votes", def: METRIC_INFO.votes },
   { term: "Voters", def: METRIC_INFO.voters },
-  { term: "Completion rate", def: METRIC_INFO.completionRate },
+  { term: "Finish rate", def: METRIC_INFO.finishRate },
   { term: "Engagement rate", def: METRIC_INFO.engagementRate },
   { term: "Interactions", def: METRIC_INFO.interactions },
-  { term: "Confidence", def: METRIC_INFO.confidence },
+  { term: "Evidence strength", def: METRIC_INFO.confidence },
 ];
 
 function GuideSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -50,7 +50,7 @@ export function HelpGuide() {
             they never overrule the decision question.
           </p>
         </GuideSection>
-        <GuideSection title="What confidence means">
+        <GuideSection title="What evidence strength means">
           <p>
             {METRIC_INFO.confidence} Hover any ⓘ in the app to see how the number under it is
             computed.
@@ -78,7 +78,7 @@ export function HelpGuide() {
           <p>
             Flavor Launch Recap ran its four questions to 1,184 voters across three sources;
             56% of decision-question responses chose Citrus Mint against Berry Basil's 44% —
-            so its report recommends Citrus Mint at high confidence.{" "}
+            so its report recommends Citrus Mint on strong evidence.{" "}
             <Link
               to="/campaigns/flavor-launch-recap"
               onClick={() => setOpen(false)}

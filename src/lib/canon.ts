@@ -67,6 +67,15 @@ export type DecisionSignal =
 
 export type Confidence = "High" | "Medium" | "Low" | "—";
 
+/** The audit's demonstration-honest evidence vocabulary: the stored grade
+ *  renders as evidence strength, never as unexplained "confidence". */
+export const EVIDENCE_LABEL: Record<Confidence, string> = {
+  High: "Strong evidence",
+  Medium: "Moderate evidence",
+  Low: "Limited evidence",
+  "—": "—",
+};
+
 /* Evidence-volume floors — targets don't exist as a product concept, so
    signal and confidence read absolute sample size, never progress toward
    a goal. Exported so the invariant suite pins feed dates to the same
@@ -120,7 +129,6 @@ export const METRIC_INFO = {
   voters: "Unique people who cast at least one vote in scope.",
   started: "Unique participants who answered the first question of the campaign. A view alone does not count.",
   completed: "Unique participants who answered every question in the campaign.",
-  completionRate: "Voters who completed the full sequence ÷ voters who started it.",
   finishRate:
     "Completed ÷ Started — how many participants who began the campaign finished it. A participant-funnel metric; it says nothing about how much campaign time has elapsed.",
   engagementRate: "Total votes ÷ total views for the period.",
@@ -133,7 +141,7 @@ export const METRIC_INFO = {
   voteVelocity:
     "Average votes per hour over the trailing window, from this polst's daily votes.",
   confidence:
-    "Evidence volume, not statistics. High: 800+ voters with 2+ sources. Medium: 500+ voters, or 2+ sources. Low: below both. No significance test is run.",
+    "Evidence volume, not statistics. Strong: 800+ voters across 2+ sources. Moderate: 500+ voters, or 2+ sources. Limited: below both. No significance test is run.",
 } as const;
 
 /* ── Formatters (the only number/date renderers) ──────────────────── */

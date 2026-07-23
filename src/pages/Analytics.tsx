@@ -43,6 +43,7 @@ import {
   type InsightState,
 } from "@/lib/insights";
 import {
+  EVIDENCE_LABEL,
   METRIC_INFO,
   TODAY,
   fmtDate,
@@ -399,7 +400,7 @@ const categoryColumns: Array<DataColumn<CategoryRow>> = [
   {
     // Tables speak whole percents (the campaigns list, campaign sources,
     // Distribution); one decimal is reserved for the rate stat tiles.
-    header: "Completion",
+    header: "Finish rate",
     align: "right",
     sort: (row) => row.completionRate ?? -1,
     cell: (row) => RateCell(row.completionRate),
@@ -433,7 +434,7 @@ function ReadyToDecideList({ campaigns }: { campaigns: Campaign[] }) {
           title={campaign.name}
           to={`/campaigns/${campaign.id}`}
           sublabel={`${winnerLabel(campaign)} · ${fmtInt(campaign.voters)} voters · run to date`}
-          confidence={campaign.confidence !== "—" ? campaign.confidence : undefined}
+          confidence={campaign.confidence !== "—" ? EVIDENCE_LABEL[campaign.confidence] : undefined}
           confidenceInfo={METRIC_INFO.confidence}
           cta={{
             label: campaign.status === "Ended" ? "Open report" : "Review decision",
@@ -559,10 +560,10 @@ export function AnalyticsOverviewPage() {
       previous: prevDaily ? rateSeries(prevDaily.votes, prevDaily.views) : undefined,
     },
     {
-      label: "Completion rate",
+      label: "Finish rate",
       value: pct(completed, voters, 1),
       ...heroDelta(completion ?? 0, prevCompletion),
-      info: METRIC_INFO.completionRate,
+      info: METRIC_INFO.finishRate,
       spark: rateSeries(daily.completed, daily.voters),
       previous: prevDaily ? rateSeries(prevDaily.completed, prevDaily.voters) : undefined,
     },

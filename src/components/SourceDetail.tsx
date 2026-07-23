@@ -69,7 +69,7 @@ export const sourceStatItems = (source: Source, linked: LinkedMeta | null) => [
   linked?.type === "polst"
     ? { label: "Conversion", value: pct(source.voters, source.views) }
     : {
-        label: "Completion",
+        label: "Finish rate",
         value: source.completionRate !== null ? fmtPct(source.completionRate, 0) : "—",
       },
 ];

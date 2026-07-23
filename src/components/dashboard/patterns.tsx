@@ -685,7 +685,7 @@ export function MiniStatGrid({
 /* ── Ready to decide ─────────────────────────────────────────────── */
 
 /** One decidable campaign, in either physical form: the Home hero card
- *  (eyebrow title, confidence, evidence grid, full-width CTA) or the
+ *  (eyebrow title, evidence strength, evidence grid, full-width CTA) or the
  *  Analytics list row (name first, verdict + CTA trailing). All props
  *  are pre-derived facts — readyTitle/winnerLabel run at the call site,
  *  never here. */
@@ -709,9 +709,9 @@ export function ReadyDecisionRow({
   /** The campaign's name — always a link to it. */
   title: string;
   to: string;
-  /** Evidence strength ("High"); omit when the store says "—". */
+  /** The composed evidence label ("Strong evidence"); omit on "—". */
   confidence?: string;
-  /** The confidence method, one hover away (METRIC_INFO.confidence). */
+  /** The evidence method, one hover away (METRIC_INFO.confidence). */
   confidenceInfo?: string;
   /** Card only: the live-run qualifier ("Collecting until Jun 17"). */
   note?: string;
@@ -729,8 +729,8 @@ export function ReadyDecisionRow({
       <DashboardCard title={eyebrow} className={className}>
         {confidence ? (
           <p className="flex items-center gap-1 text-sm font-semibold text-status-success">
-            {confidence} confidence
-            {confidenceInfo ? <InfoHint label="Confidence" text={confidenceInfo} /> : null}
+            {confidence}
+            {confidenceInfo ? <InfoHint label="Evidence strength" text={confidenceInfo} /> : null}
           </p>
         ) : null}
         {note ? <p className="mt-0.5 text-xs text-text-secondary">{note}</p> : null}
@@ -774,9 +774,9 @@ export function ReadyDecisionRow({
       <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
         <span className="flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-status-success">
           {eyebrow}
-          {confidence ? ` · ${confidence} confidence` : ""}
+          {confidence ? ` · ${confidence}` : ""}
           {confidence && confidenceInfo ? (
-            <InfoHint label="Confidence" text={confidenceInfo} />
+            <InfoHint label="Evidence strength" text={confidenceInfo} />
           ) : null}
         </span>
         <Button variant="secondary" size="sm" asChild>

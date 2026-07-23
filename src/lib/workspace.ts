@@ -8,6 +8,7 @@ import {
   fmtDate,
   fmtInt,
   fmtPct,
+  EVIDENCE_LABEL,
   isReadyToDecide,
   relativeToToday,
   shiftSeedDate,
@@ -1454,7 +1455,7 @@ const buildStats = (
     ...(comparable ? { previous: downsampleRate(prev!.votes, prev!.views) } : {}),
   };
   const completion: Stat = {
-    label: "Completion rate",
+    label: "Finish rate",
     value: w.completionRate !== null ? fmtPct(w.completionRate, 1) : "—",
     ...deltaParts(w.completionRate ?? 0, prevCompletion),
     spark: downsampleRate(cur.completed, cur.voters),
@@ -1468,7 +1469,7 @@ const buildStats = (
   views.annotations = annotateStat("Views", views.spark, dates, events);
   votes.annotations = annotateStat("Votes", votes.spark, dates, events);
   engagement.annotations = annotateStat("Engagement", engagement.spark, dates, events, true);
-  completion.annotations = annotateStat("Completion", completion.spark, dates, events, true);
+  completion.annotations = annotateStat("Finish rate", completion.spark, dates, events, true);
 
   const stats = [views, votes, engagement, completion];
   return stats.map((stat) => ({ ...stat, info: STAT_INFO[stat.label] }));
@@ -1479,7 +1480,7 @@ const STAT_INFO: Record<string, string> = {
   "Total views": METRIC_INFO.views,
   "Total votes": METRIC_INFO.votes,
   "Engagement rate": METRIC_INFO.engagementRate,
-  "Completion rate": METRIC_INFO.completionRate,
+  "Finish rate": METRIC_INFO.finishRate,
 };
 
 /** The live stat strip — Home passes the store's entity arrays so marker
@@ -2152,7 +2153,7 @@ export const readyTitle = (c: { status: Status; voters: number }) =>
   c.status === "Ended" ? "Results ready" : "Strong lead";
 
 /** The one status-aware eyebrow above `headlineLabel`. The DecisionBrief and
- *  the decision report both speak it — "Results ready · High confidence" once
+ *  the decision report both speak it — "Results ready · Strong evidence" once
  *  a run has ended, "Strong lead · … — collecting until …" while a live
  *  run's evidence supports the call, otherwise the plain verdict with its
  *  evidence volume — so the two surfaces can never drift, and the report
@@ -2169,7 +2170,7 @@ export const decisionEyebrow = (c: {
     ? {
         ready: true,
         label: `${readyTitle(c)}${
-          c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""
+          c.confidence !== "—" ? ` · ${EVIDENCE_LABEL[c.confidence]}` : ""
         }${c.status !== "Ended" && c.endAt ? ` — collecting until ${fmtDate(c.endAt)}` : ""}`,
       }
     : {

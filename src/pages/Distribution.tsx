@@ -111,7 +111,7 @@ const PAGE_SIZE = 25;
 /* Card grids page in whole rows: 12 is 4 rows of 3 (lg), 6 rows of 2 (sm). */
 const CARD_PAGE_SIZE = 12;
 
-const COMPLETION_SCOPE = `${METRIC_INFO.completionRate} Ranked across campaign sources — a single-question polst always completes.`;
+const COMPLETION_SCOPE = `${METRIC_INFO.finishRate} Ranked across campaign sources — a single-question polst always completes.`;
 
 /** A format's honest totals: volume and voters over every source, but
  *  completion only over campaign-fed ones (a single-question polst
@@ -253,7 +253,7 @@ export function DistributionPage() {
       ...windowMetricSpark("30D", "voters"),
     },
     {
-      label: "Best completion",
+      label: "Best finish rate",
       value: best?.completionRate != null ? fmtPct(best.completionRate, 0) : "—",
       delta: "—",
       trend: "flat",
@@ -261,7 +261,7 @@ export function DistributionPage() {
       info: COMPLETION_SCOPE,
     },
     {
-      label: "Lowest completion",
+      label: "Lowest finish rate",
       value: worst?.completionRate != null ? fmtPct(worst.completionRate, 0) : "—",
       delta: "—",
       trend: "flat",
@@ -315,7 +315,7 @@ export function DistributionPage() {
       ),
     },
     {
-      header: "Completion",
+      header: "Finish rate",
       align: "right",
       sort: (s) => (s.linked?.type === "campaign" ? s.completionRate ?? -1 : -1),
       /* Only campaign sources have a real completion story — a single-
@@ -436,7 +436,7 @@ export function DistributionPage() {
           previous: tabVoters!.previous,
         },
         {
-          label: "Completion",
+          label: "Finish rate",
           value: tabTotals.completion !== null ? fmtPct(tabTotals.completion, 0) : "—",
           delta: "—",
           trend: "flat",

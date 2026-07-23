@@ -268,14 +268,14 @@ export function CampaignCard({
   // Ran = Active or Ended: both have real numbers to state. Only
   // Scheduled/Draft cards speak in plans ("starts in 2 days · staged").
   const live = campaign.status === "Active" || campaign.status === "Ended";
-  // The audit's list contract: votes and completion, never "voters /
-  // target" — the participant goal is a planning target, not a cap,
-  // and the fraction reads as a hard limit.
+  // The audit's participation vocabulary: Started and Finish rate — a
+  // campaign compares on distinct participants, never total votes (votes
+  // reward chain length) or a bare "completion".
   const stats: ReactNode = live ? (
     <>
-      <InlineStat value={fmtInt(campaign.votes)} label="votes" />
+      <InlineStat value={fmtInt(campaign.voters)} label="started" />
       <StatDot />
-      <InlineStat value={pct(campaign.completed, campaign.voters)} label="completion" />
+      <InlineStat value={pct(campaign.completed, campaign.voters)} label="finish rate" />
     </>
   ) : (
     <>

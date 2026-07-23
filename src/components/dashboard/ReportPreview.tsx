@@ -1,7 +1,7 @@
 /* ── ReportPreview — the one decision-report dialog ────────────────────
-   One report object, one anatomy. Campaign detail's "Export report" and
+   One report object, one anatomy. Campaign detail's "View report" and
    Analytics → Reports "Preview" both render this: a DecisionBrief-style
-   summary, the voter journey, the source table, and a real Copy summary.
+   summary, the conversion funnel, the source table, and a real Copy summary.
    Every number derives from the entity (sources arrive live from the
    store via the caller); the copy button writes the real clipboard and
    reports failure honestly. */
@@ -11,7 +11,7 @@ import { Icon } from "@/components/Icon";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/components/Toast";
-import { METRIC_INFO, fmtDateRange, fmtInt, fmtPct, pct } from "@/lib/canon";
+import { EVIDENCE_LABEL, METRIC_INFO, fmtDateRange, fmtInt, fmtPct, pct } from "@/lib/canon";
 import {
   decisionEyebrow,
   headlineLabel,
@@ -32,8 +32,8 @@ const campaignSummary = (c: Campaign, sources: Source[]): string => {
     `${c.name} — decision report`,
     ...(c.decision ? [c.decision] : []),
     // A run that ended without a single voter has no verdict to state.
-    `Result: ${c.voters === 0 ? "Ended without votes" : verdictLabel(c)}${c.confidence !== "—" ? ` · ${c.confidence} confidence` : ""}`,
-    `Voters: ${fmtInt(c.voters)} · Completion: ${pct(c.completed, c.voters)}`,
+    `Result: ${c.voters === 0 ? "Ended without votes" : verdictLabel(c)}${c.confidence !== "—" ? ` · ${EVIDENCE_LABEL[c.confidence]}` : ""}`,
+    `Started: ${fmtInt(c.voters)} · Finish rate: ${pct(c.completed, c.voters)}`,
     ...(topSource && topSource.voters > 0 ? [`Top source: ${topSource.name}`] : []),
     ...(c.findings.length ? ["", "Findings:", ...c.findings.map((f) => `- ${f}`)] : []),
     ...(c.caveats.length ? ["", "Caveats:", ...c.caveats.map((x) => `- ${x}`)] : []),
@@ -81,7 +81,7 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
         >
           {eyebrow.label}
           {eyebrow.ready && campaign.confidence !== "—" ? (
-            <InfoHint label="Confidence" text={METRIC_INFO.confidence} />
+            <InfoHint label="Evidence strength" text={METRIC_INFO.confidence} />
           ) : null}
         </p>
         <h3 className="mt-2 font-display text-lg font-semibold leading-6 text-text-primary">
@@ -101,8 +101,8 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
       </header>
       <DetailList
         items={[
-          ["Participants", fmtInt(campaign.voters)],
-          ["Completion", pct(campaign.completed, campaign.voters)],
+          ["Started", fmtInt(campaign.voters)],
+          ["Finish rate", pct(campaign.completed, campaign.voters)],
           ["Top source", topSource && topSource.voters > 0 ? topSource.name : "—"],
           ["Run dates", fmtDateRange(campaign.startAt, campaign.endAt)],
         ]}
@@ -110,7 +110,7 @@ function CampaignReport({ campaign, sources }: { campaign: Campaign; sources: So
       {/* An all-zero funnel is noise, not a journey — suppressed at zero. */}
       {campaign.chain.length > 0 && !zeroVoters ? (
         <section>
-          <SectionTitle>Voter journey</SectionTitle>
+          <SectionTitle>Conversion funnel</SectionTitle>
           <div className="mt-2">
             <FunnelChart steps={journey} />
           </div>

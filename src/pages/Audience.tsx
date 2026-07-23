@@ -80,7 +80,7 @@ const countryColumns: Array<DataColumn<CountryRow>> = [
     ),
   },
   {
-    header: "Completion",
+    header: "Finish rate",
     align: "right",
     sort: (row) => row.completionRate ?? -1,
     cell: (row) => RateCell(row.completionRate),

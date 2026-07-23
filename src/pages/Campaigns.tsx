@@ -161,15 +161,15 @@ const listColumns: Array<DataColumn<Campaign>> = [
     sort: (row) => row.chain.length,
     cell: (row) => <ThumbStrip ids={row.chain.map((q) => q.id)} />,
   },
-  /* The index speaks the card line's vocabulary: total votes across the
-     chain, and the finish rate. Detail facts live on the
-     detail, never as a "1,486 / 1,200" shorthand. */
+  /* The index compares campaigns on the participant funnel — Started and
+     Finish rate — never total votes (one participant casts several across
+     a chain, so votes reward length, not reach). */
   {
-    header: "Total votes",
-    info: METRIC_INFO.votes,
+    header: "Started",
+    info: METRIC_INFO.started,
     align: "right",
-    sort: (row) => row.votes,
-    cell: (row) => <span className="tabular-nums">{fmtInt(row.votes)}</span>,
+    sort: (row) => row.voters,
+    cell: (row) => <span className="tabular-nums">{fmtInt(row.voters)}</span>,
   },
   {
     header: "Finish rate",
@@ -1627,10 +1627,10 @@ export function CampaignDetailPage() {
             </Button>
           ) : null}
           {/* Ending lives in the status selector (and the Takeaway's
-              "End campaign & decide" for ready runs) — the header holds
+              "End collection" for ready runs) — the header holds
               no duplicate destructive button. */}
           {campaign.status === "Ended" && campaign.voters === 0 ? (
-            <Button onClick={() => setReportOpen(true)}>Export report</Button>
+            <Button onClick={() => setReportOpen(true)}>View report</Button>
           ) : null}
         </>
       }
@@ -1784,9 +1784,9 @@ function CampaignOverview({
 
   const primary =
     campaign.status === "Ended"
-      ? { label: "Export report", onClick: onReport }
+      ? { label: "View report", onClick: onReport }
       : ready
-        ? { label: "End campaign & decide", onClick: onEnd }
+        ? { label: "End collection", onClick: onEnd }
         : { label: "View polst results", onClick: () => onGoTo("Polsts") };
 
   return (
@@ -1877,14 +1877,14 @@ function CampaignOverview({
               tiles — values only, no helper lines. */}
           <div className="grid gap-4 sm:grid-cols-2">
             <StatTile
-              label="Participants"
+              label="Started"
               value={fmtInt(campaign.voters)}
-              info={METRIC_INFO.voters}
+              info={METRIC_INFO.started}
             />
             <StatTile
-              label="Completion"
+              label="Finish rate"
               value={pct(campaign.completed, campaign.voters)}
-              info={METRIC_INFO.completionRate}
+              info={METRIC_INFO.finishRate}
             />
             {daysLeft !== null ? (
               <StatTile
@@ -2125,7 +2125,7 @@ function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources:
       cell: (s) => <span className="tabular-nums">{pct(s.voters, s.views)}</span>,
     },
     {
-      header: "Completion",
+      header: "Finish rate",
       align: "right",
       sort: (s) => s.completionRate ?? -1,
       cell: (s) => RateCell(s.completionRate),
@@ -2149,7 +2149,7 @@ function CampaignAnalytics({ campaign, sources }: { campaign: Campaign; sources:
       ),
     },
     {
-      header: "Completion",
+      header: "Finish rate",
       align: "right",
       sort: (r) => r.completionRate ?? -1,
       cell: (r) => RateCell(r.completionRate),
@@ -2429,8 +2429,8 @@ function CampaignInsights({
       cell: (s) => <span className="font-semibold text-text-primary">{s.name}</span>,
     },
     { header: "Channel", cell: (s) => s.channel },
-    { header: "Participants", align: "right", cell: (s) => fmtInt(s.voters) },
-    { header: "Completion", align: "right", cell: (s) => RateCell(s.completionRate) },
+    { header: "Voters", align: "right", cell: (s) => fmtInt(s.voters) },
+    { header: "Finish rate", align: "right", cell: (s) => RateCell(s.completionRate) },
   ];
 
   return (
@@ -3101,7 +3101,7 @@ function CampaignSources({
     { header: "Channel", sort: (s) => s.channel, cell: (s) => s.channel },
     { header: "Voters", align: "right", sort: (s) => s.voters, cell: (s) => fmtInt(s.voters) },
     {
-      header: "Completion",
+      header: "Finish rate",
       align: "right",
       sort: (s) => s.completionRate ?? -1,
       cell: (s) => RateCell(s.completionRate),
