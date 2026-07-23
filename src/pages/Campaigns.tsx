@@ -942,7 +942,7 @@ export function CreateCampaignPage() {
                     />
                   )}
                 </Field>
-                <Field label="Decision question">
+                <Field label="Decision question" required>
                   {(id) => (
                     <textarea
                       id={id}
@@ -1031,6 +1031,7 @@ export function CreateCampaignPage() {
           <div className="lg:col-span-7">
             <DashboardCard
               title="Polsts"
+              description="Voters answer in order. The first polst is the primary decision polst — the campaign readout answers it; later polsts add supporting context."
               action={
                 <div className="flex items-center gap-2">
                   <Button
@@ -1097,6 +1098,7 @@ export function CreateCampaignPage() {
                             votes: 0,
                           })}
                         />
+                        {i === 0 ? <DecisionChip /> : null}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1504,7 +1506,8 @@ export function CampaignDetailPage() {
   const sources = campaignSources(store.sources, campaign.id);
   const invalidRange =
     !!campaign.startAt && !!campaign.endAt && campaign.endAt < campaign.startAt;
-  const canPublish = campaign.chain.length > 0 && !!campaign.startAt && !invalidRange;
+  const canPublish =
+    campaign.chain.length > 0 && !!campaign.startAt && !invalidRange && !!campaign.decision;
   const shareable = campaign.status !== "Draft" && campaign.status !== "Archived";
 
   const publish = () => {
@@ -1619,7 +1622,9 @@ export function CampaignDetailPage() {
                     ? "Add at least one polst first"
                     : !campaign.startAt
                       ? "Set a start date first"
-                      : "The end date is before the start — fix the schedule in Settings"
+                      : !campaign.decision
+                        ? "State the decision question first — it names what the campaign settles"
+                        : "The end date is before the start — fix the schedule in Settings"
               }
               onClick={() => setReviewOpen(true)}
             >
@@ -1638,6 +1643,14 @@ export function CampaignDetailPage() {
       // the header actions as a control, so the band holds only the tabs.
       tabs={<HeaderTabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />}
     >
+      {/* The audit's contract: the drill-down states the DECISION near the
+          top — the campaign name alone says what it's called, not what it
+          settles. One line, every tab. */}
+      {campaign.decision ? (
+        <p className="-mb-4 font-display text-lg font-semibold leading-6 text-text-primary">
+          {campaign.decision}
+        </p>
+      ) : null}
       {tab === "Overview" ? (
         <CampaignOverview
           campaign={campaign}
@@ -1700,6 +1713,7 @@ export function CampaignDetailPage() {
                   })}
                   question={q.question}
                 />
+                {index === campaign.decisionIndex ? <DecisionChip /> : null}
               </li>
             ))}
           </ol>
@@ -1732,6 +1746,16 @@ export function CampaignDetailPage() {
 }
 
 /* ── Overview tab ────────────────────────────────────────────────── */
+
+/** The chain hierarchy marker: the one polst whose split IS the campaign
+ *  readout. Everything else in the chain is supporting context. */
+function DecisionChip() {
+  return (
+    <Chip tone="accent" title="The campaign readout answers this polst; the others add supporting context.">
+      Decision polst
+    </Chip>
+  );
+}
 
 function CampaignOverview({
   campaign,
@@ -1838,8 +1862,11 @@ function CampaignOverview({
                   />
                 </span>
                 <span className="min-w-0 flex-1 basis-48">
-                  <span className="block truncate font-display text-sm font-semibold leading-5 text-text-primary">
-                    {row.q.question}
+                  <span className="flex items-center gap-2">
+                    <span className="truncate font-display text-sm font-semibold leading-5 text-text-primary">
+                      {row.q.question}
+                    </span>
+                    {i === campaign.decisionIndex ? <DecisionChip /> : null}
                   </span>
                   <span className="block truncate text-xs leading-4 text-text-secondary">
                     {row.even
@@ -2773,7 +2800,7 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
             title="Polsts"
             description={
               editable
-                ? "Voters answer in order — drag to rearrange, click a row to preview."
+                ? "Voters answer in order — drag to rearrange, click a row to preview. The decision polst controls the campaign readout; the rest add supporting context."
                 : "Voters answer in order — click a row to inspect its result. The chain locked with the first vote."
             }
             action={
@@ -2842,6 +2869,7 @@ function CampaignPolsts({ campaign }: { campaign: Campaign }) {
                           votes,
                         })}
                       />
+                      {i === campaign.decisionIndex ? <DecisionChip /> : null}
                       {editable ? (
                         // A mistyped or double-added question can leave the
                         // chain while it's still editable — behind a
