@@ -61,6 +61,7 @@ import {
   filterByCreated,
   SnippetCard,
   StatusBadge,
+  StatusDot,
   ThumbStrip,
   filterByStatus,
   type DataColumn,
@@ -1532,6 +1533,63 @@ export function CampaignDetailPage() {
     <DashboardPage
       actions={
         <>
+          {/* The status IS a control (the polst detail's register): live
+              runs switch Active / Paused / Ended right here; every other
+              state shows the same chrome without the menu. */}
+          {campaign.status === "Active" || campaign.status === "Paused" ? (
+            <Menu
+              label="Change status"
+              align="end"
+              trigger={({ open, toggle }) => (
+                <Button
+                  variant="secondary"
+                  onClick={toggle}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  aria-label="Change status"
+                >
+                  <StatusDot status={campaign.status} />
+                  {campaign.status}
+                  <Icon
+                    name="arrow_drop_down"
+                    size={18}
+                    className={cn("transition-transform", open && "rotate-180")}
+                  />
+                </Button>
+              )}
+            >
+              <MenuItem
+                icon="play_arrow"
+                label="Active"
+                selected={campaign.status === "Active"}
+                onClick={() => {
+                  if (campaign.status === "Active") return;
+                  const status = store.resumeCampaign(campaign.id);
+                  toast(
+                    status === "Ended"
+                      ? "Resumed — the end date passed while paused, so the run is Ended"
+                      : "Campaign is live again",
+                  );
+                }}
+              />
+              <MenuItem
+                icon="pause"
+                label="Paused"
+                selected={campaign.status === "Paused"}
+                onClick={() => {
+                  if (campaign.status === "Paused") return;
+                  store.pauseCampaign(campaign.id);
+                  toast("Campaign paused — voters can't reach it until it resumes");
+                }}
+              />
+              <MenuItem icon="flag" label="Ended" onClick={() => setEndOpen(true)} />
+            </Menu>
+          ) : (
+            <span className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md border border-btn-secondary-border bg-btn-secondary-bg px-3 font-display text-sm font-semibold text-btn-secondary-fg">
+              <StatusDot status={campaign.status} />
+              {campaign.status}
+            </span>
+          )}
           {shareable ? (
             <Menu
               label="Share campaign"
@@ -1568,29 +1626,17 @@ export function CampaignDetailPage() {
               Review & publish
             </Button>
           ) : null}
-          {/* Ready campaigns end through the DecisionBrief's "End campaign
-              & decide" — one owner, so two end affordances never compete.
-              Ended campaigns export through the brief's primary for the
-              same reason; the header holds no duplicate. */}
-          {campaign.status === "Active" && !isReadyToDecide(campaign) ? (
-            <Button variant="destructive-secondary" onClick={() => setEndOpen(true)}>
-              End campaign
-            </Button>
-          ) : null}
+          {/* Ending lives in the status selector (and the Takeaway's
+              "End campaign & decide" for ready runs) — the header holds
+              no duplicate destructive button. */}
           {campaign.status === "Ended" && campaign.voters === 0 ? (
             <Button onClick={() => setReportOpen(true)}>Export report</Button>
           ) : null}
         </>
       }
-      // The breadcrumb already names the campaign; the header band holds
-      // the section tabs with the run's status on the trailing edge —
-      // the same chrome Home, Settings, and Distribution wear.
-      tabs={
-        <div className="flex w-full items-center justify-between gap-3">
-          <HeaderTabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />
-          <StatusBadge status={campaign.status} />
-        </div>
-      }
+      // The breadcrumb already names the campaign; the status moved into
+      // the header actions as a control, so the band holds only the tabs.
+      tabs={<HeaderTabs tabs={DETAIL_TABS} active={tab} onChange={setTab} />}
     >
       {tab === "Overview" ? (
         <CampaignOverview
