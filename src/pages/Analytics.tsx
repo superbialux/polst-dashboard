@@ -1086,6 +1086,14 @@ export function AnalyticsReportsPage() {
       ? campaignById(report.linked.id)?.name ?? "—"
       : polstById(report.linked.id)?.question ?? "—";
 
+  /* The row's second line is the decision (campaign) or the question
+     itself (polst) — a report row must say what was being decided, not
+     restate its own name. */
+  const linkedDecision = (report: WorkspaceReport) =>
+    report.linked.type === "campaign"
+      ? campaignById(report.linked.id)?.decision ?? linkedName(report)
+      : polstById(report.linked.id)?.question ?? "—";
+
   const reportColumns: Array<DataColumn<WorkspaceReport>> = [
     {
       header: "Report",
@@ -1095,11 +1103,11 @@ export function AnalyticsReportsPage() {
       ),
     },
     {
-      header: "Scope",
-      sort: (row) => linkedName(row).toLowerCase(),
+      header: "Decision",
+      sort: (row) => linkedDecision(row).toLowerCase(),
       cell: (row) => (
         <Link to={reportPath(row)} className="text-text-secondary hover:text-text-accent">
-          {linkedName(row)}
+          {linkedDecision(row)}
         </Link>
       ),
     },
@@ -1121,7 +1129,7 @@ export function AnalyticsReportsPage() {
       cell: (row) =>
         row.state === "Ready" ? (
           <Button variant="secondary" size="sm" onClick={() => setPreviewId(row.id)}>
-            Preview
+            View report
           </Button>
         ) : (
           <Button variant="secondary" size="sm" asChild>
