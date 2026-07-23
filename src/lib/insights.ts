@@ -144,7 +144,7 @@ export function deriveTrends(campaigns: Campaign[], polsts: SinglePolst[]): Tren
     });
   }
 
-  // 2 · Completion — of everyone who starts a chain, how many finish.
+  // 2 · Finish rate — of everyone who starts a chain, how many finish.
   const done7 = pct1(
     totalWindow(campaigns, [], "completed", s7, e7),
     totalWindow(campaigns, [], "voters", s7, e7),
@@ -157,7 +157,7 @@ export function deriveTrends(campaigns: Campaign[], polsts: SinglePolst[]): Tren
     const arrow = done7 > done30 + 1 ? "up" : done7 < done30 - 1 ? "down" : "flat";
     const drop = biggestDrop(campaigns);
     entries.push({
-      metric: "Completion",
+      metric: "Finish rate",
       arrow,
       tone: arrow === "up" ? "good" : arrow === "down" ? "bad" : "neutral",
       current: `${done7}% this week`,

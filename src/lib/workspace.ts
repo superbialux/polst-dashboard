@@ -1448,7 +1448,7 @@ const buildStats = (
     ...(comparable ? { previous: downsampleCounts(prev!.votes) } : {}),
   };
   const engagement: Stat = {
-    label: "Engagement rate",
+    label: "View-to-vote rate",
     value: w.engagementRate !== null ? fmtPct(w.engagementRate, 1) : "—",
     ...deltaParts(w.engagementRate ?? 0, prevEngagement),
     spark: downsampleRate(cur.votes, cur.views),
@@ -1468,7 +1468,7 @@ const buildStats = (
   const dates = w.series.views.dates;
   views.annotations = annotateStat("Views", views.spark, dates, events);
   votes.annotations = annotateStat("Votes", votes.spark, dates, events);
-  engagement.annotations = annotateStat("Engagement", engagement.spark, dates, events, true);
+  engagement.annotations = annotateStat("View-to-vote", engagement.spark, dates, events, true);
   completion.annotations = annotateStat("Finish rate", completion.spark, dates, events, true);
 
   const stats = [views, votes, engagement, completion];
@@ -1479,7 +1479,7 @@ const buildStats = (
 const STAT_INFO: Record<string, string> = {
   "Total views": METRIC_INFO.views,
   "Total votes": METRIC_INFO.votes,
-  "Engagement rate": METRIC_INFO.engagementRate,
+  "View-to-vote rate": METRIC_INFO.engagementRate,
   "Finish rate": METRIC_INFO.finishRate,
 };
 

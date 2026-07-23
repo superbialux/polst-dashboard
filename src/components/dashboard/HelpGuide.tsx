@@ -20,7 +20,7 @@ const METRIC_ROWS: Array<{ term: string; def: string }> = [
   { term: "Votes", def: METRIC_INFO.votes },
   { term: "Voters", def: METRIC_INFO.voters },
   { term: "Finish rate", def: METRIC_INFO.finishRate },
-  { term: "Engagement rate", def: METRIC_INFO.engagementRate },
+  { term: "View-to-vote rate", def: METRIC_INFO.engagementRate },
   { term: "Interactions", def: METRIC_INFO.interactions },
   { term: "Evidence strength", def: METRIC_INFO.confidence },
 ];

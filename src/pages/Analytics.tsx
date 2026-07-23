@@ -69,6 +69,7 @@ import {
   STAT_XTICKS,
   WORKSPACE,
   campaignSeries,
+  decideSeconds,
   polstOptions,
   polstSeries,
   readyTitle,
@@ -333,6 +334,8 @@ type PolstPerfRow = {
   options: [PollOption, PollOption];
   views: number;
   votes: number;
+  /** Seconds a voter deliberates on this question (decideSeconds). */
+  decideSeconds: number;
 };
 
 function buildPolstPerf(rows: SegmentRow[], polsts: SinglePolst[]): PolstPerfRow[] {
@@ -349,7 +352,14 @@ function buildPolstPerf(rows: SegmentRow[], polsts: SinglePolst[]): PolstPerfRow
       const polst = polsts.find((p) => p.id === id) ?? SINGLE_POLSTS.find((p) => p.id === id);
       if (!polst) return [];
       return [
-        { id, question: polst.question, options: polstOptions(polst), views: m.views, votes: m.votes },
+        {
+          id,
+          question: polst.question,
+          options: polstOptions(polst),
+          views: m.views,
+          votes: m.votes,
+          decideSeconds: decideSeconds(polst.id, polst.splitA),
+        },
       ];
     })
     .sort((a, b) => b.views - a.views);
@@ -376,10 +386,19 @@ const polstPerfColumns: Array<DataColumn<PolstPerfRow>> = [
     cell: (row) => <span className="tabular-nums">{fmtInt(row.votes)}</span>,
   },
   {
-    header: "Votes / view",
+    header: "View-to-vote",
     align: "right",
     sort: (row) => (row.views > 0 ? row.votes / row.views : -1),
     cell: (row) => <span className="tabular-nums">{pct(row.votes, row.views, 1)}</span>,
+  },
+  {
+    // The polst-native diagnostic: seconds a voter deliberates before
+    // picking a side — tighter races take longer.
+    header: "Avg time",
+    info: "Average seconds a voter spends on the question before picking a side.",
+    align: "right",
+    sort: (row) => row.decideSeconds,
+    cell: (row) => <span className="tabular-nums">{row.decideSeconds}s</span>,
   },
 ];
 
@@ -407,8 +426,8 @@ const categoryColumns: Array<DataColumn<CategoryRow>> = [
   },
   {
     // An aggregate across every content in the category — canon's
-    // "engagement rate", not the per-content "votes / view".
-    header: "Engagement",
+    // votes ÷ views, spoken as the audit's view-to-vote rate.
+    header: "View-to-vote",
     align: "right",
     sort: (row) => row.engagementRate ?? -1,
     cell: (row) => (
@@ -552,7 +571,7 @@ export function AnalyticsOverviewPage() {
       previous: prevDaily?.votes,
     },
     {
-      label: "Engagement rate",
+      label: "View-to-vote rate",
       value: pct(votes, views, 1),
       ...heroDelta(engagement ?? 0, prevEngagement),
       info: METRIC_INFO.engagementRate,
@@ -599,8 +618,8 @@ export function AnalyticsOverviewPage() {
       ["Total votes", votes],
       ["Voters", voters],
       ["Completed", completed],
-      ["Engagement rate", pct(votes, views, 1)],
-      ["Completion rate", pct(completed, voters, 1)],
+      ["View-to-vote rate", pct(votes, views, 1)],
+      ["Finish rate", pct(completed, voters, 1)],
       [],
       ["Campaign", "Status", "Started", "Completed", "Finish rate"],
       ...campaignPerf.map((row) => [
@@ -703,7 +722,7 @@ export function AnalyticsOverviewPage() {
       <DashboardCard
         title="Categories"
         padded={false}
-        action={<InfoHint label="Engagement" text={METRIC_INFO.engagementRate} />}
+        action={<InfoHint label="View-to-vote" text={METRIC_INFO.engagementRate} />}
       >
         <DataTable rows={categories} columns={categoryColumns} />
       </DashboardCard>
