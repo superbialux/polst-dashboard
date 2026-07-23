@@ -713,6 +713,8 @@ export function CreateCampaignPage() {
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  // Removal always confirms first — the campaign detail's exact pattern.
+  const [removeTarget, setRemoveTarget] = useState<ChainQuestion | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const [sourceLibraryOpen, setSourceLibraryOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -1110,10 +1112,7 @@ export function CreateCampaignPage() {
                           aria-label={`Remove ${q.question} from the chain`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (draftId) {
-                              removeChainQuestion(draftId, q.id);
-                              settleSave();
-                            }
+                            setRemoveTarget(q);
                           }}
                         >
                           <Icon name="close" size={18} />
@@ -1415,6 +1414,30 @@ export function CreateCampaignPage() {
               settleSave();
             }}
           />
+          <ConfirmModal
+            open={removeTarget !== null}
+            onClose={() => setRemoveTarget(null)}
+            label="Remove polst from campaign"
+            title="Remove this polst?"
+            tone="danger"
+            confirmLabel="Remove polst"
+            onConfirm={() => {
+              if (removeTarget) {
+                removeChainQuestion(draftCampaign.id, removeTarget.id);
+                settleSave();
+                toast("Polst removed from the chain");
+              }
+              setRemoveTarget(null);
+            }}
+          >
+            {removeTarget ? (
+              <>
+                “{removeTarget.question}” leaves the voting sequence, and the questions after
+                it move up one position. Nothing is lost for good — you can add it back from
+                the library.
+              </>
+            ) : null}
+          </ConfirmModal>
         </>
       ) : null}
     </DashboardPage>
