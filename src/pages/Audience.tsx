@@ -9,23 +9,26 @@ import {
   GeoMap,
   MixBars,
   SectionGrid,
-  StatTile,
+  StatsStrip,
   TimeHeatmap,
   type DataColumn,
 } from "@/components/dashboard";
 import { RateCell } from "@/components/dashboard";
 import { METRIC_INFO, fmtInt, fmtPct } from "@/lib/canon";
-import { windowTileDelta } from "@/lib/engine";
+import { ratioDelta, windowDelta } from "@/lib/engine";
 import {
   HEATMAP_BUCKETS,
   HEATMAP_DAYS,
+  STAT_XTICKS,
   answerHeat,
   browserMix,
   countryMix,
   deviceMixCounts,
   platformMix,
+  windowMetricSpark,
   workspaceWindow,
   type CountryRow,
+  type Stat,
   type WindowRange,
 } from "@/lib/workspace";
 
@@ -36,11 +39,11 @@ import {
    income stay locked until respondent-level collection exists; nothing
    here is invented. */
 
-/** The tile's delta line rides the shared windowTileDelta. The window and
- *  its comparison period are stated ONCE at band level — tiles never repeat
- *  the dates, so the compare label stays generic. */
-const VS_PREVIOUS = "vs the previous period";
-const NO_CHANGE = { zeroDetail: `No change ${VS_PREVIOUS}` };
+/** A % change folded into the strip cell's chip anatomy. */
+const stripDelta = (delta: number | null): Pick<Stat, "delta" | "trend"> => ({
+  delta: delta === null ? "—" : `${Math.abs(delta)}%`,
+  trend: delta === null || delta === 0 ? "flat" : delta > 0 ? "up" : "down",
+});
 
 /** The busiest day × 2-hour cell, spoken in the heatmap's own labels. */
 const peakLabel = (heat: number[][]): string => {
@@ -94,44 +97,47 @@ export function AudiencePage() {
   const prevVotesPerVoter =
     w.prev && w.prev.voters > 0 ? w.prev.votes / w.prev.voters : null;
 
-  const tiles = [
+  /* The Home stat-strip anatomy, folded by default (the quieter-page
+     contract). Voters and views carry the window's real daily series;
+     votes per voter is a ratio without a daily shape, so its cell stays
+     sparkless and borrows the chart per the strip's built-in contract. */
+  const stats: Stat[] = [
     {
       label: "Voters",
       value: fmtInt(w.voters),
       info: METRIC_INFO.voters,
-      ...windowTileDelta(w.voters, w.prev?.voters, VS_PREVIOUS, NO_CHANGE),
+      ...stripDelta(w.prev ? windowDelta(w.voters, w.prev.voters) : null),
+      ...windowMetricSpark(range, "voters"),
     },
     {
       label: "Views",
       value: fmtInt(w.views),
       info: METRIC_INFO.views,
-      ...windowTileDelta(w.views, w.prev?.views, VS_PREVIOUS, NO_CHANGE),
+      ...stripDelta(w.prev ? windowDelta(w.views, w.prev.views) : null),
+      ...windowMetricSpark(range, "views"),
     },
     {
       label: "Votes per voter",
       value: votesPerVoter !== null ? votesPerVoter.toFixed(1) : "—",
       info: METRIC_INFO.votesPerVoter,
-      ...windowTileDelta(votesPerVoter, prevVotesPerVoter, VS_PREVIOUS, {
-        ...NO_CHANGE,
-        basis: "ratio",
-      }),
+      ...stripDelta(ratioDelta(votesPerVoter, prevVotesPerVoter)),
     },
   ];
 
   return (
     <DashboardPage>
-      {/* Controls ride tight above the tiles — the list pages' gap. The
-          tiles' delta chips already state the comparison, so no band
-          label repeats the dates. */}
+      {/* Controls ride tight above the strip — the list pages' gap. The
+          strip states the comparison window once at scope level. */}
       <section className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <DateRangeMenu value={range} onChange={setRange} />
         </div>
-        <SectionGrid>
-          {tiles.map((tile) => (
-            <StatTile key={tile.label} className="lg:col-span-4" {...tile} />
-          ))}
-        </SectionGrid>
+        <StatsStrip
+          stats={stats}
+          xTicks={STAT_XTICKS[range]}
+          scopeLabel={w.compareLabel ?? undefined}
+          collapsible
+        />
       </section>
 
       {/* ONE grid for all four cards: vertical gaps match the horizontal
