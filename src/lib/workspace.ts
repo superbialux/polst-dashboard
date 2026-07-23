@@ -1928,6 +1928,25 @@ export const deviceMixCounts = (range: WindowRange): Array<{ label: string; valu
   return DEVICE_SHARES.map((s, i) => ({ label: s.label, value: counts[i] }));
 };
 export const platformMix = (range: WindowRange): MixSlice[] => mixFor(PLATFORM_SHARES, range);
+
+/* ── Interaction breakdown ───────────────────────────────────────────
+   One polst's interactions split into likes / shares / reposts — the
+   authored base shares tilted per polst (the audience pattern), with
+   exact allocation so the parts always sum to the stated total. */
+const INTERACTION_SHARES = [
+  { label: "likes", value: 62 },
+  { label: "shares", value: 26 },
+  { label: "reposts", value: 12 },
+];
+
+export const interactionMix = (p: {
+  id: string;
+  interactions: number;
+}): Array<{ label: string; value: number }> => {
+  const shares = tiltedShares(INTERACTION_SHARES, p.id);
+  const counts = allocate(p.interactions, shares.map((s) => s.value));
+  return INTERACTION_SHARES.map((s, i) => ({ label: s.label, value: counts[i] }));
+};
 export const browserMix = (range: WindowRange): MixSlice[] => mixFor(BROWSER_SHARES, range);
 
 /* ── Per-campaign audience (device & geography) ──────────────────────

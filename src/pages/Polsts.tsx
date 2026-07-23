@@ -58,17 +58,21 @@ import {
   fmtDateRange,
   fmtInt,
   fmtPct,
+  pct,
   relativeToToday,
   signalFor,
 } from "@/lib/canon";
 import { cn } from "@/lib/utils";
 import {
+  decideSeconds,
+  interactionMix,
   polstImage,
   polstOptions,
   polstSeries,
   shareUrl,
   verdictLabel,
   voteVelocity,
+  type Source,
   type SinglePolst,
   type Category,
   type Stat,
@@ -595,14 +599,72 @@ export function PolstDetailPage() {
       value: fmtInt(polst.interactions),
       delta: "—",
       trend: "flat",
+      // Never an unexplained total: the breakdown rides the cell itself.
+      detail:
+        polst.interactions > 0
+          ? interactionMix(polst)
+              .map((slice) => `${fmtInt(slice.value)} ${slice.label}`)
+              .join(" · ")
+          : undefined,
       info: METRIC_INFO.interactions,
     },
     {
-      label: "Votes / view",
+      label: "View-to-vote rate",
       value: polst.engagementRate !== null ? fmtPct(polst.engagementRate, 1) : "—",
       delta: "—",
       trend: "flat",
       info: METRIC_INFO.votesPerView,
+    },
+  ];
+
+  /* Source performance — where voters came from and how well each
+     source converted attention. Rows open the source detail. */
+  const sourceColumns: Array<DataColumn<Source>> = [
+    {
+      header: "Source",
+      sort: (s) => s.name.toLowerCase(),
+      cell: (s) => (
+        <span className="block min-w-0">
+          <span className="block truncate font-display font-semibold text-text-primary">
+            {s.name}
+          </span>
+          <span className="block text-xs text-text-secondary">
+            {s.kind} · {s.channel}
+          </span>
+        </span>
+      ),
+    },
+    {
+      header: "Views",
+      align: "right",
+      sort: (s) => s.views,
+      cell: (s) => (
+        <span className="tabular-nums">{s.views > 0 ? fmtInt(s.views) : "—"}</span>
+      ),
+    },
+    {
+      header: "Voters",
+      align: "right",
+      sort: (s) => s.voters,
+      cell: (s) => (
+        <span className="tabular-nums">{s.voters > 0 ? fmtInt(s.voters) : "—"}</span>
+      ),
+    },
+    {
+      header: "View-to-vote",
+      info: "Voters ÷ views for this source — how well its reach converts.",
+      align: "right",
+      sort: (s) => (s.views > 0 ? s.voters / s.views : -1),
+      cell: (s) => <span className="tabular-nums">{pct(s.voters, s.views)}</span>,
+    },
+    {
+      header: "Last activity",
+      sort: (s) => s.lastActivity ?? "",
+      cell: (s) => (
+        <span className="text-text-secondary">
+          {s.lastActivity ? relativeToToday(s.lastActivity) : "—"}
+        </span>
+      ),
     },
   ];
 
@@ -798,6 +860,14 @@ export function PolstDetailPage() {
             {polst.votes > 0 ? (
               <DashboardCard title="Results" action={verdictLine}>
                 <PollResults options={polstOptions(polst)} />
+                {/* The polst-native diagnostic, as one checkable sentence. */}
+                <p className="mt-4 border-t border-border-default pt-3 text-sm text-text-secondary">
+                  Voters take{" "}
+                  <span className="font-semibold text-text-primary">
+                    {decideSeconds(polst.id, polst.splitA)}s
+                  </span>{" "}
+                  on average to pick a side.
+                </p>
               </DashboardCard>
             ) : null}
             {velocity ? (
@@ -848,57 +918,6 @@ export function PolstDetailPage() {
               ]}
             />
           </DashboardCard>
-          {/* A row IS the way in — click opens the source's detail (stats,
-              its working asset, guarded unassign), Distribution's contract. */}
-          <DashboardCard
-            title="Sources"
-            padded={polstSources.length === 0}
-            action={
-              assignable ? (
-                <Button variant="secondary" size="sm" onClick={() => setAssignOpen(true)}>
-                  <Icon name="add" size={18} />
-                  Assign source
-                </Button>
-              ) : undefined
-            }
-          >
-            {polstSources.length > 0 ? (
-              <ul className="divide-y divide-border-default">
-                {polstSources.map((s) => (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      onClick={() => setDetailId(s.id)}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-subtle"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-text-primary">
-                          {s.name}
-                        </span>
-                        <span className="block text-xs text-text-secondary">
-                          {s.kind} · {s.channel}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-sm tabular-nums text-text-secondary">
-                        {s.voters > 0 ? `${fmtInt(s.voters)} voters` : "—"}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState
-                icon="hub"
-                title="No sources yet"
-                action={
-                  assignable
-                    ? { label: "Assign source", onClick: () => setAssignOpen(true) }
-                    : undefined
-                }
-              />
-            )}
-          </DashboardCard>
-
           {/* Deleting is for runs that never collected — the store's
               evidence law, stated on the disabled control itself. */}
           <DashboardCard title="Danger zone">
@@ -918,6 +937,40 @@ export function PolstDetailPage() {
           </DashboardCard>
         </div>
       </SectionGrid>
+
+      {/* Source performance, full width — the drill-down's where-did-
+          voters-come-from record. A row IS the way in (stats, working
+          asset, guarded unassign), Distribution's contract. */}
+      <DashboardCard
+        title="Sources"
+        padded={polstSources.length === 0}
+        action={
+          assignable ? (
+            <Button variant="secondary" size="sm" onClick={() => setAssignOpen(true)}>
+              <Icon name="add" size={18} />
+              Assign source
+            </Button>
+          ) : undefined
+        }
+      >
+        {polstSources.length > 0 ? (
+          <DataTable
+            rows={polstSources}
+            columns={sourceColumns}
+            onRowClick={(s) => setDetailId(s.id)}
+          />
+        ) : (
+          <EmptyState
+            icon="hub"
+            title="No sources yet"
+            action={
+              assignable
+                ? { label: "Assign source", onClick: () => setAssignOpen(true) }
+                : undefined
+            }
+          />
+        )}
+      </DashboardCard>
 
       <ConfirmModal
         open={endOpen}
