@@ -896,6 +896,14 @@ function DeltaChip({ delta, trend = "flat" }: { delta: string; trend?: Stat["tre
  *  the series it actually draws, so the fallback never mislabels. The
  *  dashed previous-period line is the data layer's real previous series —
  *  when a stat carries none, the chart simply shows the current period. */
+/* Tailwind needs the class literal, so the count maps statically. */
+const STRIP_COLS: Record<number, string> = {
+  1: "lg:grid-cols-1",
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+};
+
 export function StatsStrip({
   stats,
   xTicks,
@@ -928,7 +936,15 @@ export function StatsStrip({
         className,
       )}
     >
-      <div className={cn("grid grid-cols-2 lg:grid-cols-4", open && "border-b border-border-default")}>
+      <div
+        className={cn(
+          // One row at lg sized to the stat count — three stats fill the
+          // width rather than leaving a ghost fourth slot.
+          "grid grid-cols-2",
+          STRIP_COLS[Math.min(stats.length, 4)],
+          open && "border-b border-border-default",
+        )}
+      >
         {stats.map((stat, i) => (
           <button
             key={stat.label}
