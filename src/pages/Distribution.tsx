@@ -98,9 +98,18 @@ const TAB_FORMAT: Record<Exclude<DistTab, "Overview">, Source["kind"]> = {
   Embeds: "Embed",
 };
 
+/* The pager's honest-range noun — sentence case except the initialism. */
+const TAB_NOUN: Record<Exclude<DistTab, "Overview">, string> = {
+  "Share links": "share links",
+  "QR codes": "QR codes",
+  Embeds: "embeds",
+};
+
 const FORMAT_FILTERS = ["All formats", ...SOURCE_KINDS] as const;
 const CHANNEL_FILTERS = ["All channels", ...CHANNELS] as const;
 const PAGE_SIZE = 25;
+/* Card grids page in whole rows: 12 is 4 rows of 3 (lg), 6 rows of 2 (sm). */
+const CARD_PAGE_SIZE = 12;
 
 const COMPLETION_SCOPE = `${METRIC_INFO.completionRate} Ranked across campaign sources — a single-question polst always completes.`;
 
@@ -147,6 +156,8 @@ export function DistributionPage() {
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [page, setPage] = useState(0);
+  /* The format tabs' card grid pages independently of the Overview table. */
+  const [cardPage, setCardPage] = useState(0);
   const [sort, setSort] = useState<SortState | null>(null);
 
   const metaFor = (s: Source): LinkedMeta | null => {
@@ -375,10 +386,17 @@ export function DistributionPage() {
 
   const detail = detailId ? sources.find((s) => s.id === detailId) ?? null : null;
 
-  /* The current format tab's slice and totals (Overview skips this). */
+  /* The current format tab's slice and totals (Overview skips this).
+     Strip stats always cover the WHOLE format — only the card grid pages. */
   const tabFormat = tab === "Overview" ? null : TAB_FORMAT[tab];
   const tabSources = tabFormat ? ordered.filter((s) => s.kind === tabFormat) : [];
   const tabTotals = formatTotals(tabSources);
+  const cardPageCount = Math.max(1, Math.ceil(tabSources.length / CARD_PAGE_SIZE));
+  const safeCardPage = Math.min(cardPage, cardPageCount - 1);
+  const cardPageSources = tabSources.slice(
+    safeCardPage * CARD_PAGE_SIZE,
+    (safeCardPage + 1) * CARD_PAGE_SIZE,
+  );
 
   /* The format tab's strip: count, run-to-date volume, and completion
      are facts without a daily shape; voters gets the format's real
@@ -436,17 +454,39 @@ export function DistributionPage() {
           Add source
         </Button>
       }
-      tabs={<HeaderTabs tabs={DIST_TAB_KEYS} active={tab} onChange={setTab} />}
-      // The pager rides the fixed footer band — but only under the list.
-      footer={tab === "Overview" && rows.length ? (
-        <TablePagination
-          page={safePage}
-          pageSize={PAGE_SIZE}
-          total={rows.length}
-          onPage={setPage}
-          noun="sources"
+      tabs={
+        <HeaderTabs
+          tabs={DIST_TAB_KEYS}
+          active={tab}
+          onChange={(t) => {
+            setTab(t);
+            setCardPage(0);
+          }}
         />
-      ) : null}
+      }
+      // The pager rides the fixed footer band — under the Overview table
+      // or a format tab's card grid, never over an empty state.
+      footer={
+        tab === "Overview" ? (
+          rows.length ? (
+            <TablePagination
+              page={safePage}
+              pageSize={PAGE_SIZE}
+              total={rows.length}
+              onPage={setPage}
+              noun="sources"
+            />
+          ) : null
+        ) : tabSources.length ? (
+          <TablePagination
+            page={safeCardPage}
+            pageSize={CARD_PAGE_SIZE}
+            total={tabSources.length}
+            onPage={setCardPage}
+            noun={TAB_NOUN[tab]}
+          />
+        ) : null
+      }
     >
       {tab === "Overview" ? (
         <>
@@ -534,7 +574,7 @@ export function DistributionPage() {
 
           {tabSources.length ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {tabSources.map((s) => {
+              {cardPageSources.map((s) => {
                 const m = metaFor(s);
                 return (
                   <AssetCard
