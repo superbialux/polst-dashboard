@@ -311,7 +311,11 @@ export function CampaignsPage() {
   const { campaigns, sources } = useWorkspace();
   const navigate = useNavigate();
   const [active, setActive] = useState<string>("All");
-  const [view, setView] = useState<"list" | "grid">("list");
+  /* Narrow screens open on the card grid — the table's seven columns
+     clip below md, and clipped columns hide the primary campaign facts. */
+  const [view, setView] = useState<"list" | "grid">(() =>
+    window.matchMedia("(max-width: 767px)").matches ? "grid" : "list",
+  );
   const [query, setQuery] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");

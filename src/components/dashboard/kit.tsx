@@ -88,7 +88,7 @@ export function HeaderTabs<T extends string>({
   onChange: (tab: T) => void;
 }) {
   return (
-    <nav aria-label="Page sections" className="flex gap-5">
+    <nav aria-label="Page sections" className="scroll-subtle flex gap-5 overflow-x-auto">
       {tabs.map((tab) => (
         <button
           key={tab}

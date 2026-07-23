@@ -32,10 +32,11 @@ export type BannerInvite = {
 /** One invitation as its own card: text on the suggestion cards' p-4
  *  scale, the square art flush against the trailing edge. min-h-72 ≈
  *  the suggestion cards' height, so the two Home card rows read as one
- *  rhythm and the 1:1 art fills the height uncropped. */
+ *  rhythm and the 1:1 art fills the height uncropped. Below sm the art
+ *  is hidden, so the height collapses with it — no reserved emptiness. */
 function InviteCard({ invite }: { invite: BannerInvite }) {
   return (
-    <section className="flex min-h-72 items-stretch overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm">
+    <section className="flex items-stretch overflow-hidden rounded-card border border-border-default bg-surface-raised shadow-sm sm:min-h-72">
       <div className="flex min-w-0 flex-1 flex-col items-start p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
           {invite.eyebrow}
