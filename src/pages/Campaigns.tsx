@@ -69,6 +69,7 @@ import {
   type SetupStep,
 } from "@/components/dashboard";
 import {
+  EVIDENCE_LABEL,
   METRIC_INFO,
   TODAY,
   daysBetween,
@@ -1645,8 +1646,8 @@ export function CampaignDetailPage() {
     >
       {/* The audit's contract: the drill-down states the DECISION near the
           top — the campaign name alone says what it's called, not what it
-          settles. One line, every tab. */}
-      {campaign.decision ? (
+          settles. One line, every tab (Insights already leads with it). */}
+      {campaign.decision && tab !== "Insights" ? (
         <p className="-mb-4 font-display text-lg font-semibold leading-6 text-text-primary">
           {campaign.decision}
         </p>
@@ -1662,7 +1663,13 @@ export function CampaignDetailPage() {
       ) : null}
       {tab === "Analytics" ? <CampaignAnalytics campaign={campaign} sources={sources} /> : null}
       {tab === "Insights" ? (
-        <CampaignInsights campaign={campaign} sources={sources} onGoTo={setTab} />
+        <CampaignInsights
+          campaign={campaign}
+          sources={sources}
+          onGoTo={setTab}
+          onEnd={() => setEndOpen(true)}
+          onReport={() => setReportOpen(true)}
+        />
       ) : null}
       {tab === "Polsts" ? <CampaignPolsts campaign={campaign} /> : null}
       {tab === "Sources" ? (
@@ -2337,6 +2344,16 @@ const REVIEW_STATE_TONE: Record<CampaignReviewState, "success" | "accent" | "neu
 /** One ordered chain question: both percentages with the response count,
  *  the participation change from the question before it, and its
  *  plain-language role in the campaign's result. */
+/** One sentence per role — why this polst matters to the decision. */
+const ROLE_WHY: Record<string, string> = {
+  "Decision question": "The campaign readout answers this question.",
+  "Supports the decision": "Same option pair, same leader — it backs the readout.",
+  "Contradicts the decision":
+    "Same option pair, opposite leader — worth a follow-up before acting.",
+  "Adds context": "A different option pair, so it can't confirm or contradict the readout.",
+  Inconclusive: "The margin is under 4 points — too close to support a claim.",
+};
+
 function InsightPolstRow({
   campaign,
   index,
@@ -2356,6 +2373,11 @@ function InsightPolstRow({
       <span className="mt-0.5 w-7 shrink-0 font-display text-sm font-semibold text-text-tertiary">
         Q{index + 1}
       </span>
+      {/* The polst stays visually recognizable as evidence: image OR image. */}
+      <span className="grid h-10 w-14 shrink-0 grid-cols-2 overflow-hidden rounded-md bg-surface-strong">
+        <img src={polstImage(q.id, "a", 120, 160)} alt="" className="h-full w-full object-cover" />
+        <img src={polstImage(q.id, "b", 120, 160)} alt="" className="h-full w-full object-cover" />
+      </span>
       <div className="min-w-0 flex-1 space-y-1">
         <p className="font-display text-sm font-semibold leading-5 text-text-primary">
           {q.question}
@@ -2364,13 +2386,16 @@ function InsightPolstRow({
           {q.splitA}% {q.optionA} · {100 - q.splitA}% {q.optionB} —{" "}
           <span className="tabular-nums">{fmtInt(responses)}</span> responses
         </p>
-        {lost !== null ? (
-          <p className="text-xs leading-4 text-text-tertiary">
-            {lost > 0
-              ? `−${fmtInt(lost)} participants after Q${index} (−${Math.round((lost / prev!) * 100)}%)`
-              : `Held every participant from Q${index}`}
-          </p>
-        ) : null}
+        <p className="text-xs leading-4 text-text-tertiary">
+          {ROLE_WHY[role.label] ?? ""}
+          {lost !== null
+            ? ` ${
+                lost > 0
+                  ? `−${fmtInt(lost)} participants after Q${index} (−${Math.round((lost / prev!) * 100)}%).`
+                  : `Held every participant from Q${index}.`
+              }`
+            : ""}
+        </p>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <Chip tone={role.tone}>{role.label}</Chip>
@@ -2390,10 +2415,14 @@ function CampaignInsights({
   campaign,
   sources,
   onGoTo,
+  onEnd,
+  onReport,
 }: {
   campaign: Campaign;
   sources: Source[];
   onGoTo: (tab: DetailTab) => void;
+  onEnd: () => void;
+  onReport: () => void;
 }) {
   const store = useWorkspace();
   const toast = useToast();
@@ -2460,6 +2489,23 @@ function CampaignInsights({
     { header: "Finish rate", align: "right", cell: (s) => RateCell(s.completionRate) },
   ];
 
+  /* The audit's state table: collecting → sources; ready → end collection;
+     ended unreviewed → record the decision; reviewed → the report. */
+  const live = campaign.status === "Active" || campaign.status === "Paused";
+  const nextAction = live
+    ? isReadyToDecide(campaign)
+      ? { label: "End collection", onClick: onEnd }
+      : { label: "View sources", onClick: () => onGoTo("Sources") }
+    : review
+      ? { label: "View report", onClick: onReport }
+      : {
+          label: "Record decision",
+          onClick: () =>
+            document
+              .getElementById("marketer-review")
+              ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+        };
+
   return (
     <>
       <DashboardCard>
@@ -2476,6 +2522,12 @@ function CampaignInsights({
           {campaign.decision || campaign.name}
         </h2>
         <p className="mt-2 text-sm leading-6 text-text-secondary">{campaignReadout(campaign)}</p>
+        {campaign.confidence !== "—" ? (
+          <p className="mt-2 flex items-center gap-1 text-sm font-semibold text-text-primary">
+            {EVIDENCE_LABEL[campaign.confidence]}
+            <InfoHint label="Evidence strength" text={METRIC_INFO.confidence} />
+          </p>
+        ) : null}
         <p className="mt-2 text-sm leading-5 text-text-secondary">
           {collectionFacts.join(" · ")}
         </p>
@@ -2497,12 +2549,19 @@ function CampaignInsights({
             </ul>
           </div>
         ) : null}
-        {campaign.nextStep ? (
-          <div className="mt-4">
-            <h3 className="font-display text-sm font-semibold text-text-primary">Next action</h3>
+        <div className="mt-4">
+          <h3 className="font-display text-sm font-semibold text-text-primary">Next action</h3>
+          {campaign.nextStep ? (
             <p className="mt-1 text-sm leading-6 text-text-secondary">{campaign.nextStep}</p>
+          ) : null}
+          {/* The audit's state table: the CTA matches where the campaign
+              actually is — never one generic recommendation button. */}
+          <div className="mt-2">
+            <Button variant="secondary" size="sm" onClick={nextAction.onClick}>
+              {nextAction.label}
+            </Button>
           </div>
-        ) : null}
+        </div>
         {campaign.caveats.length > 0 || campaign.sampleNote ? (
           <div className="mt-4 rounded-md bg-surface-subtle p-4">
             <h3 className="font-display text-sm font-semibold text-text-primary">
@@ -2554,7 +2613,8 @@ function CampaignInsights({
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Marketer review" className="lg:col-span-5">
+        <div id="marketer-review" className="lg:col-span-5">
+        <DashboardCard title="Marketer review">
           {review ? (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -2611,6 +2671,7 @@ function CampaignInsights({
             </Button>
           </div>
         </DashboardCard>
+        </div>
       </SectionGrid>
     </>
   );
