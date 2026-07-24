@@ -233,8 +233,6 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
           kbd="⌘K"
           aria-keyshortcuts="Meta+K Control+K"
         />
-        {/* Temporary review marker — to be removed. */}
-        <p className="mt-1 px-2 text-micro tabular-nums text-white/45">1422694</p>
       </div>
 
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2">
