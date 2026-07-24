@@ -3247,6 +3247,9 @@ function CampaignSources({
     <>
       <DashboardCard
         title="Sources"
+        // The audit's placement guidance, once: Polst mints the tracked
+        // asset; the marketer places it in the channel it names.
+        description="Polst mints each tracked asset — you place it in its channel. Every scan, click, and vote stays attributed here."
         padded={false}
         action={
           assignable ? (
