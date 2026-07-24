@@ -3,6 +3,9 @@ node_modules/
 
 # Build output
 dist/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 
 # Logs
 *.log
@@ -15,22 +18,11 @@ dist/
 # WSL alternate-data-stream metadata
 *:Zone.Identifier
 
-# Playwright MCP artifacts
+# Local agent tooling — never part of the product
+.claude/
+.agents/
 .playwright-mcp/
 
-# Local preview / debug screenshots (generated during review)
-/polst-*.png
-/ab-*.png
-/nav-*.png
-/search-*.png
-/scroll-*.png
-/bell-*.png
-/poppy.png
-
-# Audit pipeline artifacts
-/audit/
-*.jpeg
-/p3-*.md
-/dash-*.png
-/before.png
-/aisle-*.png
+# Local debug screenshots
+/*.png
+/*.jpeg

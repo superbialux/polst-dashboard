@@ -29,8 +29,8 @@ import {
 /* ══════════════════════════════════════════════════════════════════
    DASHBOARD KIT
    The fixed set of primitives every dashboard page composes from.
-   See DESIGN.md § "Dashboard (Brand Workspace)". No magic values —
-   spacing rides the 4pt scale, panels ride the 12-col SectionGrid.
+   No magic values — spacing rides the 4pt scale, panels ride the
+   12-col SectionGrid.
    ══════════════════════════════════════════════════════════════════ */
 
 /* ── Page scaffold ───────────────────────────────────────────────── */
