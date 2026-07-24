@@ -18,10 +18,11 @@ vite.config.d.ts
 # WSL alternate-data-stream metadata
 *:Zone.Identifier
 
-# Local agent tooling — never part of the product
+# Local agent tooling and working notes — never part of the product
 .claude/
 .agents/
 .playwright-mcp/
+/task/
 
 # Local debug screenshots
 /*.png
